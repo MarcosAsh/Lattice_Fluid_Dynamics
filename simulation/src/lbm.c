@@ -273,6 +273,25 @@ float LBM_ComputeDragCoefficient(LBMGrid* grid, float inletVelocity, float refAr
     return Cd;
 }
 
+float LBM_ComputeLiftCoefficient(LBMGrid* grid, float inletVelocity, float refArea) {
+    float fx, fy, fz;
+    LBM_ComputeDragForce(grid, &fx, &fy, &fz);
+
+    // Lift force is in y direction (vertical)
+    float liftForce = fabsf(fy);
+
+    // Cl = F / (0.5 * rho * U^2 * A)
+    // In lattice units, rho = 1
+    float rho = 1.0f;
+    float dynamicPressure = 0.5f * rho * inletVelocity * inletVelocity;
+
+    if (dynamicPressure * refArea < 1e-10f) return 0.0f;
+
+    float Cl = liftForce / (dynamicPressure * refArea);
+
+    return Cl;
+}
+
 void LBM_SetSolidMesh(LBMGrid* grid, float* triangles, int numTriangles,
                       float minX, float minY, float minZ,
                       float maxX, float maxY, float maxZ) {

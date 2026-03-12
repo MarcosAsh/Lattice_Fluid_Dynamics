@@ -204,10 +204,11 @@ def render_simulation(
         if result.stderr:
             print(f"stderr: {result.stderr[-500:]}")
         
-        # Extract Cd values from stdout.
-        # The simulation skips the first ~3s of Cd output (warmup), so all
-        # values we see here should already be past the startup transient.
+        # Extract Cd and Cl values from stdout.
+        # The simulation skips the first ~3s of output (warmup), so all
+        # values here should already be past the startup transient.
         cd_values = []
+        cl_values = []
         for line in result.stdout.split('\n'):
             if 'Cd=' in line:
                 try:
@@ -215,11 +216,21 @@ def render_simulation(
                     cd_values.append(float(cd_str))
                 except:
                     pass
-        
-        # Get the last stable Cd value (average of last few)
+            if 'Cl=' in line:
+                try:
+                    cl_str = line.split('Cl=')[1].split()[0]
+                    cl_values.append(float(cl_str))
+                except:
+                    pass
+
+        # Get the last stable Cd/Cl values (average of last few)
         cd_value = None
         if cd_values:
             cd_value = sum(cd_values[-5:]) / len(cd_values[-5:])
+
+        cl_value = None
+        if cl_values:
+            cl_value = sum(cl_values[-5:]) / len(cl_values[-5:])
             
         if result.returncode != 0:
             return {"status": "error", "error": f"Crashed: {result.stderr[-300:]}"}
@@ -260,6 +271,7 @@ def render_simulation(
             "model": model,
             "wind_speed": wind_speed,
             "cd_value": cd_value,
+            "cl_value": cl_value,
         }
         
     except subprocess.TimeoutExpired:
@@ -405,5 +417,7 @@ def main(
             print(f"URL: {url}")
     if result.get("cd_value"):
         print(f"Drag Coefficient (Cd): {result['cd_value']:.4f}")
+    if result.get("cl_value"):
+        print(f"Lift Coefficient (Cl): {result['cl_value']:.4f}")
     if result.get("error"):
         print(f"Error: {result['error']}")

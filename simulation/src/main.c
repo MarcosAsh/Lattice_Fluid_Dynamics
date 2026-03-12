@@ -940,8 +940,9 @@ int main(int argc, char* argv[]) {
             float refArea = (carBounds.maxY - carBounds.minY) * scaleY
                           * (carBounds.maxZ - carBounds.minZ) * scaleZ;
             float Cd = LBM_ComputeDragCoefficient(lbmGrid, windSpeed * 0.05f, refArea);
-            
-            printf("  Drag Force: (%.4f, %.4f, %.4f), Cd=%.3f\n", fx, fy, fz, Cd);
+            float Cl = LBM_ComputeLiftCoefficient(lbmGrid, windSpeed * 0.05f, refArea);
+
+            printf("  Drag Force: (%.4f, %.4f, %.4f), Cd=%.3f Cl=%.3f\n", fx, fy, fz, Cd, Cl);
         }
         
         if (maxFrames > 0 && frameCount >= maxFrames) {

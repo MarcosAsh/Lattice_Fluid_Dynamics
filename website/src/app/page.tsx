@@ -116,6 +116,7 @@ export default function Home() {
         const result: SimulationResult = {
           videoUrl: data.video_url,
           cdValue: data.cd_value ?? null,
+          clValue: data.cl_value ?? null,
           model: params.model,
           windSpeed: params.windSpeed,
           timestamp: Date.now(),
