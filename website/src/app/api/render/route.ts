@@ -45,6 +45,7 @@ export async function POST(request: Request) {
       collision_mode: params.collisionMode ?? 1,
       duration: params.duration ?? 10,
       model: params.model ?? 'car',
+      reynolds: params.reynolds ?? 0,
     };
 
     if (params.objData) {

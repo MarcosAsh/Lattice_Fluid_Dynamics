@@ -201,6 +201,18 @@ export default function ControlPanel({ params, setParams, onRender, disabled, ob
           disabled={disabled}
         />
 
+        <Slider
+          label="Reynolds Number"
+          value={params.reynolds}
+          min={0}
+          max={100000}
+          step={500}
+          onChange={(v) => setParams({ ...params, reynolds: v })}
+          display={params.reynolds === 0 ? 'Auto' : params.reynolds.toFixed(0)}
+          hint="Target Re. Auto uses default viscosity."
+          disabled={disabled}
+        />
+
         <hr className="border-ctp-surface1" />
 
         <div className="flex flex-col gap-1">

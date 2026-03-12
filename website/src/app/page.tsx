@@ -15,6 +15,7 @@ export interface SimulationParams {
   duration: number;
   collisionMode: number;
   model: string;
+  reynolds: number;
 }
 
 const VALID_MODELS = new Set(['car', 'ahmed25', 'ahmed35', 'custom']);
@@ -34,11 +35,12 @@ function parseHash(): Partial<SimulationParams> {
   if (p.has('cm')) result.collisionMode = clamp(parseInt(p.get('cm')!), 0, 2);
   if (p.has('d')) result.duration = clamp(parseInt(p.get('d')!), 5, 30);
   if (p.has('m') && VALID_MODELS.has(p.get('m')!)) result.model = p.get('m')!;
+  if (p.has('re')) result.reynolds = clamp(parseFloat(p.get('re')!), 0, 100000);
   return result;
 }
 
 function writeHash(params: SimulationParams) {
-  const hash = `ws=${params.windSpeed}&vm=${params.vizMode}&cm=${params.collisionMode}&d=${params.duration}&m=${params.model}`;
+  const hash = `ws=${params.windSpeed}&vm=${params.vizMode}&cm=${params.collisionMode}&d=${params.duration}&m=${params.model}&re=${params.reynolds}`;
   window.history.replaceState(null, '', `#${hash}`);
 }
 
@@ -50,6 +52,7 @@ export default function Home() {
       duration: 10,
       collisionMode: 1,
       model: 'car',
+      reynolds: 0,
     };
     return { ...defaults, ...parseHash() };
   });

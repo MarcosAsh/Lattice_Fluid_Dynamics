@@ -110,6 +110,7 @@ def render_simulation(
     duration: int = 10,
     model: str = "car",
     obj_data: str | None = None,
+    reynolds: float = 0,
 ) -> dict:
     import time
     
@@ -193,6 +194,9 @@ def render_simulation(
             cmd.append(f"--model={model_path}")
         else:
             print("Warning: binary does not support --model; using default compiled model.")
+
+        if reynolds > 0:
+            cmd.append(f"--reynolds={reynolds}")
         
         result = subprocess.run(
             cmd, cwd=str(source_dir), env=env,
@@ -335,6 +339,7 @@ def render_endpoint(data: dict) -> dict:
         duration=int(data.get("duration", 10)),
         model=data.get("model", "car"),
         obj_data=data.get("obj_data"),
+        reynolds=float(data.get("reynolds", 0)),
     )
     
     callback_url = data.get("callback_url")

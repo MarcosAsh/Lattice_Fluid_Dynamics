@@ -291,6 +291,7 @@ int main(int argc, char* argv[]) {
     char outputPath[256] = "";
     char modelPath[512] = "assets/3d-files/car-model.obj";
     int slantAngle = 0;
+    float reynoldsNumber = 0.0f;
 
     static struct option long_options[] = {
         {"wind", required_argument, 0, 'w'},
@@ -301,13 +302,14 @@ int main(int argc, char* argv[]) {
         {"model", required_argument, 0, 'm'},
         {"angle", required_argument, 0, 'a'},
         {"scale", required_argument, 0, 's'},
+        {"reynolds", required_argument, 0, 'r'},
         {"help", no_argument, 0, 'h'},
         {0, 0, 0, 0}
         
     };
 
     int opt;
-    while ((opt = getopt_long(argc, argv, "w:v:c:d:o:m:a:h", long_options, NULL)) != -1) {
+    while ((opt = getopt_long(argc, argv, "w:v:c:d:o:m:a:r:s:h", long_options, NULL)) != -1) {
         switch (opt) {
             case 'w':
                 windSpeed = atof(optarg);
@@ -345,6 +347,10 @@ int main(int argc, char* argv[]) {
             case 's':
                 g_modelScale = atof(optarg);
                 break;
+            case 'r':
+                reynoldsNumber = atof(optarg);
+                if (reynoldsNumber < 0) reynoldsNumber = 0;
+                break;
             case 'h':
             default:
                 printf("Usage: %s [options]\n", argv[0]);
@@ -357,6 +363,7 @@ int main(int argc, char* argv[]) {
                 printf("  -m, --model=PATH      Path to OBJ model file\n");
                 printf("  -a, --angle=DEGREES   Ahmed body slant angle (25 or 35)\n");
                 printf("  -s, --scale=SCALE     Model scale factor (default: 0.05)\n");
+                printf("  -r, --reynolds=RE     Target Reynolds number (0=fixed viscosity)\n");
                 printf("  -h, --help            Show this help\n");
                 return 0;
         }
@@ -369,6 +376,8 @@ int main(int argc, char* argv[]) {
     printf("  Wind Speed: %.1f m/s\n", windSpeed);
     printf("  Visualization: %d\n", visualizationMode);
     printf("  Collision: %d\n", collisionMode);
+    if (reynoldsNumber > 0)
+        printf("  Reynolds: %.0f\n", reynoldsNumber);
 
     if (renderDuration > 0) {
         printf("  Render Mode: %d seconds to %s\n", renderDuration, outputPath);
@@ -575,7 +584,22 @@ int main(int argc, char* argv[]) {
         lbmSizeZ = 24;
     }
     float lbmViscosity = 0.1f;
-    
+
+    if (reynoldsNumber > 0) {
+        float scaleX = lbmSizeX / 8.0f;
+        float charLength = (carBounds.maxX - carBounds.minX) * scaleX;
+        float latticeVelocity = windSpeed * 0.05f;
+        lbmViscosity = (latticeVelocity * charLength) / reynoldsNumber;
+        float tau = 3.0f * lbmViscosity + 0.5f;
+        printf("Reynolds number: %.0f\n", reynoldsNumber);
+        printf("  Characteristic length: %.1f lattice units\n", charLength);
+        printf("  Computed viscosity: %.6f\n", lbmViscosity);
+        printf("  Relaxation time (tau): %.4f\n", tau);
+        if (tau <= 0.5f) {
+            printf("  WARNING: tau <= 0.5 -- simulation will be unstable. Lower Re or wind speed.\n");
+        }
+    }
+
     printf("Initializing LBM grid...\n");
     lbmGrid = LBM_Create(lbmSizeX, lbmSizeY, lbmSizeZ, lbmViscosity);
     
