@@ -204,7 +204,9 @@ def render_simulation(
         if result.stderr:
             print(f"stderr: {result.stderr[-500:]}")
         
-        # Extract Cd values from stdout
+        # Extract Cd values from stdout.
+        # The simulation skips the first ~3s of Cd output (warmup), so all
+        # values we see here should already be past the startup transient.
         cd_values = []
         for line in result.stdout.split('\n'):
             if 'Cd=' in line:

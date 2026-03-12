@@ -928,8 +928,9 @@ int main(int argc, char* argv[]) {
             checkGLError("After rendering model");
         }
         
-        // Compute and display drag coefficient every 60 frames
-        if (frameCount % 60 == 0 && lbmGrid && useLBM) {
+        // Compute and display drag coefficient every 60 frames.
+        // Skip the first 180 frames (~3s at 60fps) to avoid startup oscillation.
+        if (frameCount > 180 && frameCount % 60 == 0 && lbmGrid && useLBM) {
             float fx, fy, fz;
             LBM_ComputeDragForce(lbmGrid, &fx, &fy, &fz);
             
