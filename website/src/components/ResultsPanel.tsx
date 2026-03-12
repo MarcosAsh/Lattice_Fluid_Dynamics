@@ -52,26 +52,26 @@ export default function ResultsPanel({ current, history, onSelect }: ResultsPane
 
       {/* Current result summary */}
       {current && (
-        <div className="grid grid-cols-3 gap-2 text-xs mb-3">
-          <div className="border border-ctp-surface1 rounded p-3">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 text-xs mb-3">
+          <div className="border border-ctp-surface1 rounded p-3 min-w-0">
             <div className="text-ctp-overlay1 mb-1">Drag Coefficient</div>
-            <div className="text-2xl font-mono text-ctp-text">
+            <div className="text-lg font-mono text-ctp-text truncate">
               {current.cdValue !== null ? current.cdValue.toFixed(4) : '--'}
             </div>
             <div className="text-ctp-overlay0 mt-0.5">
               C<sub>d</sub>
             </div>
           </div>
-          <div className="border border-ctp-surface1 rounded p-3">
+          <div className="border border-ctp-surface1 rounded p-3 min-w-0">
             <div className="text-ctp-overlay1 mb-1">Lift Coefficient</div>
-            <div className="text-2xl font-mono text-ctp-text">
+            <div className="text-lg font-mono text-ctp-text truncate">
               {current.clValue !== null ? current.clValue.toFixed(4) : '--'}
             </div>
             <div className="text-ctp-overlay0 mt-0.5">
               C<sub>l</sub>
             </div>
           </div>
-          <div className="border border-ctp-surface1 rounded p-3">
+          <div className="border border-ctp-surface1 rounded p-3 col-span-2 lg:col-span-1">
             <div className="text-ctp-overlay1 mb-1">Configuration</div>
             <div className="text-sm text-ctp-text font-medium">
               {MODEL_LABELS[current.model] ?? current.model}
