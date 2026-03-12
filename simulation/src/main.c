@@ -59,6 +59,10 @@ int useLBM = 1;
 LBMGrid* lbmGrid = NULL;
 int lbmSubsteps = 5;
 
+// Pause / single-step
+int paused = 0;
+int stepOnce = 0;
+
 const char* vizModeNames[] = {
     "Depth",
     "Velocity Magnitude",
@@ -693,6 +697,8 @@ int main(int argc, char* argv[]) {
     printf("V:              Cycle visualization mode\n");
     printf("3-9:            Select specific mode\n");
     printf("\nL:              Toggle LBM flow field\n");
+    printf("SPACE:          Pause / resume simulation\n");
+    printf("PERIOD:         Step one frame (while paused)\n");
     printf("ESC:            Quit\n");
     printf("----------------------------------------\n\n");
 
@@ -702,8 +708,9 @@ int main(int argc, char* argv[]) {
     int maxFrames = (renderDuration > 0) ? renderDuration * 60 : 0;
     
     while (running) {
-        frameCount++;
-        
+        if (!paused || stepOnce)
+            frameCount++;
+
         glClearColor(0.05f, 0.05f, 0.1f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -844,6 +851,13 @@ int main(int argc, char* argv[]) {
                         useLBM = !useLBM;
                         printf("LBM: %s\n", useLBM ? "ON" : "OFF");
                         break;
+                    case SDLK_SPACE:
+                        paused = !paused;
+                        printf("Simulation %s at frame %d\n", paused ? "paused" : "resumed", frameCount);
+                        break;
+                    case SDLK_PERIOD:
+                        if (paused) stepOnce = 1;
+                        break;
                 }
             }
         }
@@ -855,8 +869,8 @@ int main(int argc, char* argv[]) {
         float deltaTime = (currentTime - lastTime) / 1000.0f;
         lastTime = currentTime;
 
-        // Run LBM simulation FIRST
-        if (lbmGrid && useLBM) {
+        // Run LBM simulation FIRST (skip when paused unless single-stepping)
+        if (lbmGrid && useLBM && (!paused || stepOnce)) {
             for (int i = 0; i < lbmSubsteps; i++) {
                 LBM_Step(lbmGrid, windSpeed * 0.05f, 0.0f, 0.0f);
             }
@@ -892,9 +906,11 @@ int main(int argc, char* argv[]) {
         // Time uniform for randomness
             if (timeLoc != -1) glUniform1f(timeLoc, (float)SDL_GetTicks() / 1000.0f);
 
-        // Dispatch particle compute
-        glDispatchCompute((GPU_PARTICLES + 255) / 256, 1, 1);
-        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT | GL_VERTEX_ATTRIB_ARRAY_BARRIER_BIT);
+        // Dispatch particle compute (skip when paused unless single-stepping)
+        if (!paused || stepOnce) {
+            glDispatchCompute((GPU_PARTICLES + 255) / 256, 1, 1);
+            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT | GL_VERTEX_ATTRIB_ARRAY_BARRIER_BIT);
+        }
 
         // Render particles
         glUseProgram(particleShaderProgram);
@@ -956,6 +972,7 @@ int main(int argc, char* argv[]) {
             saveFrameToPPM(framePath, WIDTH, HEIGHT);
         }
 
+        stepOnce = 0;
         SDL_GL_SwapWindow(window);
     }
 
