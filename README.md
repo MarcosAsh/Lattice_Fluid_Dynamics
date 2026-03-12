@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="website/public/logo.png" alt="Lattice" height="80">
+</p>
+
 # Lattice
 
 GPU-accelerated wind tunnel that simulates fluid flow around 3D objects using Lattice Boltzmann Methods and OpenGL compute shaders. Written in C with a Next.js web frontend for remote rendering.

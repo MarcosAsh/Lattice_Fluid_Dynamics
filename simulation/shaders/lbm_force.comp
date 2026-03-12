@@ -87,10 +87,11 @@ void main() {
             float fi = f[idxF(pos.x, pos.y, pos.z, i)];
             float fi_opp = f[idxF(pos.x, pos.y, pos.z, opposite[i])];
             
-            // Force on fluid from solid (reaction force on solid is opposite)
-            localForce.x += 2.0 * (fi + fi_opp) * float(e[i].x);
-            localForce.y += 2.0 * (fi + fi_opp) * float(e[i].y);
-            localForce.z += 2.0 * (fi + fi_opp) * float(e[i].z);
+            // Momentum exchange (Mei-Luo-Shyy, post-streaming):
+            // F = e_i * (f_i + f_~i)
+            localForce.x += (fi + fi_opp) * float(e[i].x);
+            localForce.y += (fi + fi_opp) * float(e[i].y);
+            localForce.z += (fi + fi_opp) * float(e[i].z);
         }
     }
     
