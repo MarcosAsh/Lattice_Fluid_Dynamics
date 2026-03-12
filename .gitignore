@@ -44,6 +44,9 @@ website/build/
 # OS
 .DS_Store
 
+# Notes (local only)
+notes/
+
 # Misc
 *.log
 *.mp4
