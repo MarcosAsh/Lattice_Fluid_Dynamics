@@ -4,6 +4,8 @@ export interface SimulationResult {
   videoUrl: string;
   cdValue: number | null;
   clValue: number | null;
+  cdSeries: number[];
+  clSeries: number[];
   model: string;
   windSpeed: number;
   timestamp: number;
@@ -20,6 +22,23 @@ interface ResultsPanelProps {
   current: SimulationResult | null;
   history: SimulationResult[];
   onSelect: (result: SimulationResult) => void;
+}
+
+function downloadCsv(result: SimulationResult) {
+  const rows = ['step,cd,cl'];
+  const len = Math.max(result.cdSeries.length, result.clSeries.length);
+  for (let i = 0; i < len; i++) {
+    const cd = i < result.cdSeries.length ? result.cdSeries[i].toFixed(6) : '';
+    const cl = i < result.clSeries.length ? result.clSeries[i].toFixed(6) : '';
+    rows.push(`${i},${cd},${cl}`);
+  }
+  const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `lattice_${result.model}_w${result.windSpeed.toFixed(1)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 export default function ResultsPanel({ current, history, onSelect }: ResultsPanelProps) {
@@ -62,6 +81,15 @@ export default function ResultsPanel({ current, history, onSelect }: ResultsPane
             </div>
           </div>
         </div>
+      )}
+
+      {current && current.cdSeries.length > 0 && (
+        <button
+          onClick={() => downloadCsv(current)}
+          className="mb-3 bg-ctp-surface0 hover:bg-ctp-surface1 text-ctp-text text-xs font-medium py-1.5 px-3 rounded border border-ctp-surface1 transition-colors"
+        >
+          Export CSV
+        </button>
       )}
 
       {/* Comparison table */}

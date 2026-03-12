@@ -276,6 +276,8 @@ def render_simulation(
             "wind_speed": wind_speed,
             "cd_value": cd_value,
             "cl_value": cl_value,
+            "cd_series": cd_values,
+            "cl_series": cl_values,
         }
         
     except subprocess.TimeoutExpired:

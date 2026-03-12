@@ -120,6 +120,8 @@ export default function Home() {
           videoUrl: data.video_url,
           cdValue: data.cd_value ?? null,
           clValue: data.cl_value ?? null,
+          cdSeries: data.cd_series ?? [],
+          clSeries: data.cl_series ?? [],
           model: params.model,
           windSpeed: params.windSpeed,
           timestamp: Date.now(),
