@@ -187,11 +187,6 @@ export default function Home() {
             duration={params.duration}
             renderStartTime={renderStartTime.current}
           />
-          <ResultsPanel
-            current={currentResult}
-            history={results}
-            onSelect={selectResult}
-          />
           <AboutSection />
         </div>
         <div className="flex-1 flex flex-col gap-4">
@@ -212,6 +207,11 @@ export default function Home() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
             </svg>
           </Link>
+          <ResultsPanel
+            current={currentResult}
+            history={results}
+            onSelect={selectResult}
+          />
         </div>
       </div>
     </main>
