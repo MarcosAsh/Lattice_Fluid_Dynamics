@@ -33,13 +33,20 @@ GLuint loadShader(const char* path, GLenum type) {
     glDeleteShader(shader); // Delete the shader object
     return 0;
   }
+  free(source);
   return shader;
 }
 
 // Create a shader program for vertex and fragment shaders
 GLuint createShaderProgram(const char* vertexPath, const char* fragmentPath) {
   GLuint vertexShader = loadShader(vertexPath, GL_VERTEX_SHADER);
+  if (!vertexShader) return 0;
+
   GLuint fragmentShader = loadShader(fragmentPath, GL_FRAGMENT_SHADER);
+  if (!fragmentShader) {
+    glDeleteShader(vertexShader);
+    return 0;
+  }
 
   GLuint program = glCreateProgram();
   glAttachShader(program, vertexShader);
@@ -52,6 +59,8 @@ GLuint createShaderProgram(const char* vertexPath, const char* fragmentPath) {
     char log[1024];
     glGetProgramInfoLog(program, sizeof(log), NULL, log);
     printf("Shader linking error: %s\n", log);
+    glDeleteShader(vertexShader);
+    glDeleteShader(fragmentShader);
     glDeleteProgram(program);
     return 0;
   }
@@ -64,6 +73,7 @@ GLuint createShaderProgram(const char* vertexPath, const char* fragmentPath) {
 // Create a compute shader program
 GLuint createComputeShader(const char* computePath) {
   GLuint computeShader = loadShader(computePath, GL_COMPUTE_SHADER);
+  if (!computeShader) return 0;
 
   GLuint program = glCreateProgram();
   glAttachShader(program, computeShader);
@@ -75,6 +85,7 @@ GLuint createComputeShader(const char* computePath) {
     char log[1024];
     glGetProgramInfoLog(program, sizeof(log), NULL, log);
     printf("Shader linking error: %s\n", log);
+    glDeleteShader(computeShader);
     glDeleteProgram(program);
     return 0;
   }
