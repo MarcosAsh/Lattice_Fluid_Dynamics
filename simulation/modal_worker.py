@@ -39,23 +39,24 @@ REPO_URL = "https://github.com/MarcosAsh/3dFluidDynamicsInC.git"
 
 @app.function(image=image, volumes={"/cache": build_cache}, timeout=1000)
 def build_simulation() -> str:
-    source_dir = Path("/cache/source")
+    repo_dir = Path("/cache/source")
+    source_dir = repo_dir / "simulation"
     build_dir = Path("/cache/build")
     executable = build_dir / "3d_fluid_simulation_car"
-    
-    if source_dir.exists():
+
+    if repo_dir.exists():
         print("Pulling latest...")
-        subprocess.run(["git", "pull"], cwd=source_dir, capture_output=True)
+        subprocess.run(["git", "pull"], cwd=repo_dir, capture_output=True)
     else:
         print(f"Cloning {REPO_URL}")
         result = subprocess.run(
-            ["git", "clone", "--depth=1", REPO_URL, str(source_dir)],
+            ["git", "clone", "--depth=1", REPO_URL, str(repo_dir)],
             capture_output=True, text=True,
         )
         if result.returncode != 0:
             raise Exception(f"Clone failed: {result.stderr}")
-    
-    # Clean any stale cmake files from the repo
+
+    # Clean any stale cmake files from the source dir
     for f in ["CMakeCache.txt", "cmake_install.cmake", "Makefile"]:
         cache_file = source_dir / f
         if cache_file.exists():
@@ -65,10 +66,10 @@ def build_simulation() -> str:
     if cmake_files_dir.exists():
         shutil.rmtree(cmake_files_dir)
         print("Removed CMakeFiles/")
-    
+
     print("Running cmake...")
     build_dir.mkdir(parents=True, exist_ok=True)
-    
+
     result = subprocess.run(
         ["cmake", str(source_dir), "-DCMAKE_BUILD_TYPE=Release"],
         cwd=build_dir, capture_output=True, text=True,
@@ -122,7 +123,7 @@ def render_simulation(
     
     try:
         executable = Path("/cache/build/3d_fluid_simulation_car")
-        source_dir = Path("/cache/source")
+        source_dir = Path("/cache/source/simulation")
         
         def ensure_built():
             """Make sure we have a fresh binary with the latest CLI flags."""
