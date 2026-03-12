@@ -676,6 +676,33 @@ int main(int argc, char* argv[]) {
         fluidCube = FluidCubeCreate(WIDTH / 10, HEIGHT / 10, 20, 0.001f, 0.0f, 0.001f, &carModel);
     }
 
+    // Print GPU memory estimate
+    {
+        size_t lbmBytes = 0;
+        if (lbmGrid) {
+            size_t cells = (size_t)lbmGrid->sizeX * lbmGrid->sizeY * lbmGrid->sizeZ;
+            lbmBytes += cells * 19 * sizeof(float) * 2;  // f + fNew
+            lbmBytes += cells * 4 * sizeof(float);        // velocity
+            lbmBytes += cells * sizeof(int);               // solid
+            lbmBytes += 4 * sizeof(int);                   // force
+        }
+        size_t triBytes = numTriangles * sizeof(GPUTriangle);
+        size_t particleBytes = GPU_PARTICLES * sizeof(Particle);
+        size_t totalBytes = lbmBytes + triBytes + particleBytes;
+
+        printf("\nGPU memory estimate:\n");
+        if (lbmGrid) {
+            printf("  LBM buffers:      %.1f MB (%dx%dx%d grid)\n",
+                   lbmBytes / (1024.0 * 1024.0),
+                   lbmGrid->sizeX, lbmGrid->sizeY, lbmGrid->sizeZ);
+        }
+        printf("  Triangle mesh:    %.1f MB (%d triangles)\n",
+               triBytes / (1024.0 * 1024.0), numTriangles);
+        printf("  Particle system:  %.1f MB (%d particles)\n",
+               particleBytes / (1024.0 * 1024.0), GPU_PARTICLES);
+        printf("  Total:            %.1f MB\n", totalBytes / (1024.0 * 1024.0));
+    }
+
     printf("\n========================================\n");
     printf("Initialization complete. Starting main loop...\n");
     printf("========================================\n\n");
