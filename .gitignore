@@ -3,7 +3,8 @@ simulation/build/
 simulation/cmake-build-*/
 CMakeFiles/
 CMakeCache.txt
-Makefile
+simulation/**/Makefile
+build/**/Makefile
 *.o
 *.a
 *.so
