@@ -25,6 +25,9 @@ jobs:
       - name: Build
         run: cmake --build build -j$(nproc)
 
+      - name: Smoke test
+        run: ./build/3d_fluid_simulation_car --help
+
   build-website:
     name: Build website (Next.js)
     runs-on: ubuntu-latest
