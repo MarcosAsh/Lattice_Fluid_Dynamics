@@ -34,19 +34,16 @@ log.addHandler(_handler)
 
 app = modal.App("fluid-sim")
 
-# Use NVIDIA's OpenGL image so compute shaders run on the
-# actual T4 GPU instead of software Mesa.
 image = (
-    modal.Image.from_registry(
-        "nvidia/opengl:1.2-glvnd-devel-ubuntu22.04",
-        add_python="3.11",
-    )
+    modal.Image.debian_slim(python_version="3.11")
+    .pip_install("cmake")
     .apt_install(
         "build-essential",
-        "cmake",
         "pkg-config",
         "git",
+        "libgl1-mesa-dev",
         "libglew-dev",
+        "libglu1-mesa-dev",
         "libsdl2-dev",
         "libsdl2-ttf-dev",
         "libegl1-mesa-dev",
@@ -54,12 +51,14 @@ image = (
         "x11-utils",
         "ffmpeg",
         "mesa-utils",
+        "libosmesa6-dev",
     )
     .pip_install("requests", "fastapi[standard]", "boto3")
     .env(
         {
             "DISPLAY": ":99",
-            "NVIDIA_DRIVER_CAPABILITIES": "all",
+            "MESA_GL_VERSION_OVERRIDE": "4.3",
+            "LIBGL_ALWAYS_SOFTWARE": "1",
         }
     )
 )
@@ -127,8 +126,6 @@ def build_simulation() -> str:
             "cmake",
             str(source_dir),
             "-DCMAKE_BUILD_TYPE=Release",
-            "-DCMAKE_C_FLAGS=-DHAVE_EGL",
-            "-DCMAKE_EXE_LINKER_FLAGS=-lEGL",
         ],
         cwd=build_dir,
         capture_output=True,
@@ -324,10 +321,16 @@ def render_simulation(
         )
         supports_model = "--model" in help_text
 
-        # Skip Xvfb -- the EGL path doesn't need X.
-        # If EGL fails and SDL fallback needs X, start it.
+        # Xvfb for software GL rendering
         t_xvfb = time.monotonic()
-        timings["xvfb_start"] = 0
+        log.info("starting xvfb", extra=ctx)
+        xvfb = subprocess.Popen(
+            ["Xvfb", ":99", "-screen", "0", "1920x1080x24"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        time.sleep(2)
+        timings["xvfb_start"] = time.monotonic() - t_xvfb
 
         # Model selection
         model_paths = {
@@ -356,11 +359,9 @@ def render_simulation(
                 model, model_paths["car"]
             )
 
-        # Run simulation headless via EGL.
         env = os.environ.copy()
-        env.pop("DISPLAY", None)
-        env["XDG_RUNTIME_DIR"] = "/tmp"
-        env["SDL_VIDEODRIVER"] = "offscreen"
+        env["DISPLAY"] = ":99"
+        env["USE_EGL"] = "0"
 
         cmd = [
             str(executable),
