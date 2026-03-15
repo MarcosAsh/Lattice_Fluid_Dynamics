@@ -356,10 +356,11 @@ def render_simulation(
                 model, model_paths["car"]
             )
 
-        # Run simulation. Unset DISPLAY to force EGL path
-        # (no X server needed for headless rendering).
+        # Run simulation headless via EGL.
         env = os.environ.copy()
         env.pop("DISPLAY", None)
+        env["XDG_RUNTIME_DIR"] = "/tmp"
+        env["SDL_VIDEODRIVER"] = "offscreen"
 
         cmd = [
             str(executable),
