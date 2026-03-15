@@ -1,0 +1,24 @@
+{
+  "name": "Lattice Dev",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "postCreateCommand": "cd website && npm install",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-vscode.cpptools",
+        "ms-vscode.cmake-tools",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "charliermarsh.ruff"
+      ]
+    }
+  },
+  "forwardPorts": [3000],
+  "remoteEnv": {
+    "DISPLAY": ":99",
+    "MESA_GL_VERSION_OVERRIDE": "4.3",
+    "LIBGL_ALWAYS_SOFTWARE": "1"
+  }
+}
