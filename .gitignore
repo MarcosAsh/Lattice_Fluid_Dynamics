@@ -48,6 +48,9 @@ website/build/
 # Notes (local only)
 notes/
 
+# ML datasets (generated, not tracked)
+ml/dataset/
+
 # Misc
 *.log
 *.mp4
