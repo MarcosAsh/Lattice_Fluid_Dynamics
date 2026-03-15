@@ -143,10 +143,10 @@ static GLContext *headless_sdl_fallback(int w, int h) {
 #include <EGL/egl.h>
 
 GLContext *GLContext_CreateHeadless(int w, int h) {
-    /* Only try EGL if NVIDIA GPU is available.
-     * Mesa EGL + GLEW doesn't work together. */
-    const char *force_egl = getenv("USE_EGL");
-    if (!force_egl || force_egl[0] == '0') {
+    /* Try EGL first for headless GPU rendering.
+     * Set USE_EGL=0 to skip and force SDL fallback. */
+    const char *skip_egl = getenv("USE_EGL");
+    if (skip_egl && skip_egl[0] == '0') {
         return headless_sdl_fallback(w, h);
     }
 
