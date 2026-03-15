@@ -51,6 +51,7 @@ image = (
         "ffmpeg",
         "mesa-utils",
         "libosmesa6-dev",
+        "libegl1-mesa-dev",
     )
     .pip_install("requests", "fastapi[standard]", "boto3")
     .env(

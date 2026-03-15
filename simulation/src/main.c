@@ -10,6 +10,7 @@
 #include <getopt.h>
 #include <string.h>
 
+#include "../lib/gl_context.h"
 #include "../lib/lbm.h"
 #include "../lib/fluid_cube.h"
 #include "../lib/particle_system.h"
@@ -447,55 +448,17 @@ int main(int argc, char *argv[]) {
         printf("  Mode: Interactive\n");
     }
 
-    printf("Initializing SDL...\n");
-    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
-        printf("SDL_Init Error: %s\n", SDL_GetError());
+    // Create GL context: EGL for headless, SDL for interactive
+    GLContext *glCtx;
+    if (renderDuration > 0) {
+        glCtx = GLContext_CreateHeadless(WIDTH, HEIGHT);
+    } else {
+        glCtx = GLContext_CreateInteractive(WIDTH, HEIGHT);
+    }
+    if (!glCtx) {
+        printf("Failed to create GL context\n");
         return 1;
     }
-
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,
-                        SDL_GL_CONTEXT_PROFILE_COMPATIBILITY);
-    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
-
-    printf("Creating window...\n");
-    SDL_Window *window =
-        SDL_CreateWindow("3D Wind Tunnel - LBM Fluid Simulation",
-                         SDL_WINDOWPOS_CENTERED,
-                         SDL_WINDOWPOS_CENTERED,
-                         WIDTH,
-                         HEIGHT,
-                         SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN);
-    if (!window) {
-        printf("SDL_CreateWindow Error: %s\n", SDL_GetError());
-        SDL_Quit();
-        return 1;
-    }
-
-    printf("Creating OpenGL context...\n");
-    SDL_GLContext glContext = SDL_GL_CreateContext(window);
-    if (!glContext) {
-        printf("SDL_GL_CreateContext Error: %s\n", SDL_GetError());
-        SDL_DestroyWindow(window);
-        SDL_Quit();
-        return 1;
-    }
-
-    SDL_GL_MakeCurrent(window, glContext);
-
-    printf("Initializing GLEW...\n");
-    glewExperimental = GL_TRUE;
-    if (glewInit() != GLEW_OK) {
-        printf("Failed to initialize GLEW\n");
-        SDL_GL_DeleteContext(glContext);
-        SDL_DestroyWindow(window);
-        SDL_Quit();
-        return 1;
-    }
-
-    glGetError();
 
     printf("OpenGL Version: %s\n", glGetString(GL_VERSION));
     printf("GLSL Version: %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
@@ -550,9 +513,7 @@ int main(int argc, char *argv[]) {
         createShaderProgram("shaders/particle.vert", "shaders/particle.frag");
     if (particleShaderProgram == 0) {
         printf("Failed to create particle shader program\n");
-        SDL_GL_DeleteContext(glContext);
-        SDL_DestroyWindow(window);
-        SDL_Quit();
+        GLContext_Destroy(glCtx);
         return 1;
     }
 
@@ -560,9 +521,7 @@ int main(int argc, char *argv[]) {
     if (computeShaderProgram == 0) {
         printf("Failed to create compute shader program\n");
         glDeleteProgram(particleShaderProgram);
-        SDL_GL_DeleteContext(glContext);
-        SDL_DestroyWindow(window);
-        SDL_Quit();
+        GLContext_Destroy(glCtx);
         return 1;
     }
 
@@ -862,9 +821,7 @@ int main(int argc, char *argv[]) {
         freeModel(&carModel);
         glDeleteProgram(particleShaderProgram);
         glDeleteProgram(computeShaderProgram);
-        SDL_GL_DeleteContext(glContext);
-        SDL_DestroyWindow(window);
-        SDL_Quit();
+        GLContext_Destroy(glCtx);
         return 1;
     }
 
@@ -1348,7 +1305,7 @@ int main(int argc, char *argv[]) {
         }
 
         stepOnce = 0;
-        SDL_GL_SwapWindow(window);
+        GLContext_SwapBuffers(glCtx);
     }
 
     printf("Cleaning up...\n");
@@ -1366,9 +1323,7 @@ int main(int argc, char *argv[]) {
         glDeleteBuffers(1, &triangleBuffer);
     glDeleteProgram(particleShaderProgram);
     glDeleteProgram(computeShaderProgram);
-    SDL_GL_DeleteContext(glContext);
-    SDL_DestroyWindow(window);
-    SDL_Quit();
+    GLContext_Destroy(glCtx);
 
     printf("Cleanup complete. Exiting.\n");
     return 0;
