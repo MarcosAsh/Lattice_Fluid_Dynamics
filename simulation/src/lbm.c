@@ -89,11 +89,14 @@ LBMGrid* LBM_Create(int sizeX, int sizeY, int sizeZ, float viscosity) {
         printf("Warning: Force shader not loaded, drag calculation disabled\n");
     }
     
+    grid->useRegularized = 0;
+
     // Get uniform locations
     glUseProgram(grid->collideShader);
     grid->collide_gridSizeLoc = glGetUniformLocation(grid->collideShader, "gridSize");
     grid->collide_tauLoc = glGetUniformLocation(grid->collideShader, "tau");
     grid->collide_inletVelLoc = glGetUniformLocation(grid->collideShader, "inletVelocity");
+    grid->collide_useRegularizedLoc = glGetUniformLocation(grid->collideShader, "useRegularized");
     
     glUseProgram(grid->streamShader);
     grid->stream_gridSizeLoc = glGetUniformLocation(grid->streamShader, "gridSize");
@@ -203,6 +206,7 @@ void LBM_Step(LBMGrid* grid, float inletVelX, float inletVelY, float inletVelZ) 
     glUniform3i(grid->collide_gridSizeLoc, grid->sizeX, grid->sizeY, grid->sizeZ);
     glUniform1f(grid->collide_tauLoc, grid->tau);
     glUniform3f(grid->collide_inletVelLoc, inletVelX, inletVelY, inletVelZ);
+    glUniform1i(grid->collide_useRegularizedLoc, grid->useRegularized);
     
     glDispatchCompute((grid->sizeX + 7) / 8, (grid->sizeY + 7) / 8, (grid->sizeZ + 7) / 8);
     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
