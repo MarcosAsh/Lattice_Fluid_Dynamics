@@ -706,15 +706,9 @@ int main(int argc, char *argv[]) {
     }
 
     // Initialize LBM grid
-    int lbmSizeX = 96;
-    int lbmSizeY = 48;
-    int lbmSizeZ = 48;
-    if (collisionMode == 2) {
-        // Per-triangle is heavier, use coarser grid.
-        lbmSizeX = 64;
-        lbmSizeY = 32;
-        lbmSizeZ = 32;
-    }
+    int lbmSizeX = 128;
+    int lbmSizeY = 64;
+    int lbmSizeZ = 64;
     float lbmViscosity = 0.02f;
 
     if (reynoldsNumber > 0) {
