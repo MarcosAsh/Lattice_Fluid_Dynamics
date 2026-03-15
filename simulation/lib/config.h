@@ -2,7 +2,8 @@
 #define CONFIG_H
 
 #ifndef IX3D
-#define IX3D(x, y, z, sizeX, sizeY) ((x) + (y) * (sizeX) + (z) * (sizeX) * (sizeY))
+#define IX3D(x, y, z, sizeX, sizeY)                                            \
+    ((x) + (y) * (sizeX) + (z) * (sizeX) * (sizeY))
 #endif
 
 #ifndef WIDTH

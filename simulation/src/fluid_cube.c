@@ -9,7 +9,13 @@ void SDL_ExitWithError(const char *message) {
     exit(EXIT_FAILURE);
 }
 
-FluidCube *FluidCubeCreate(int sizeX, int sizeY, int sizeZ, float diffusion, float viscosity, float dt, Model* model) {
+FluidCube *FluidCubeCreate(int sizeX,
+                           int sizeY,
+                           int sizeZ,
+                           float diffusion,
+                           float viscosity,
+                           float dt,
+                           Model *model) {
     printf("Creating fluid cube with size: %dx%dx%d\n", sizeX, sizeY, sizeZ);
     FluidCube *cube = malloc(sizeof(*cube));
     if (cube == NULL) {
@@ -37,7 +43,9 @@ FluidCube *FluidCubeCreate(int sizeX, int sizeY, int sizeZ, float diffusion, flo
     cube->Vy0 = calloc(N, sizeof(float));
     cube->Vz0 = calloc(N, sizeof(float));
 
-    if (cube->s == NULL || cube->density == NULL || cube->Vx == NULL || cube->Vy == NULL || cube->Vz == NULL || cube->Vx0 == NULL || cube->Vy0 == NULL || cube->Vz0 == NULL) {
+    if (cube->s == NULL || cube->density == NULL || cube->Vx == NULL ||
+        cube->Vy == NULL || cube->Vz == NULL || cube->Vx0 == NULL ||
+        cube->Vy0 == NULL || cube->Vz0 == NULL) {
         printf("Out of memory!\n");
         FluidCubeFree(cube);
         return NULL;
@@ -63,68 +71,126 @@ void FluidCubeFree(FluidCube *cube) {
 }
 
 void FluidCubeAddDensity(FluidCube *cube, int x, int y, int z, float amount) {
-  	if (x < 0 || x >= cube->sizeX || y < 0 || y >= cube->sizeY || z < 0 || z >= cube->sizeZ) {
-          printf("Error: Invalid indices in FluidAddDensity (%d, %d, %d)\n", x, y, z); // Debug print
-          return;
-  	}
-  	int index = IX3D(x, y, z, cube->sizeX, cube->sizeY);
-   	cube->density[IX3D(x, y, z, cube->sizeX, cube->sizeY)] += amount;
-    printf("FluidCubeAddDensity: Added denstiy=%f at (%d, %d, %d)\n", amount, x, y, z);	// Debug print
+    if (x < 0 || x >= cube->sizeX || y < 0 || y >= cube->sizeY || z < 0 ||
+        z >= cube->sizeZ) {
+        printf("Error: Invalid indices in FluidAddDensity (%d, %d, %d)\n",
+               x,
+               y,
+               z); // Debug print
+        return;
+    }
+    int index = IX3D(x, y, z, cube->sizeX, cube->sizeY);
+    cube->density[IX3D(x, y, z, cube->sizeX, cube->sizeY)] += amount;
+    printf("FluidCubeAddDensity: Added denstiy=%f at (%d, %d, %d)\n",
+           amount,
+           x,
+           y,
+           z); // Debug print
 }
 
-void FluidCubeAddVelocity(FluidCube *cube, int x, int y, int z, float amtX, float amtY, float amtZ) {
-    if (x < 0 || x >= cube->sizeX || y < 0 || y >= cube->sizeY || z < 0 || z >= cube->sizeZ) {
-      printf("Error: Invalid indices in FluidAddVelocity (%d, %d, %d)\n", x, y, z);
-      return;
-	}
+void FluidCubeAddVelocity(
+    FluidCube *cube, int x, int y, int z, float amtX, float amtY, float amtZ) {
+    if (x < 0 || x >= cube->sizeX || y < 0 || y >= cube->sizeY || z < 0 ||
+        z >= cube->sizeZ) {
+        printf("Error: Invalid indices in FluidAddVelocity (%d, %d, %d)\n",
+               x,
+               y,
+               z);
+        return;
+    }
     int index = IX3D(x, y, z, cube->sizeX, cube->sizeY);
     cube->Vx[index] += amtX;
     cube->Vy[index] += amtY;
     cube->Vz[index] += amtZ;
-    printf("FluidCubeAddVelocity: Added velocity=(%f, %f, %f) at (%d, %d, %d)\n", amtX, amtY, amtZ, x, y, z); // Debug print
-
+    printf(
+        "FluidCubeAddVelocity: Added velocity=(%f, %f, %f) at (%d, %d, %d)\n",
+        amtX,
+        amtY,
+        amtZ,
+        x,
+        y,
+        z); // Debug print
 }
 
-static void set_bnd(int b, float *x, int sizeX, int sizeY, int sizeZ, FluidCube *cube) {
+static void
+set_bnd(int b, float *x, int sizeX, int sizeY, int sizeZ, FluidCube *cube) {
     // Implement boundary conditions for 3D
     for (int i = 1; i < sizeX - 1; i++) {
         for (int j = 1; j < sizeY - 1; j++) {
-            x[IX3D(i, j, 0, sizeX, sizeY)] = b == 3 ? -x[IX3D(i, j, 1, sizeX, sizeY)] : x[IX3D(i, j, 1, sizeX, sizeY)];
-            x[IX3D(i, j, sizeZ - 1, sizeX, sizeY)] = b == 3 ? -x[IX3D(i, j, sizeZ - 2, sizeX, sizeY)] : x[IX3D(i, j, sizeZ - 2, sizeX, sizeY)];
+            x[IX3D(i, j, 0, sizeX, sizeY)] =
+                b == 3 ? -x[IX3D(i, j, 1, sizeX, sizeY)]
+                       : x[IX3D(i, j, 1, sizeX, sizeY)];
+            x[IX3D(i, j, sizeZ - 1, sizeX, sizeY)] =
+                b == 3 ? -x[IX3D(i, j, sizeZ - 2, sizeX, sizeY)]
+                       : x[IX3D(i, j, sizeZ - 2, sizeX, sizeY)];
         }
     }
 
     for (int i = 1; i < sizeX - 1; i++) {
         for (int k = 1; k < sizeZ - 1; k++) {
-            x[IX3D(i, 0, k, sizeX, sizeY)] = b == 2 ? -x[IX3D(i, 1, k, sizeX, sizeY)] : x[IX3D(i, 1, k, sizeX, sizeY)];
-            x[IX3D(i, sizeY - 1, k, sizeX, sizeY)] = b == 2 ? -x[IX3D(i, sizeY - 2, k, sizeX, sizeY)] : x[IX3D(i, sizeY - 2, k, sizeX, sizeY)];
+            x[IX3D(i, 0, k, sizeX, sizeY)] =
+                b == 2 ? -x[IX3D(i, 1, k, sizeX, sizeY)]
+                       : x[IX3D(i, 1, k, sizeX, sizeY)];
+            x[IX3D(i, sizeY - 1, k, sizeX, sizeY)] =
+                b == 2 ? -x[IX3D(i, sizeY - 2, k, sizeX, sizeY)]
+                       : x[IX3D(i, sizeY - 2, k, sizeX, sizeY)];
         }
     }
 
     for (int j = 1; j < sizeY - 1; j++) {
         for (int k = 1; k < sizeZ - 1; k++) {
-            x[IX3D(0, j, k, sizeX, sizeY)] = b == 1 ? -x[IX3D(1, j, k, sizeX, sizeY)] : x[IX3D(1, j, k, sizeX, sizeY)];
-            x[IX3D(sizeX - 1, j, k, sizeX, sizeY)] = b == 1 ? -x[IX3D(sizeX - 2, j, k, sizeX, sizeY)] : x[IX3D(sizeX - 2, j, k, sizeX, sizeY)];
+            x[IX3D(0, j, k, sizeX, sizeY)] =
+                b == 1 ? -x[IX3D(1, j, k, sizeX, sizeY)]
+                       : x[IX3D(1, j, k, sizeX, sizeY)];
+            x[IX3D(sizeX - 1, j, k, sizeX, sizeY)] =
+                b == 1 ? -x[IX3D(sizeX - 2, j, k, sizeX, sizeY)]
+                       : x[IX3D(sizeX - 2, j, k, sizeX, sizeY)];
         }
     }
 
     // Corners
-    x[IX3D(0, 0, 0, sizeX, sizeY)] = 0.5f * (x[IX3D(1, 0, 0, sizeX, sizeY)] + x[IX3D(0, 1, 0, sizeX, sizeY)] + x[IX3D(0, 0, 1, sizeX, sizeY)]);
-    x[IX3D(0, sizeY - 1, 0, sizeX, sizeY)] = 0.5f * (x[IX3D(1, sizeY - 1, 0, sizeX, sizeY)] + x[IX3D(0, sizeY - 2, 0, sizeX, sizeY)] + x[IX3D(0, sizeY - 1, 1, sizeX, sizeY)]);
-    x[IX3D(sizeX - 1, 0, 0, sizeX, sizeY)] = 0.5f * (x[IX3D(sizeX - 2, 0, 0, sizeX, sizeY)] + x[IX3D(sizeX - 1, 1, 0, sizeX, sizeY)] + x[IX3D(sizeX - 1, 0, 1, sizeX, sizeY)]);
-    x[IX3D(sizeX - 1, sizeY - 1, 0, sizeX, sizeY)] = 0.5f * (x[IX3D(sizeX - 2, sizeY - 1, 0, sizeX, sizeY)] + x[IX3D(sizeX - 1, sizeY - 2, 0, sizeX, sizeY)] + x[IX3D(sizeX - 1, sizeY - 1, 1, sizeX, sizeY)]);
-    x[IX3D(0, 0, sizeZ - 1, sizeX, sizeY)] = 0.5f * (x[IX3D(1, 0, sizeZ - 1, sizeX, sizeY)] + x[IX3D(0, 1, sizeZ - 1, sizeX, sizeY)] + x[IX3D(0, 0, sizeZ - 2, sizeX, sizeY)]);
-    x[IX3D(0, sizeY - 1, sizeZ - 1, sizeX, sizeY)] = 0.5f * (x[IX3D(1, sizeY - 1, sizeZ - 1, sizeX, sizeY)] + x[IX3D(0, sizeY - 2, sizeZ - 1, sizeX, sizeY)] + x[IX3D(0, sizeY - 1, sizeZ - 2, sizeX, sizeY)]);
-    x[IX3D(sizeX - 1, 0, sizeZ - 1, sizeX, sizeY)] = 0.5f * (x[IX3D(sizeX - 2, 0, sizeZ - 1, sizeX, sizeY)] + x[IX3D(sizeX - 1, 1, sizeZ - 1, sizeX, sizeY)] + x[IX3D(sizeX - 1, 0, sizeZ - 2, sizeX, sizeY)]);
-    x[IX3D(sizeX - 1, sizeY - 1, sizeZ - 1, sizeX, sizeY)] = 0.5f * (x[IX3D(sizeX - 2, sizeY - 1, sizeZ - 1, sizeX, sizeY)] + x[IX3D(sizeX - 1, sizeY - 2, sizeZ - 1, sizeX, sizeY)] + x[IX3D(sizeX - 1, sizeY - 1, sizeZ - 2, sizeX, sizeY)]);
+    x[IX3D(0, 0, 0, sizeX, sizeY)] = 0.5f * (x[IX3D(1, 0, 0, sizeX, sizeY)] +
+                                             x[IX3D(0, 1, 0, sizeX, sizeY)] +
+                                             x[IX3D(0, 0, 1, sizeX, sizeY)]);
+    x[IX3D(0, sizeY - 1, 0, sizeX, sizeY)] =
+        0.5f * (x[IX3D(1, sizeY - 1, 0, sizeX, sizeY)] +
+                x[IX3D(0, sizeY - 2, 0, sizeX, sizeY)] +
+                x[IX3D(0, sizeY - 1, 1, sizeX, sizeY)]);
+    x[IX3D(sizeX - 1, 0, 0, sizeX, sizeY)] =
+        0.5f * (x[IX3D(sizeX - 2, 0, 0, sizeX, sizeY)] +
+                x[IX3D(sizeX - 1, 1, 0, sizeX, sizeY)] +
+                x[IX3D(sizeX - 1, 0, 1, sizeX, sizeY)]);
+    x[IX3D(sizeX - 1, sizeY - 1, 0, sizeX, sizeY)] =
+        0.5f * (x[IX3D(sizeX - 2, sizeY - 1, 0, sizeX, sizeY)] +
+                x[IX3D(sizeX - 1, sizeY - 2, 0, sizeX, sizeY)] +
+                x[IX3D(sizeX - 1, sizeY - 1, 1, sizeX, sizeY)]);
+    x[IX3D(0, 0, sizeZ - 1, sizeX, sizeY)] =
+        0.5f * (x[IX3D(1, 0, sizeZ - 1, sizeX, sizeY)] +
+                x[IX3D(0, 1, sizeZ - 1, sizeX, sizeY)] +
+                x[IX3D(0, 0, sizeZ - 2, sizeX, sizeY)]);
+    x[IX3D(0, sizeY - 1, sizeZ - 1, sizeX, sizeY)] =
+        0.5f * (x[IX3D(1, sizeY - 1, sizeZ - 1, sizeX, sizeY)] +
+                x[IX3D(0, sizeY - 2, sizeZ - 1, sizeX, sizeY)] +
+                x[IX3D(0, sizeY - 1, sizeZ - 2, sizeX, sizeY)]);
+    x[IX3D(sizeX - 1, 0, sizeZ - 1, sizeX, sizeY)] =
+        0.5f * (x[IX3D(sizeX - 2, 0, sizeZ - 1, sizeX, sizeY)] +
+                x[IX3D(sizeX - 1, 1, sizeZ - 1, sizeX, sizeY)] +
+                x[IX3D(sizeX - 1, 0, sizeZ - 2, sizeX, sizeY)]);
+    x[IX3D(sizeX - 1, sizeY - 1, sizeZ - 1, sizeX, sizeY)] =
+        0.5f * (x[IX3D(sizeX - 2, sizeY - 1, sizeZ - 1, sizeX, sizeY)] +
+                x[IX3D(sizeX - 1, sizeY - 2, sizeZ - 1, sizeX, sizeY)] +
+                x[IX3D(sizeX - 1, sizeY - 1, sizeZ - 2, sizeX, sizeY)]);
 
-   // Add boundary conditions for the car model
+    // Add boundary conditions for the car model
     if (cube->model) { // Check if the model exists
         for (int i = 0; i < sizeX; i++) {
             for (int j = 0; j < sizeY; j++) {
                 for (int k = 0; k < sizeZ; k++) {
-                    if (isInsideCarModel(i, j, k, cube->model, sizeX, sizeY, sizeZ)) {
-                        x[IX3D(i, j, k, sizeX, sizeY)] = 0; // Set velocity/density to zero inside the car model
+                    if (isInsideCarModel(
+                            i, j, k, cube->model, sizeX, sizeY, sizeZ)) {
+                        x[IX3D(i, j, k, sizeX, sizeY)] =
+                            0; // Set velocity/density to zero inside the car
+                               // model
                     }
                 }
             }
@@ -132,19 +198,30 @@ static void set_bnd(int b, float *x, int sizeX, int sizeY, int sizeZ, FluidCube 
     }
 }
 
-static void lin_solve(int b, float *x, float *x0, float a, float c, int iter, int sizeX, int sizeY, int sizeZ, FluidCube *cube) {
+static void lin_solve(int b,
+                      float *x,
+                      float *x0,
+                      float a,
+                      float c,
+                      int iter,
+                      int sizeX,
+                      int sizeY,
+                      int sizeZ,
+                      FluidCube *cube) {
     float cRecip = 1.0 / c;
     for (int k = 0; k < iter; k++) {
         for (int i = 1; i < sizeX - 1; i++) {
             for (int j = 1; j < sizeY - 1; j++) {
                 for (int k = 1; k < sizeZ - 1; k++) {
-                    x[IX3D(i, j, k, sizeX, sizeY)] = (x0[IX3D(i, j, k, sizeX, sizeY)]
-                            + a * (x[IX3D(i + 1, j, k, sizeX, sizeY)]
-                                + x[IX3D(i - 1, j, k, sizeX, sizeY)]
-                                + x[IX3D(i, j + 1, k, sizeX, sizeY)]
-                                + x[IX3D(i, j - 1, k, sizeX, sizeY)]
-                                + x[IX3D(i, j, k + 1, sizeX, sizeY)]
-                                + x[IX3D(i, j, k - 1, sizeX, sizeY)])) * cRecip;
+                    x[IX3D(i, j, k, sizeX, sizeY)] =
+                        (x0[IX3D(i, j, k, sizeX, sizeY)] +
+                         a * (x[IX3D(i + 1, j, k, sizeX, sizeY)] +
+                              x[IX3D(i - 1, j, k, sizeX, sizeY)] +
+                              x[IX3D(i, j + 1, k, sizeX, sizeY)] +
+                              x[IX3D(i, j - 1, k, sizeX, sizeY)] +
+                              x[IX3D(i, j, k + 1, sizeX, sizeY)] +
+                              x[IX3D(i, j, k - 1, sizeX, sizeY)])) *
+                        cRecip;
                 }
             }
         }
@@ -152,8 +229,17 @@ static void lin_solve(int b, float *x, float *x0, float a, float c, int iter, in
     }
 }
 
-static void diffuse(int b, float *x, float *x0, float diff, float dt, int iter, int sizeX, int sizeY, int sizeZ, FluidCube *cube) {
-  	printf("Diffuse: Starting diffusion\n"); // Debug print
+static void diffuse(int b,
+                    float *x,
+                    float *x0,
+                    float diff,
+                    float dt,
+                    int iter,
+                    int sizeX,
+                    int sizeY,
+                    int sizeZ,
+                    FluidCube *cube) {
+    printf("Diffuse: Starting diffusion\n"); // Debug print
 
     float a = dt * diff * (sizeX - 2) * (sizeY - 2) * (sizeZ - 2);
     lin_solve(b, x, x0, a, 1 + 6 * a, iter, sizeX, sizeY, sizeZ, cube);
@@ -162,18 +248,31 @@ static void diffuse(int b, float *x, float *x0, float diff, float dt, int iter, 
     printf("Diffuse: Ending diffusion\n"); // Debug print
 }
 
-static void project(float *velocX, float *velocY, float *velocZ, float *p, float *div, int iter, int sizeX, int sizeY, int sizeZ, FluidCube *cube) {
-  printf("Project: Starting project\n"); // Debug print
+static void project(float *velocX,
+                    float *velocY,
+                    float *velocZ,
+                    float *p,
+                    float *div,
+                    int iter,
+                    int sizeX,
+                    int sizeY,
+                    int sizeZ,
+                    FluidCube *cube) {
+    printf("Project: Starting project\n"); // Debug print
 
-  // Calculate divergence
+    // Calculate divergence
     for (int i = 1; i < sizeX - 1; i++) {
         for (int j = 1; j < sizeY - 1; j++) {
             for (int k = 1; k < sizeZ - 1; k++) {
-                div[IX3D(i, j, k, sizeX, sizeY)] = -0.5f * (
-                    velocX[IX3D(i + 1, j, k, sizeX, sizeY)] - velocX[IX3D(i - 1, j, k, sizeX, sizeY)] +
-                    velocY[IX3D(i, j + 1, k, sizeX, sizeY)] - velocY[IX3D(i, j - 1, k, sizeX, sizeY)] +
-                    velocZ[IX3D(i, j, k + 1, sizeX, sizeY)] - velocZ[IX3D(i, j, k - 1, sizeX, sizeY)]
-                ) / (sizeX + sizeY + sizeZ);
+                div[IX3D(i, j, k, sizeX, sizeY)] =
+                    -0.5f *
+                    (velocX[IX3D(i + 1, j, k, sizeX, sizeY)] -
+                     velocX[IX3D(i - 1, j, k, sizeX, sizeY)] +
+                     velocY[IX3D(i, j + 1, k, sizeX, sizeY)] -
+                     velocY[IX3D(i, j - 1, k, sizeX, sizeY)] +
+                     velocZ[IX3D(i, j, k + 1, sizeX, sizeY)] -
+                     velocZ[IX3D(i, j, k - 1, sizeX, sizeY)]) /
+                    (sizeX + sizeY + sizeZ);
                 p[IX3D(i, j, k, sizeX, sizeY)] = 0;
             }
         }
@@ -190,9 +289,21 @@ static void project(float *velocX, float *velocY, float *velocZ, float *p, float
     for (int i = 1; i < sizeX - 1; i++) {
         for (int j = 1; j < sizeY - 1; j++) {
             for (int k = 1; k < sizeZ - 1; k++) {
-                velocX[IX3D(i, j, k, sizeX, sizeY)] -= 0.5f * (p[IX3D(i + 1, j, k, sizeX, sizeY)] - p[IX3D(i - 1, j, k, sizeX, sizeY)]) * sizeX;
-                velocY[IX3D(i, j, k, sizeX, sizeY)] -= 0.5f * (p[IX3D(i, j + 1, k, sizeX, sizeY)] - p[IX3D(i, j - 1, k, sizeX, sizeY)]) * sizeY;
-                velocZ[IX3D(i, j, k, sizeX, sizeY)] -= 0.5f * (p[IX3D(i, j, k + 1, sizeX, sizeY)] - p[IX3D(i, j, k - 1, sizeX, sizeY)]) * sizeZ;
+                velocX[IX3D(i, j, k, sizeX, sizeY)] -=
+                    0.5f *
+                    (p[IX3D(i + 1, j, k, sizeX, sizeY)] -
+                     p[IX3D(i - 1, j, k, sizeX, sizeY)]) *
+                    sizeX;
+                velocY[IX3D(i, j, k, sizeX, sizeY)] -=
+                    0.5f *
+                    (p[IX3D(i, j + 1, k, sizeX, sizeY)] -
+                     p[IX3D(i, j - 1, k, sizeX, sizeY)]) *
+                    sizeY;
+                velocZ[IX3D(i, j, k, sizeX, sizeY)] -=
+                    0.5f *
+                    (p[IX3D(i, j, k + 1, sizeX, sizeY)] -
+                     p[IX3D(i, j, k - 1, sizeX, sizeY)]) *
+                    sizeZ;
             }
         }
     }
@@ -202,13 +313,23 @@ static void project(float *velocX, float *velocY, float *velocZ, float *p, float
     set_bnd(2, velocY, sizeX, sizeY, sizeZ, cube);
     set_bnd(3, velocZ, sizeX, sizeY, sizeZ, cube);
 
-     printf("Project: Ending project\n"); // Debug print
+    printf("Project: Ending project\n"); // Debug print
 }
 
-static void advect(int b, float *d, float *d0, float *velocX, float *velocY, float *velocZ, float dt, int sizeX, int sizeY, int sizeZ, FluidCube *cube) {
+static void advect(int b,
+                   float *d,
+                   float *d0,
+                   float *velocX,
+                   float *velocY,
+                   float *velocZ,
+                   float dt,
+                   int sizeX,
+                   int sizeY,
+                   int sizeZ,
+                   FluidCube *cube) {
     printf("Advect: Staring advection."); // Debug print
 
-  	float i0, i1, j0, j1, k0, k1;
+    float i0, i1, j0, j1, k0, k1;
 
     float dtx = dt * (sizeX - 2);
     float dty = dt * (sizeY - 2);
@@ -233,16 +354,22 @@ static void advect(int b, float *d, float *d0, float *velocX, float *velocY, flo
                 y = jfloat - tmp2;
                 z = kfloat - tmp3;
 
-                if (x < 0.5f) x = 0.5f;
-                if (x > NfloatX + 0.5f) x = NfloatX + 0.5f;
+                if (x < 0.5f)
+                    x = 0.5f;
+                if (x > NfloatX + 0.5f)
+                    x = NfloatX + 0.5f;
                 i0 = floorf(x);
                 i1 = i0 + 1.0f;
-                if (y < 0.5f) y = 0.5f;
-                if (y > NfloatY + 0.5f) y = NfloatY + 0.5f;
+                if (y < 0.5f)
+                    y = 0.5f;
+                if (y > NfloatY + 0.5f)
+                    y = NfloatY + 0.5f;
                 j0 = floorf(y);
                 j1 = j0 + 1.0f;
-                if (z < 0.5f) z = 0.5f;
-                if (z > NfloatZ + 0.5f) z = NfloatZ + 0.5f;
+                if (z < 0.5f)
+                    z = 0.5f;
+                if (z > NfloatZ + 0.5f)
+                    z = NfloatZ + 0.5f;
                 k0 = floorf(z);
                 k1 = k0 + 1.0f;
 
@@ -260,19 +387,26 @@ static void advect(int b, float *d, float *d0, float *velocX, float *velocY, flo
                 int k0i = k0;
                 int k1i = k1;
 
-				// Ensure indices are within bounds
+                // Ensure indices are within bounds
                 if (i0i < 0 || i0i >= sizeX || i1i < 0 || i1i >= sizeX ||
                     j0i < 0 || j0i >= sizeY || j1i < 0 || j1i >= sizeY ||
-                    i0i < 0 || k0i >= sizeZ || k1i < 0 || k1i >= sizeZ ){
-                  	printf("Error: Invalid indices in advect (%d, %d, %d).\n", i0i, k0i, k0i); // Debug print
+                    i0i < 0 || k0i >= sizeZ || k1i < 0 || k1i >= sizeZ) {
+                    printf("Error: Invalid indices in advect (%d, %d, %d).\n",
+                           i0i,
+                           k0i,
+                           k0i); // Debug print
                     continue;
-                  }
+                }
 
                 d[IX3D(i, j, k, sizeX, sizeY)] =
-                    s0 * (t0 * (u0 * d0[IX3D(i0i, j0i, k0i, sizeX, sizeY)] + u1 * d0[IX3D(i0i, j0i, k1i, sizeX, sizeY)]) +
-                          t1 * (u0 * d0[IX3D(i0i, j1i, k0i, sizeX, sizeY)] + u1 * d0[IX3D(i0i, j1i, k1i, sizeX, sizeY)])) +
-                    s1 * (t0 * (u0 * d0[IX3D(i1i, j0i, k0i, sizeX, sizeY)] + u1 * d0[IX3D(i1i, j0i, k1i, sizeX, sizeY)]) +
-                          t1 * (u0 * d0[IX3D(i1i, j1i, k0i, sizeX, sizeY)] + u1 * d0[IX3D(i1i, j1i, k1i, sizeX, sizeY)]));
+                    s0 * (t0 * (u0 * d0[IX3D(i0i, j0i, k0i, sizeX, sizeY)] +
+                                u1 * d0[IX3D(i0i, j0i, k1i, sizeX, sizeY)]) +
+                          t1 * (u0 * d0[IX3D(i0i, j1i, k0i, sizeX, sizeY)] +
+                                u1 * d0[IX3D(i0i, j1i, k1i, sizeX, sizeY)])) +
+                    s1 * (t0 * (u0 * d0[IX3D(i1i, j0i, k0i, sizeX, sizeY)] +
+                                u1 * d0[IX3D(i1i, j0i, k1i, sizeX, sizeY)]) +
+                          t1 * (u0 * d0[IX3D(i1i, j1i, k0i, sizeX, sizeY)] +
+                                u1 * d0[IX3D(i1i, j1i, k1i, sizeX, sizeY)]));
             }
         }
     }
@@ -291,7 +425,7 @@ void FluidCubeStep(FluidCube *cube) {
     float *Vx0 = cube->Vx0;
     float *Vy0 = cube->Vy0;
     float *Vz0 = cube->Vz0;
-    float *p = cube->s;       // Pressure array
+    float *p = cube->s;         // Pressure array
     float *div = cube->density; // Divergence array
 
     // Diffuse velocity fields
@@ -311,6 +445,25 @@ void FluidCubeStep(FluidCube *cube) {
     project(Vx, Vy, Vz, p, div, 4, sizeX, sizeY, sizeZ, cube);
 
     // Diffuse and advect density
-    diffuse(0, cube->s, cube->density, cube->diff, cube->dt, 4, sizeX, sizeY, sizeZ, cube);
-    advect(0, cube->density, cube->s, Vx, Vy, Vz, cube->dt, sizeX, sizeY, sizeZ, cube);
+    diffuse(0,
+            cube->s,
+            cube->density,
+            cube->diff,
+            cube->dt,
+            4,
+            sizeX,
+            sizeY,
+            sizeZ,
+            cube);
+    advect(0,
+           cube->density,
+           cube->s,
+           Vx,
+           Vy,
+           Vz,
+           cube->dt,
+           sizeX,
+           sizeY,
+           sizeZ,
+           cube);
 }

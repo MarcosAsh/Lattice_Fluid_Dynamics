@@ -36,10 +36,10 @@ uniform vec3 carMin;
 uniform vec3 carMax;
 uniform vec3 carCenter;
 uniform int numTriangles;
-uniform int collisionMode;  // 0 = off, 1 = AABB, 2 = per-triangle
+uniform int collisionMode; // 0 = off, 1 = AABB, 2 = per-triangle
 
 // LBM grid parameters
-uniform int useLBM;         // 0 = simple wind, 1 = sample from LBM
+uniform int useLBM; // 0 = simple wind, 1 = sample from LBM
 uniform ivec3 lbmGridSize;
 
 // Sample velocity from LBM grid
@@ -47,24 +47,25 @@ vec3 sampleLBMVelocity(vec3 worldPos) {
     // Convert world coords to grid coords
     // World: x in [-4, 4], y in [-2, 2], z in [-2, 2]
     // Grid: [0, gridSize-1]
-    
+
     vec3 gridPos;
     gridPos.x = (worldPos.x + 4.0) / 8.0 * float(lbmGridSize.x);
     gridPos.y = (worldPos.y + 2.0) / 4.0 * float(lbmGridSize.y);
     gridPos.z = (worldPos.z + 2.0) / 4.0 * float(lbmGridSize.z);
-    
+
     // Clamp to grid bounds
     gridPos = clamp(gridPos, vec3(0.0), vec3(lbmGridSize) - vec3(1.0));
-    
+
     // Get integer indices for trilinear interpolation
     ivec3 i0 = ivec3(floor(gridPos));
     ivec3 i1 = min(i0 + ivec3(1), lbmGridSize - ivec3(1));
-    
+
     vec3 frac = fract(gridPos);
-    
-    // Fetch 8 corner velocities
-    #define IDX(x, y, z) ((x) + (y) * lbmGridSize.x + (z) * lbmGridSize.x * lbmGridSize.y)
-    
+
+// Fetch 8 corner velocities
+#define IDX(x, y, z)                                                           \
+    ((x) + (y) * lbmGridSize.x + (z) * lbmGridSize.x * lbmGridSize.y)
+
     vec3 v000 = lbmVelocity[IDX(i0.x, i0.y, i0.z)].xyz;
     vec3 v100 = lbmVelocity[IDX(i1.x, i0.y, i0.z)].xyz;
     vec3 v010 = lbmVelocity[IDX(i0.x, i1.y, i0.z)].xyz;
@@ -73,35 +74,34 @@ vec3 sampleLBMVelocity(vec3 worldPos) {
     vec3 v101 = lbmVelocity[IDX(i1.x, i0.y, i1.z)].xyz;
     vec3 v011 = lbmVelocity[IDX(i0.x, i1.y, i1.z)].xyz;
     vec3 v111 = lbmVelocity[IDX(i1.x, i1.y, i1.z)].xyz;
-    
-    #undef IDX
-    
+
+#undef IDX
+
     // Trilinear interpolation
     vec3 v00 = mix(v000, v100, frac.x);
     vec3 v10 = mix(v010, v110, frac.x);
     vec3 v01 = mix(v001, v101, frac.x);
     vec3 v11 = mix(v011, v111, frac.x);
-    
+
     vec3 v0 = mix(v00, v10, frac.y);
     vec3 v1 = mix(v01, v11, frac.y);
-    
+
     return mix(v0, v1, frac.z);
 }
 
 // AABB collision functions
 bool isInsideAABB(vec3 pos, vec3 minB, vec3 maxB) {
-    return pos.x >= minB.x && pos.x <= maxB.x &&
-           pos.y >= minB.y && pos.y <= maxB.y &&
-           pos.z >= minB.z && pos.z <= maxB.z;
+    return pos.x >= minB.x && pos.x <= maxB.x && pos.y >= minB.y &&
+           pos.y <= maxB.y && pos.z >= minB.z && pos.z <= maxB.z;
 }
 
 vec3 getAABBNormal(vec3 pos, vec3 minB, vec3 maxB, vec3 center) {
     vec3 toParticle = pos - center;
     vec3 absDir = abs(toParticle);
     vec3 halfSize = (maxB - minB) * 0.5;
-    
+
     vec3 normal = vec3(0.0);
-    if (absDir.x / halfSize.x > absDir.y / halfSize.y && 
+    if (absDir.x / halfSize.x > absDir.y / halfSize.y &&
         absDir.x / halfSize.x > absDir.z / halfSize.z) {
         normal.x = sign(toParticle.x);
     } else if (absDir.y / halfSize.y > absDir.z / halfSize.z) {
@@ -116,12 +116,12 @@ vec3 pushOutOfAABB(vec3 pos, vec3 minB, vec3 maxB) {
     vec3 center = (minB + maxB) * 0.5;
     vec3 halfSize = (maxB - minB) * 0.5;
     vec3 toParticle = pos - center;
-    
+
     vec3 penetration;
     penetration.x = halfSize.x - abs(toParticle.x);
     penetration.y = halfSize.y - abs(toParticle.y);
     penetration.z = halfSize.z - abs(toParticle.z);
-    
+
     if (penetration.x < penetration.y && penetration.x < penetration.z) {
         pos.x = center.x + sign(toParticle.x) * (halfSize.x + 0.01);
     } else if (penetration.y < penetration.z) {
@@ -133,34 +133,43 @@ vec3 pushOutOfAABB(vec3 pos, vec3 minB, vec3 maxB) {
 }
 
 // Triangle collision
-float pointTriangleDistance(vec3 p, vec3 v0, vec3 v1, vec3 v2, out vec3 closestPoint, out vec3 normal) {
+float pointTriangleDistance(
+    vec3 p, vec3 v0, vec3 v1, vec3 v2, out vec3 closestPoint, out vec3 normal) {
     vec3 edge0 = v1 - v0;
     vec3 edge1 = v2 - v0;
     vec3 v0p = v0 - p;
-    
+
     float a = dot(edge0, edge0);
     float b = dot(edge0, edge1);
     float c = dot(edge1, edge1);
     float d = dot(edge0, v0p);
     float e = dot(edge1, v0p);
-    
+
     float det = a * c - b * b;
     float s = b * e - c * d;
     float t = b * d - a * e;
-    
+
     if (s + t <= det) {
         if (s < 0.0) {
             if (t < 0.0) {
-                if (d < 0.0) { t = 0.0; s = clamp(-d / a, 0.0, 1.0); }
-                else { s = 0.0; t = clamp(-e / c, 0.0, 1.0); }
+                if (d < 0.0) {
+                    t = 0.0;
+                    s = clamp(-d / a, 0.0, 1.0);
+                } else {
+                    s = 0.0;
+                    t = clamp(-e / c, 0.0, 1.0);
+                }
             } else {
-                s = 0.0; t = clamp(-e / c, 0.0, 1.0);
+                s = 0.0;
+                t = clamp(-e / c, 0.0, 1.0);
             }
         } else if (t < 0.0) {
-            t = 0.0; s = clamp(-d / a, 0.0, 1.0);
+            t = 0.0;
+            s = clamp(-d / a, 0.0, 1.0);
         } else {
             float invDet = 1.0 / det;
-            s *= invDet; t *= invDet;
+            s *= invDet;
+            t *= invDet;
         }
     } else {
         if (s < 0.0) {
@@ -169,21 +178,27 @@ float pointTriangleDistance(vec3 p, vec3 v0, vec3 v1, vec3 v2, out vec3 closestP
                 float numer = tmp1 - tmp0;
                 s = clamp(numer / (a - 2.0 * b + c), 0.0, 1.0);
                 t = 1.0 - s;
-            } else { s = 0.0; t = clamp(-e / c, 0.0, 1.0); }
+            } else {
+                s = 0.0;
+                t = clamp(-e / c, 0.0, 1.0);
+            }
         } else if (t < 0.0) {
             float tmp0 = b + e, tmp1 = a + d;
             if (tmp1 > tmp0) {
                 float numer = tmp1 - tmp0;
                 t = clamp(numer / (a - 2.0 * b + c), 0.0, 1.0);
                 s = 1.0 - t;
-            } else { t = 0.0; s = clamp(-d / a, 0.0, 1.0); }
+            } else {
+                t = 0.0;
+                s = clamp(-d / a, 0.0, 1.0);
+            }
         } else {
             float numer = (c + e) - (b + d);
             s = clamp(numer / (a - 2.0 * b + c), 0.0, 1.0);
             t = 1.0 - s;
         }
     }
-    
+
     closestPoint = v0 + s * edge0 + t * edge1;
     normal = normalize(cross(edge0, edge1));
     return length(p - closestPoint);
@@ -191,79 +206,88 @@ float pointTriangleDistance(vec3 p, vec3 v0, vec3 v1, vec3 v2, out vec3 closestP
 
 void main() {
     uint idx = gl_GlobalInvocationID.x;
-    if (idx >= particles.length()) return;
-    
+    if (idx >= particles.length())
+        return;
+
     Particle p = particles[idx];
-    
+
     // Get velocity from LBM field or simple wind
     vec3 flowVelocity;
     if (useLBM == 1 && lbmGridSize.x > 0) {
         flowVelocity = sampleLBMVelocity(p.position);
         // Scale from lattice units to world units
-        flowVelocity *= 2.0;  // Adjust based on your lattice/world scaling
+        flowVelocity *= 2.0; // Adjust based on your lattice/world scaling
     } else {
         flowVelocity = wind;
     }
-    
+
     // Particle follows fluid with some relaxation
-    float relaxation = 5.0 * dt;  // How quickly particle matches fluid
+    float relaxation = 5.0 * dt; // How quickly particle matches fluid
     p.velocity = mix(p.velocity, flowVelocity, relaxation);
-    
+
     // Update position
     p.position += p.velocity * dt;
-    
+
     // AABB Collision
     if (collisionMode == 1) {
         if (isInsideAABB(p.position, carMin, carMax)) {
             vec3 normal = getAABBNormal(p.position, carMin, carMax, carCenter);
             p.position = pushOutOfAABB(p.position, carMin, carMax);
-            
+
             float velDotNormal = dot(p.velocity, normal);
             if (velDotNormal < 0.0) {
                 p.velocity = p.velocity - 1.3 * velDotNormal * normal;
-                p.velocity.y += (fract(sin(float(idx) * 12.9898) * 43758.5453) - 0.5) * 0.1;
-                p.velocity.z += (fract(sin(float(idx) * 78.233) * 43758.5453) - 0.5) * 0.1;
+                p.velocity.y +=
+                    (fract(sin(float(idx) * 12.9898) * 43758.5453) - 0.5) * 0.1;
+                p.velocity.z +=
+                    (fract(sin(float(idx) * 78.233) * 43758.5453) - 0.5) * 0.1;
             }
         }
     }
     // Per Triangle Collision
     else if (collisionMode == 2 && numTriangles > 0) {
         float collisionRadius = 0.05;
-        
+
         for (int i = 0; i < numTriangles; i++) {
             Triangle tri = triangles[i];
             vec3 closestPoint, normal;
-            float dist = pointTriangleDistance(p.position, tri.v0, tri.v1, tri.v2, closestPoint, normal);
-            
+            float dist = pointTriangleDistance(
+                p.position, tri.v0, tri.v1, tri.v2, closestPoint, normal);
+
             if (dist < collisionRadius) {
                 p.position = closestPoint + normal * collisionRadius;
-                
+
                 float velDotNormal = dot(p.velocity, normal);
                 if (velDotNormal < 0.0) {
                     p.velocity = p.velocity - 1.3 * velDotNormal * normal;
-                    p.velocity.y += (fract(sin(float(idx) * 12.9898) * 43758.5453) - 0.5) * 0.1;
-                    p.velocity.z += (fract(sin(float(idx) * 78.233) * 43758.5453) - 0.5) * 0.1;
+                    p.velocity.y +=
+                        (fract(sin(float(idx) * 12.9898) * 43758.5453) - 0.5) *
+                        0.1;
+                    p.velocity.z +=
+                        (fract(sin(float(idx) * 78.233) * 43758.5453) - 0.5) *
+                        0.1;
                 }
                 break;
             }
         }
     }
-    
+
     // Decrease lifetime
     p.life -= 0.01 * dt;
-    
+
     // Reset particles that exit domain or expire
     // Reset particles that exit domain or expire
-    if (p.life <= 0.0 || p.position.x > 4.0 || abs(p.position.y) > 2.0 || abs(p.position.z) > 2.0) {
-        p.position = vec3(-4.0, 
-                         (fract(sin(float(idx) * 43758.5453)) - 0.5) * 3.0, 
-                         (fract(sin(float(idx) * 12345.6789)) - 0.5) * 3.0);
-        p.velocity = vec3(0.5 + fract(sin(float(idx) * 9876.54321)) * 0.2, 0.0, 0.0);
+    if (p.life <= 0.0 || p.position.x > 4.0 || abs(p.position.y) > 2.0 ||
+        abs(p.position.z) > 2.0) {
+        p.position = vec3(-4.0,
+                          (fract(sin(float(idx) * 43758.5453)) - 0.5) * 3.0,
+                          (fract(sin(float(idx) * 12345.6789)) - 0.5) * 3.0);
+        p.velocity =
+            vec3(0.5 + fract(sin(float(idx) * 9876.54321)) * 0.2, 0.0, 0.0);
         p.life = 1.0;
     }
-    
+
     // Domain bounds
 
-    
     particles[idx] = p;
 }
