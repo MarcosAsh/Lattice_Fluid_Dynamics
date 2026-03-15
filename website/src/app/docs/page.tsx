@@ -3,6 +3,42 @@
 import Link from 'next/link';
 import { useEffect } from 'react';
 
+const REPO = 'https://github.com/MarcosAsh/3dFluidDynamicsInC';
+
+function SourceLink({
+  path,
+  label,
+}: {
+  path: string;
+  label: string;
+}) {
+  return (
+    <a
+      href={`${REPO}/blob/master/${path}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-ctp-blue hover:text-ctp-lavender text-xs transition-colors"
+    >
+      {label}
+    </a>
+  );
+}
+
+function SourceLinks({
+  links,
+}: {
+  links: { path: string; label: string }[];
+}) {
+  return (
+    <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 mb-1 text-xs text-ctp-overlay0">
+      <span>See implementation:</span>
+      {links.map((l) => (
+        <SourceLink key={l.path} {...l} />
+      ))}
+    </div>
+  );
+}
+
 export default function DocsPage() {
   useEffect(() => {
     const link = document.createElement('link');
@@ -300,6 +336,22 @@ export default function DocsPage() {
           with weights w<sub>0</sub> = 1/3, w<sub>1-6</sub> = 1/18, w
           <sub>7-18</sub> = 1/36.
         </p>
+        <SourceLinks
+          links={[
+            {
+              path: 'simulation/shaders/lbm_collide.comp',
+              label: 'lbm_collide.comp (collision + BCs)',
+            },
+            {
+              path: 'simulation/shaders/lbm_stream.comp',
+              label: 'lbm_stream.comp (streaming)',
+            },
+            {
+              path: 'simulation/src/lbm.c',
+              label: 'lbm.c (grid setup)',
+            },
+          ]}
+        />
       </section>
 
       {/* Force Computation */}
@@ -336,6 +388,18 @@ export default function DocsPage() {
           contribution is calculated from the distribution functions before and
           after collision.
         </p>
+        <SourceLinks
+          links={[
+            {
+              path: 'simulation/shaders/lbm_force.comp',
+              label: 'lbm_force.comp (momentum exchange)',
+            },
+            {
+              path: 'simulation/src/lbm.c',
+              label: 'lbm.c (Cd/Cl normalization)',
+            },
+          ]}
+        />
       </section>
 
       {/* GPU Implementation */}
@@ -412,6 +476,22 @@ void main() {
     }
 }`}</pre>
         </div>
+        <SourceLinks
+          links={[
+            {
+              path: 'simulation/shaders/lbm_collide.comp',
+              label: 'lbm_collide.comp',
+            },
+            {
+              path: 'simulation/shaders/particle_lbm.comp',
+              label: 'particle_lbm.comp (advection)',
+            },
+            {
+              path: 'simulation/src/main.c',
+              label: 'main.c (render loop)',
+            },
+          ]}
+        />
       </section>
 
       {/* Validation */}
