@@ -1,51 +1,91 @@
 #include "../lib/opengl_utils.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
-// Load and compile a shader from a file
+static const char *shader_type_name(GLenum type) {
+    switch (type) {
+    case GL_VERTEX_SHADER:
+        return "vertex";
+    case GL_FRAGMENT_SHADER:
+        return "fragment";
+    case GL_COMPUTE_SHADER:
+        return "compute";
+    default:
+        return "unknown";
+    }
+}
+
+// Print the first N lines of source for debugging
+static void print_source_preview(const char *source, int lines) {
+    const char *p = source;
+    for (int i = 0; i < lines && *p; i++) {
+        const char *end = strchr(p, '\n');
+        if (end) {
+            printf("  %3d | %.*s\n", i + 1, (int)(end - p), p);
+            p = end + 1;
+        } else {
+            printf("  %3d | %s\n", i + 1, p);
+            break;
+        }
+    }
+}
+
 GLuint loadShader(const char *path, GLenum type) {
     FILE *file = fopen(path, "rb");
     if (!file) {
-        printf("Error: Could not open the shader file %s \n", path);
+        printf("Error: shader file not found: %s\n", path);
         return 0;
     }
     fseek(file, 0, SEEK_END);
     long length = ftell(file);
     fseek(file, 0, SEEK_SET);
+
+    if (length <= 0) {
+        printf("Error: shader file is empty: %s\n", path);
+        fclose(file);
+        return 0;
+    }
+
     char *source = (char *)malloc(length + 1);
     fread(source, 1, length, file);
     source[length] = '\0';
     fclose(file);
 
-    // Load and compile shader
     GLuint shader = glCreateShader(type);
-    glShaderSource(shader, 1, (const GLchar *const *)&source, NULL);
+    glShaderSource(
+        shader, 1, (const GLchar *const *)&source, NULL);
     glCompileShader(shader);
 
-    // Check for compilation errors
     GLint status;
     glGetShaderiv(shader, GL_COMPILE_STATUS, &status);
     if (status == GL_FALSE) {
-        char log[1024];
+        char log[2048];
         glGetShaderInfoLog(shader, sizeof(log), NULL, log);
-        printf("Shader compilation error in %s: %s\n",
-               path,
-               log);            // Add file path to error message
-        free(source);           // Free allocated memory
-        glDeleteShader(shader); // Delete the shader object
+        printf("\n=== Shader compile error ===\n");
+        printf("  File: %s\n", path);
+        printf("  Type: %s\n", shader_type_name(type));
+        printf("  Error: %s\n", log);
+        printf("  Source preview:\n");
+        print_source_preview(source, 15);
+        printf("============================\n\n");
+        free(source);
+        glDeleteShader(shader);
         return 0;
     }
     free(source);
     return shader;
 }
 
-// Create a shader program for vertex and fragment shaders
-GLuint createShaderProgram(const char *vertexPath, const char *fragmentPath) {
-    GLuint vertexShader = loadShader(vertexPath, GL_VERTEX_SHADER);
+GLuint createShaderProgram(
+    const char *vertexPath, const char *fragmentPath) {
+    GLuint vertexShader =
+        loadShader(vertexPath, GL_VERTEX_SHADER);
     if (!vertexShader)
         return 0;
 
-    GLuint fragmentShader = loadShader(fragmentPath, GL_FRAGMENT_SHADER);
+    GLuint fragmentShader =
+        loadShader(fragmentPath, GL_FRAGMENT_SHADER);
     if (!fragmentShader) {
         glDeleteShader(vertexShader);
         return 0;
@@ -59,9 +99,14 @@ GLuint createShaderProgram(const char *vertexPath, const char *fragmentPath) {
     GLint status;
     glGetProgramiv(program, GL_LINK_STATUS, &status);
     if (status == GL_FALSE) {
-        char log[1024];
-        glGetProgramInfoLog(program, sizeof(log), NULL, log);
-        printf("Shader linking error: %s\n", log);
+        char log[2048];
+        glGetProgramInfoLog(
+            program, sizeof(log), NULL, log);
+        printf("\n=== Shader link error ===\n");
+        printf("  Vertex:   %s\n", vertexPath);
+        printf("  Fragment: %s\n", fragmentPath);
+        printf("  Error: %s\n", log);
+        printf("=========================\n\n");
         glDeleteShader(vertexShader);
         glDeleteShader(fragmentShader);
         glDeleteProgram(program);
@@ -73,9 +118,9 @@ GLuint createShaderProgram(const char *vertexPath, const char *fragmentPath) {
     return program;
 }
 
-// Create a compute shader program
 GLuint createComputeShader(const char *computePath) {
-    GLuint computeShader = loadShader(computePath, GL_COMPUTE_SHADER);
+    GLuint computeShader =
+        loadShader(computePath, GL_COMPUTE_SHADER);
     if (!computeShader)
         return 0;
 
@@ -86,9 +131,13 @@ GLuint createComputeShader(const char *computePath) {
     GLint status;
     glGetProgramiv(program, GL_LINK_STATUS, &status);
     if (status == GL_FALSE) {
-        char log[1024];
-        glGetProgramInfoLog(program, sizeof(log), NULL, log);
-        printf("Shader linking error: %s\n", log);
+        char log[2048];
+        glGetProgramInfoLog(
+            program, sizeof(log), NULL, log);
+        printf("\n=== Compute shader link error ===\n");
+        printf("  File:  %s\n", computePath);
+        printf("  Error: %s\n", log);
+        printf("=================================\n\n");
         glDeleteShader(computeShader);
         glDeleteProgram(program);
         return 0;
@@ -98,9 +147,11 @@ GLuint createComputeShader(const char *computePath) {
     return program;
 }
 
-// Create a buffer (like SSBO, VBO)
-GLuint
-createBuffer(GLenum type, GLsizeiptr size, const void *data, GLenum usage) {
+GLuint createBuffer(
+    GLenum type,
+    GLsizeiptr size,
+    const void *data,
+    GLenum usage) {
     GLuint buffer;
     glGenBuffers(1, &buffer);
     glBindBuffer(type, buffer);
