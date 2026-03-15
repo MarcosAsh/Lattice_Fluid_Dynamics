@@ -370,7 +370,7 @@ def render_simulation(
             f"--collision={collision_mode}",
             f"--duration={duration}",
             f"--output={frames_dir}",
-            "--grid=256x128x128",
+            "--grid=80x40x40",
         ]
         if supports_model:
             cmd.append(f"--model={model_path}")
