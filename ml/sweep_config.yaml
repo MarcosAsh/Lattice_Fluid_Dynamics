@@ -1,0 +1,36 @@
+# Parameter sweep for training data generation.
+# Run: python data_gen.py --config sweep_config.yaml
+
+models:
+  - car
+  - ahmed25
+  - ahmed35
+
+wind_speeds:
+  min: 0.5
+  max: 5.0
+  step: 0.25
+
+reynolds_numbers:
+  - 0        # auto (default)
+  - 1000
+  - 5000
+  - 10000
+  - 50000
+
+duration: 15       # seconds per run (enough for Cd to converge)
+viz_mode: 1        # velocity magnitude (doesn't affect Cd, just for consistency)
+collision_mode: 1  # AABB
+
+# Rate limiting
+max_concurrent: 4
+retry_limit: 3
+delay_between_batches: 2.0  # seconds
+
+# Quality thresholds
+quality:
+  cd_max: 10.0         # flag if Cd above this
+  cd_min: 0.0          # flag if Cd below this
+  min_cd_samples: 5    # need at least this many Cd readings
+  convergence_window: 5
+  convergence_threshold: 0.05  # relative std dev of last N values
