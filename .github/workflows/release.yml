@@ -31,7 +31,8 @@ jobs:
         run: |
           export MESA_GL_VERSION_OVERRIDE=4.3
           export LIBGL_ALWAYS_SOFTWARE=1
-          xvfb-run ./build/test_lbm
+          cd simulation
+          xvfb-run ../build/test_lbm
 
       - name: Package
         run: |
