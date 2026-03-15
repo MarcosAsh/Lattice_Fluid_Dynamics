@@ -616,7 +616,7 @@ int main(int argc, char* argv[]) {
                             carBounds.minX, carBounds.minY, carBounds.minZ,
                             carBounds.maxX, carBounds.maxY, carBounds.maxZ);
         }
-        LBM_InitializeFlow(lbmGrid, 0.1f, 0.0f, 0.0f);
+        LBM_InitializeFlow(lbmGrid, windSpeed * 0.05f, 0.0f, 0.0f);
         printf("LBM initialized successfully\n");
     } else {
         printf("Warning: LBM initialization failed, using simple wind\n");
