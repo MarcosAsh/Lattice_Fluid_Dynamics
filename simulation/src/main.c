@@ -789,12 +789,19 @@ int main(int argc, char *argv[]) {
                              carBounds.maxY,
                              carBounds.maxZ);
         }
-        // Auto-enable regularized collision when tau is low (high Re).
-        // Standard BGK becomes unstable below ~0.55.
+        // Enable Smagorinsky SGS turbulence model by default.
+        // Adds local eddy viscosity so we can simulate at
+        // effectively higher Re on coarse grids.
+        lbmGrid->useSmagorinsky = 1;
+        lbmGrid->smagorinskyCs = 0.1f;
+        printf("Smagorinsky SGS enabled (Cs=%.2f)\n",
+               lbmGrid->smagorinskyCs);
+
+        // Auto-enable regularized when tau is low.
         if (lbmGrid->tau < 0.6f) {
             lbmGrid->useRegularized = 1;
-            printf("Regularized collision enabled (tau=%.3f near stability "
-                   "limit)\n",
+            printf("Regularized collision enabled "
+                   "(tau=%.3f)\n",
                    lbmGrid->tau);
         }
 

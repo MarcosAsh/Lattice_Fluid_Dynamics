@@ -30,7 +30,12 @@ typedef struct {
     GLint stream_periodicYZLoc;
     GLint force_gridSizeLoc;
 
+    GLint collide_useSmagorinskyLoc;
+    GLint collide_smaCsLoc;
+
     int useRegularized; // 0 = BGK, 1 = regularized
+    int useSmagorinsky; // 0 = off, 1 = Smagorinsky SGS
+    float smagorinskyCs; // Smagorinsky constant
     int periodicYZ;     // 0 = clamp, 1 = periodic y/z
 } LBMGrid;
 

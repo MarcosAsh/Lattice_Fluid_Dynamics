@@ -115,6 +115,8 @@ LBMGrid *LBM_Create(int sizeX, int sizeY, int sizeZ, float viscosity) {
     }
 
     grid->useRegularized = 0;
+    grid->useSmagorinsky = 0;
+    grid->smagorinskyCs = 0.1f;
     grid->periodicYZ = 0;
 
     // Get uniform locations
@@ -126,6 +128,10 @@ LBMGrid *LBM_Create(int sizeX, int sizeY, int sizeZ, float viscosity) {
         glGetUniformLocation(grid->collideShader, "inletVelocity");
     grid->collide_useRegularizedLoc =
         glGetUniformLocation(grid->collideShader, "useRegularized");
+    grid->collide_useSmagorinskyLoc =
+        glGetUniformLocation(grid->collideShader, "useSmagorinsky");
+    grid->collide_smaCsLoc =
+        glGetUniformLocation(grid->collideShader, "smagorinskyCs");
 
     glUseProgram(grid->streamShader);
     grid->stream_gridSizeLoc =
@@ -279,6 +285,8 @@ void LBM_Step(LBMGrid *grid,
     glUniform1f(grid->collide_tauLoc, grid->tau);
     glUniform3f(grid->collide_inletVelLoc, inletVelX, inletVelY, inletVelZ);
     glUniform1i(grid->collide_useRegularizedLoc, grid->useRegularized);
+    glUniform1i(grid->collide_useSmagorinskyLoc, grid->useSmagorinsky);
+    glUniform1f(grid->collide_smaCsLoc, grid->smagorinskyCs);
 
     glDispatchCompute(
         (grid->sizeX + 7) / 8, (grid->sizeY + 7) / 8, (grid->sizeZ + 7) / 8);

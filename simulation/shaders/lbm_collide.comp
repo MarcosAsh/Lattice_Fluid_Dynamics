@@ -23,7 +23,9 @@ layout(std430, binding = 5) buffer SolidMask {
 uniform ivec3 gridSize;
 uniform float tau; // Relaxation time (viscosity related)
 uniform vec3 inletVelocity;
-uniform int useRegularized; // 0 = BGK, 1 = regularized (stable at high Re)
+uniform int useRegularized; // 0 = BGK, 1 = regularized
+uniform int useSmagorinsky; // 0 = off, 1 = Smagorinsky SGS
+uniform float smagorinskyCs; // Smagorinsky constant (typically 0.1)
 
 // D3Q19 lattice velocities
 const ivec3 e[19] = ivec3[19](ivec3(0, 0, 0),   // 0: rest
@@ -206,7 +208,48 @@ void main() {
     // Store velocity for particle advection
     velocity[cellIdx] = vec4(u, rho);
 
-    float omega = 1.0 / tau;
+    // Effective relaxation time (may be modified by Smagorinsky)
+    float tau_eff = tau;
+
+    if (useSmagorinsky == 1) {
+        // Smagorinsky subgrid-scale model.
+        // Compute non-eq stress tensor from distributions,
+        // then derive a local turbulent viscosity.
+        float Sxx = 0.0, Syy = 0.0, Szz = 0.0;
+        float Sxy = 0.0, Sxz = 0.0, Syz = 0.0;
+
+        for (int i = 0; i < 19; i++) {
+            float fi = f[idxF(pos.x, pos.y, pos.z, i)];
+            float fi_eq = feq(i, rho, u);
+            float f_neq = fi - fi_eq;
+
+            float ex = float(e[i].x);
+            float ey = float(e[i].y);
+            float ez = float(e[i].z);
+
+            Sxx += ex * ex * f_neq;
+            Syy += ey * ey * f_neq;
+            Szz += ez * ez * f_neq;
+            Sxy += ex * ey * f_neq;
+            Sxz += ex * ez * f_neq;
+            Syz += ey * ez * f_neq;
+        }
+
+        // Frobenius norm of the stress tensor
+        float Pi_norm = sqrt(
+            Sxx * Sxx + Syy * Syy + Szz * Szz +
+            2.0 * (Sxy * Sxy + Sxz * Sxz + Syz * Syz)
+        );
+
+        // Effective tau from Smagorinsky:
+        // tau_eff = 0.5*(tau + sqrt(tau^2 + 18*Cs^2*|Pi|/rho))
+        float Cs2 = smagorinskyCs * smagorinskyCs;
+        tau_eff = 0.5 * (
+            tau + sqrt(tau * tau + 18.0 * Cs2 * Pi_norm / (rho + 1e-10))
+        );
+    }
+
+    float omega = 1.0 / tau_eff;
 
     if (useRegularized == 1) {
         // Regularized collision: reconstruct distributions from the stress
