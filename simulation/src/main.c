@@ -646,7 +646,35 @@ int main(int argc, char *argv[]) {
                g_offsetZ);
     }
 
-    g_carRotationY = 90.0f;
+    // Auto-orient: rotate so the model's longest axis is
+    // streamwise (x). If it's already in x, no rotation needed.
+    // If the longest axis is z, rotate 90 to swap z->x.
+    {
+        float sizeX = 0, sizeZ = 0;
+        if (carModel.vertexCount > 0) {
+            float mnX = FLT_MAX, mxX = -FLT_MAX;
+            float mnZ = FLT_MAX, mxZ = -FLT_MAX;
+            for (int i = 0; i < carModel.vertexCount; i++) {
+                float x = carModel.vertices[i].x * g_modelScale
+                          + g_offsetX;
+                float z = carModel.vertices[i].z * g_modelScale
+                          + g_offsetZ;
+                if (x < mnX) mnX = x;
+                if (x > mxX) mxX = x;
+                if (z < mnZ) mnZ = z;
+                if (z > mxZ) mxZ = z;
+            }
+            sizeX = mxX - mnX;
+            sizeZ = mxZ - mnZ;
+        }
+        if (sizeZ > sizeX) {
+            g_carRotationY = 90.0f;
+            printf("Auto-rotation: 90 deg (longest axis was z)\n");
+        } else {
+            g_carRotationY = 0.0f;
+            printf("Auto-rotation: 0 deg (longest axis already x)\n");
+        }
+    }
 
     CarBounds carBounds = computeModelBounds(&carModel,
                                              g_modelScale,
