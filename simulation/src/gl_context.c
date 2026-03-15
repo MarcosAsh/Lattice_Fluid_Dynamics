@@ -77,6 +77,11 @@ GLContext *GLContext_CreateInteractive(int w, int h) {
 static GLContext *headless_sdl_fallback(int w, int h) {
     printf("Using SDL hidden window for headless\n");
 
+    /* Force software GL to avoid GLX conflicts with
+     * NVIDIA drivers when running under Xvfb. */
+    setenv("LIBGL_ALWAYS_SOFTWARE", "1", 1);
+    setenv("MESA_GL_VERSION_OVERRIDE", "4.3", 0);
+
     GLContext *ctx = (GLContext *)calloc(1, sizeof(*ctx));
     ctx->useEGL = 0;
     ctx->width = w;

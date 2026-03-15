@@ -60,7 +60,6 @@ image = (
         {
             "DISPLAY": ":99",
             "NVIDIA_DRIVER_CAPABILITIES": "all",
-            "USE_EGL": "1",
         }
     )
 )
