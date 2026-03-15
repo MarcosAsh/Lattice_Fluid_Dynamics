@@ -17,7 +17,9 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential cmake pkg-config \
-            libsdl2-dev libsdl2-ttf-dev libglew-dev mesa-common-dev libgl1-mesa-dev
+            libsdl2-dev libsdl2-ttf-dev libglew-dev \
+            mesa-common-dev libgl1-mesa-dev libosmesa6-dev \
+            xvfb mesa-utils
 
       - name: Configure
         run: cmake -B build -S simulation -DCMAKE_BUILD_TYPE=Release
@@ -27,6 +29,19 @@ jobs:
 
       - name: Smoke test
         run: ./build/3d_fluid_simulation_car --help
+
+      - name: LBM unit tests
+        run: |
+          export MESA_GL_VERSION_OVERRIDE=4.3
+          export LIBGL_ALWAYS_SOFTWARE=1
+          xvfb-run ./build/test_lbm
+
+      - name: Integration test
+        run: |
+          export MESA_GL_VERSION_OVERRIDE=4.3
+          export LIBGL_ALWAYS_SOFTWARE=1
+          cd simulation
+          xvfb-run bash test/test_integration.sh
 
   build-website:
     name: Build website (Next.js)
