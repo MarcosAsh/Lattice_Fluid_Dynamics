@@ -163,13 +163,14 @@ def _cache_key(
     viz_mode: int,
     collision_mode: int,
     reynolds: float,
+    grid: str = "256x128x128",
 ) -> str:
     """Hash render params to check for cached results."""
     import hashlib
 
     key = (
         f"{model}_{wind_speed}_{viz_mode}_"
-        f"{collision_mode}_{reynolds}"
+        f"{collision_mode}_{reynolds}_{grid}"
     )
     return hashlib.md5(key.encode()).hexdigest()[:12]
 
