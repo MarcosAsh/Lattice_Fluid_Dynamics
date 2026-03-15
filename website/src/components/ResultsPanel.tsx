@@ -41,7 +41,11 @@ function downloadCsv(result: SimulationResult) {
   URL.revokeObjectURL(url);
 }
 
-export default function ResultsPanel({ current, history, onSelect }: ResultsPanelProps) {
+export default function ResultsPanel({
+  current,
+  history,
+  onSelect,
+}: ResultsPanelProps) {
   if (history.length === 0) return null;
 
   return (
@@ -103,10 +107,18 @@ export default function ResultsPanel({ current, history, onSelect }: ResultsPane
             <table className="w-full text-left text-xs">
               <thead>
                 <tr className="border-b border-ctp-surface1">
-                  <th className="py-1.5 pr-2 text-ctp-subtext0 font-medium">Model</th>
-                  <th className="py-1.5 pr-2 text-ctp-subtext0 font-medium">Wind</th>
-                  <th className="py-1.5 pr-2 text-ctp-subtext0 font-medium">C<sub>d</sub></th>
-                  <th className="py-1.5 pr-2 text-ctp-subtext0 font-medium">C<sub>l</sub></th>
+                  <th className="py-1.5 pr-2 text-ctp-subtext0 font-medium">
+                    Model
+                  </th>
+                  <th className="py-1.5 pr-2 text-ctp-subtext0 font-medium">
+                    Wind
+                  </th>
+                  <th className="py-1.5 pr-2 text-ctp-subtext0 font-medium">
+                    C<sub>d</sub>
+                  </th>
+                  <th className="py-1.5 pr-2 text-ctp-subtext0 font-medium">
+                    C<sub>l</sub>
+                  </th>
                   <th className="py-1.5 text-ctp-subtext0 font-medium"></th>
                 </tr>
               </thead>
@@ -125,10 +137,14 @@ export default function ResultsPanel({ current, history, onSelect }: ResultsPane
                         {result.windSpeed.toFixed(1)}
                       </td>
                       <td className="py-1.5 pr-2 font-mono text-ctp-text">
-                        {result.cdValue !== null ? result.cdValue.toFixed(4) : '--'}
+                        {result.cdValue !== null
+                          ? result.cdValue.toFixed(4)
+                          : '--'}
                       </td>
                       <td className="py-1.5 pr-2 font-mono text-ctp-text">
-                        {result.clValue !== null ? result.clValue.toFixed(4) : '--'}
+                        {result.clValue !== null
+                          ? result.clValue.toFixed(4)
+                          : '--'}
                       </td>
                       <td className="py-1.5">
                         {!isCurrent && (

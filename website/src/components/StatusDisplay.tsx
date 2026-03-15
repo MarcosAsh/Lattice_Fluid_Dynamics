@@ -15,7 +15,10 @@ interface Phase {
   hint: string;
 }
 
-function getPhase(elapsed: number, duration: number): { phase: Phase; progress: number } {
+function getPhase(
+  elapsed: number,
+  duration: number,
+): { phase: Phase; progress: number } {
   const startupTime = 15;
   const simTime = duration * 1.5;
   const encodeTime = 10;
@@ -24,15 +27,35 @@ function getPhase(elapsed: number, duration: number): { phase: Phase; progress: 
   const progress = Math.min(elapsed / total, 0.95);
 
   if (elapsed < startupTime) {
-    return { phase: { label: 'Starting GPU instance', hint: 'Cold starting the container...' }, progress };
+    return {
+      phase: {
+        label: 'Starting GPU instance',
+        hint: 'Cold starting the container...',
+      },
+      progress,
+    };
   }
   if (elapsed < startupTime + simTime) {
-    return { phase: { label: 'Running simulation', hint: `Computing ${duration}s of fluid dynamics` }, progress };
+    return {
+      phase: {
+        label: 'Running simulation',
+        hint: `Computing ${duration}s of fluid dynamics`,
+      },
+      progress,
+    };
   }
-  return { phase: { label: 'Encoding video', hint: 'Packaging frames into MP4' }, progress };
+  return {
+    phase: { label: 'Encoding video', hint: 'Packaging frames into MP4' },
+    progress,
+  };
 }
 
-export default function StatusDisplay({ status, error, duration, renderStartTime }: StatusDisplayProps) {
+export default function StatusDisplay({
+  status,
+  error,
+  duration,
+  renderStartTime,
+}: StatusDisplayProps) {
   const [tick, setTick] = useState(0);
 
   const isRendering = status === 'rendering' && renderStartTime != null;
@@ -45,13 +68,14 @@ export default function StatusDisplay({ status, error, duration, renderStartTime
   }, [isRendering]);
 
   // Reset tick when renderStartTime changes (new render starts)
-  const startRef = useMemo(() => ({ value: renderStartTime }), [renderStartTime]);
+  const startRef = useMemo(
+    () => ({ value: renderStartTime }),
+    [renderStartTime],
+  );
   void startRef;
 
   // elapsed is derived: 0 when not rendering, computed from tick counter otherwise
-  const elapsed = isRendering && renderStartTime
-    ? tick * 0.5
-    : 0;
+  const elapsed = isRendering && renderStartTime ? tick * 0.5 : 0;
 
   const { phase, progress } = getPhase(elapsed, duration);
 
@@ -68,9 +92,11 @@ export default function StatusDisplay({ status, error, duration, renderStartTime
   return (
     <div className="border border-ctp-surface1 rounded-lg p-4 bg-ctp-mantle">
       <div className="flex items-center gap-3">
-        <div className={`w-2.5 h-2.5 rounded-full ${config.color} ${
-          isRendering ? 'animate-pulse' : ''
-        }`} />
+        <div
+          className={`w-2.5 h-2.5 rounded-full ${config.color} ${
+            isRendering ? 'animate-pulse' : ''
+          }`}
+        />
         <span className="text-sm text-ctp-text">{config.text}</span>
       </div>
 

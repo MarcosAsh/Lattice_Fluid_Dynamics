@@ -6,8 +6,8 @@ and saves them as CSV + binary dataset files.
 
 Usage:
     python data_gen.py --config sweep_config.yaml
-    python data_gen.py --config sweep_config.yaml --resume  # skip completed runs
-    python data_gen.py --status                              # show progress
+    python data_gen.py --config sweep_config.yaml --resume
+    python data_gen.py --status
 """
 
 import argparse
@@ -17,7 +17,8 @@ import json
 import struct
 import sys
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import as_completed
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -76,14 +77,16 @@ def generate_run_configs(config: dict) -> list[RunConfig]:
     for model in config["models"]:
         for wind_speed in wind_speeds:
             for reynolds in config["reynolds_numbers"]:
-                runs.append(RunConfig(
-                    model=model,
-                    wind_speed=wind_speed,
-                    reynolds=float(reynolds),
-                    duration=config["duration"],
-                    viz_mode=config.get("viz_mode", 1),
-                    collision_mode=config.get("collision_mode", 1),
-                ))
+                runs.append(
+                    RunConfig(
+                        model=model,
+                        wind_speed=wind_speed,
+                        reynolds=float(reynolds),
+                        duration=config["duration"],
+                        viz_mode=config.get("viz_mode", 1),
+                        collision_mode=config.get("collision_mode", 1),
+                    )
+                )
     return runs
 
 
@@ -185,22 +188,34 @@ def save_manifest_row(result: RunResult):
     with open(MANIFEST_FILE, "a", newline="") as f:
         writer = csv.writer(f)
         if write_header:
-            writer.writerow([
-                "run_id", "model", "wind_speed", "reynolds", "duration",
-                "status", "cd_value", "cl_value", "converged", "error",
-            ])
-        writer.writerow([
-            result.config.run_id,
-            result.config.model,
-            result.config.wind_speed,
-            result.config.reynolds,
-            result.config.duration,
-            result.status,
-            f"{result.cd_value:.6f}" if result.cd_value is not None else "",
-            f"{result.cl_value:.6f}" if result.cl_value is not None else "",
-            result.converged,
-            result.error or "",
-        ])
+            writer.writerow(
+                [
+                    "run_id",
+                    "model",
+                    "wind_speed",
+                    "reynolds",
+                    "duration",
+                    "status",
+                    "cd_value",
+                    "cl_value",
+                    "converged",
+                    "error",
+                ]
+            )
+        writer.writerow(
+            [
+                result.config.run_id,
+                result.config.model,
+                result.config.wind_speed,
+                result.config.reynolds,
+                result.config.duration,
+                result.status,
+                f"{result.cd_value:.6f}" if result.cd_value is not None else "",
+                f"{result.cl_value:.6f}" if result.cl_value is not None else "",
+                result.converged,
+                result.error or "",
+            ]
+        )
 
 
 def save_results_csv(result: RunResult):
@@ -211,20 +226,30 @@ def save_results_csv(result: RunResult):
     with open(RESULTS_FILE, "a", newline="") as f:
         writer = csv.writer(f)
         if write_header:
-            writer.writerow([
-                "run_id", "model", "wind_speed", "reynolds",
-                "cd_value", "cl_value", "cd_series", "cl_series",
-            ])
-        writer.writerow([
-            result.config.run_id,
-            result.config.model,
-            result.config.wind_speed,
-            result.config.reynolds,
-            f"{result.cd_value:.6f}" if result.cd_value is not None else "",
-            f"{result.cl_value:.6f}" if result.cl_value is not None else "",
-            json.dumps(result.cd_series),
-            json.dumps(result.cl_series),
-        ])
+            writer.writerow(
+                [
+                    "run_id",
+                    "model",
+                    "wind_speed",
+                    "reynolds",
+                    "cd_value",
+                    "cl_value",
+                    "cd_series",
+                    "cl_series",
+                ]
+            )
+        writer.writerow(
+            [
+                result.config.run_id,
+                result.config.model,
+                result.config.wind_speed,
+                result.config.reynolds,
+                f"{result.cd_value:.6f}" if result.cd_value is not None else "",
+                f"{result.cl_value:.6f}" if result.cl_value is not None else "",
+                json.dumps(result.cd_series),
+                json.dumps(result.cl_series),
+            ]
+        )
 
 
 def export_binary_dataset():
@@ -258,21 +283,23 @@ def export_binary_dataset():
         for row in reader:
             if not row["cd_value"] or not row["cl_value"]:
                 continue
-            records.append((
-                float(row["wind_speed"]),
-                float(row["reynolds"]),
-                model_ids.get(row["model"], -1.0),
-                float(row["cd_value"]),
-                float(row["cl_value"]),
-            ))
+            records.append(
+                (
+                    float(row["wind_speed"]),
+                    float(row["reynolds"]),
+                    model_ids.get(row["model"], -1.0),
+                    float(row["cd_value"]),
+                    float(row["cl_value"]),
+                )
+            )
 
     DATASET_DIR.mkdir(parents=True, exist_ok=True)
     with open(BINARY_FILE, "wb") as f:
         # Header
         f.write(struct.pack("<I", 0x4C415454))  # magic
-        f.write(struct.pack("<I", 1))             # version
-        f.write(struct.pack("<I", len(records)))   # num_records
-        f.write(struct.pack("<I", 5))              # features_per_record
+        f.write(struct.pack("<I", 1))  # version
+        f.write(struct.pack("<I", len(records)))  # num_records
+        f.write(struct.pack("<I", 5))  # features_per_record
 
         # Records
         for rec in records:
@@ -287,8 +314,12 @@ def compute_stats():
         return
 
     stats = {
-        "total": 0, "complete": 0, "failed": 0, "flagged": 0,
-        "converged": 0, "by_model": {},
+        "total": 0,
+        "complete": 0,
+        "failed": 0,
+        "flagged": 0,
+        "converged": 0,
+        "by_model": {},
     }
 
     with open(MANIFEST_FILE) as f:
@@ -311,7 +342,9 @@ def compute_stats():
                 stats["by_model"][model] = {"count": 0, "cd_values": []}
             stats["by_model"][model]["count"] += 1
             if row["cd_value"]:
-                stats["by_model"][model]["cd_values"].append(float(row["cd_value"]))
+                stats["by_model"][model]["cd_values"].append(
+                    float(row["cd_value"])
+                )
 
     # Compute per-model stats
     for model_stats in stats["by_model"].values():
@@ -337,13 +370,21 @@ def run_sweep(config_path: str, endpoint: str, resume: bool = False):
     config = load_sweep_config(config_path)
     runs = generate_run_configs(config)
     completed = load_completed_runs() if resume else set()
-    quality = config.get("quality", {
-        "cd_max": 10.0, "cd_min": 0.0, "min_cd_samples": 5,
-        "convergence_window": 5, "convergence_threshold": 0.05,
-    })
+    quality = config.get(
+        "quality",
+        {
+            "cd_max": 10.0,
+            "cd_min": 0.0,
+            "min_cd_samples": 5,
+            "convergence_window": 5,
+            "convergence_threshold": 0.05,
+        },
+    )
 
     pending = [r for r in runs if r.run_id not in completed]
-    print(f"Total runs: {len(runs)}, already done: {len(completed)}, pending: {len(pending)}")
+    done = len(completed)
+    todo = len(pending)
+    print(f"Total: {len(runs)}, done: {done}, pending: {todo}")
 
     if not pending:
         print("Nothing to do.")
@@ -379,17 +420,19 @@ def run_sweep(config_path: str, endpoint: str, resume: bool = False):
                     if result.status == "complete":
                         save_results_csv(result)
                         success += 1
-                        conv = "converged" if result.converged else "not converged"
+                        conv = (
+                            "converged" if result.converged else "not converged"
+                        )
                         print(
                             f"  [{success + failed}/{len(pending)}] "
-                            f"{run_cfg.model} ws={run_cfg.wind_speed} re={run_cfg.reynolds} "
+                            f"{run_cfg.model} ws={run_cfg.wind_speed} "
                             f"-> Cd={result.cd_value:.4f} ({conv})"
                         )
                     else:
                         failed += 1
                         print(
                             f"  [{success + failed}/{len(pending)}] "
-                            f"{run_cfg.model} ws={run_cfg.wind_speed} re={run_cfg.reynolds} "
+                            f"{run_cfg.model} ws={run_cfg.wind_speed} "
                             f"-> FAILED: {result.error}"
                         )
 
@@ -427,12 +470,24 @@ def show_status():
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Generate training data for Cd surrogate model")
-    parser.add_argument("--config", default="sweep_config.yaml", help="Sweep config YAML")
-    parser.add_argument("--endpoint", default=None, help="Modal render endpoint URL")
-    parser.add_argument("--resume", action="store_true", help="Skip already-completed runs")
+    parser = argparse.ArgumentParser(
+        description="Generate training data for Cd surrogate model"
+    )
+    parser.add_argument(
+        "--config", default="sweep_config.yaml", help="Sweep config YAML"
+    )
+    parser.add_argument(
+        "--endpoint", default=None, help="Modal render endpoint URL"
+    )
+    parser.add_argument(
+        "--resume", action="store_true", help="Skip already-completed runs"
+    )
     parser.add_argument("--status", action="store_true", help="Show progress")
-    parser.add_argument("--export-only", action="store_true", help="Just re-export binary from CSV")
+    parser.add_argument(
+        "--export-only",
+        action="store_true",
+        help="Just re-export binary from CSV",
+    )
     args = parser.parse_args()
 
     if args.status:
@@ -447,9 +502,13 @@ def main():
     endpoint = args.endpoint
     if not endpoint:
         import os
+
         endpoint = os.environ.get("MODAL_RENDER_ENDPOINT")
     if not endpoint:
-        print("Error: provide --endpoint or set MODAL_RENDER_ENDPOINT", file=sys.stderr)
+        print(
+            "Error: provide --endpoint or set MODAL_RENDER_ENDPOINT",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     config_path = Path(__file__).parent / args.config

@@ -14,7 +14,11 @@ interface ControlPanelProps {
 
 const vizModes = [
   { value: 0, label: 'Depth', description: 'Color by distance from camera' },
-  { value: 1, label: 'Velocity Magnitude', description: 'Blue (slow) to Red (fast)' },
+  {
+    value: 1,
+    label: 'Velocity Magnitude',
+    description: 'Blue (slow) to Red (fast)',
+  },
   { value: 2, label: 'Velocity Direction', description: 'RGB = XYZ velocity' },
   { value: 3, label: 'Particle Lifetime', description: 'Age of particles' },
   { value: 4, label: 'Turbulence', description: 'Laminar vs turbulent flow' },
@@ -30,9 +34,21 @@ const collisionModes = [
 
 const models = [
   { value: 'car', label: 'Car Model', description: 'Generic car shape' },
-  { value: 'ahmed25', label: 'Ahmed Body 25deg', description: 'CFD benchmark, low drag' },
-  { value: 'ahmed35', label: 'Ahmed Body 35deg', description: 'CFD benchmark, high drag' },
-  { value: 'custom', label: 'Custom OBJ', description: 'Upload your own model' },
+  {
+    value: 'ahmed25',
+    label: 'Ahmed Body 25deg',
+    description: 'CFD benchmark, low drag',
+  },
+  {
+    value: 'ahmed35',
+    label: 'Ahmed Body 35deg',
+    description: 'CFD benchmark, high drag',
+  },
+  {
+    value: 'custom',
+    label: 'Custom OBJ',
+    description: 'Upload your own model',
+  },
 ];
 
 function Slider({
@@ -62,7 +78,9 @@ function Slider({
         <span className="text-ctp-subtext0">{label}</span>
         <span className="text-ctp-text font-mono">{display ?? value}</span>
       </div>
-      {hint && <p className="text-[10px] text-ctp-overlay0 leading-tight">{hint}</p>}
+      {hint && (
+        <p className="text-[10px] text-ctp-overlay0 leading-tight">{hint}</p>
+      )}
       <input
         type="range"
         min={min}
@@ -77,7 +95,14 @@ function Slider({
   );
 }
 
-export default function ControlPanel({ params, setParams, onRender, disabled, objFile, onObjFileChange }: ControlPanelProps) {
+export default function ControlPanel({
+  params,
+  setParams,
+  onRender,
+  disabled,
+  objFile,
+  onObjFileChange,
+}: ControlPanelProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -98,13 +123,17 @@ export default function ControlPanel({ params, setParams, onRender, disabled, ob
           className="flex items-center gap-2 text-xs font-semibold text-ctp-overlay1 uppercase tracking-wider"
         >
           <svg
-            className={`w-3 h-3 transition-transform ${mobileOpen ? "rotate-90" : ""}`}
+            className={`w-3 h-3 transition-transform ${mobileOpen ? 'rotate-90' : ''}`}
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
             strokeWidth={2}
           >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M9 5l7 7-7 7"
+            />
           </svg>
           Controls
         </button>
@@ -123,7 +152,9 @@ export default function ControlPanel({ params, setParams, onRender, disabled, ob
       </h2>
 
       {/* Controls body */}
-      <div className={`flex flex-col gap-4 ${mobileOpen ? "" : "hidden"} lg:flex`}>
+      <div
+        className={`flex flex-col gap-4 ${mobileOpen ? '' : 'hidden'} lg:flex`}
+      >
         <div className="flex flex-col gap-1">
           <label className="text-xs text-ctp-subtext0">Model</label>
           <select
@@ -216,10 +247,14 @@ export default function ControlPanel({ params, setParams, onRender, disabled, ob
         <hr className="border-ctp-surface1" />
 
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-ctp-subtext0">Visualization Mode</label>
+          <label className="text-xs text-ctp-subtext0">
+            Visualization Mode
+          </label>
           <select
             value={params.vizMode}
-            onChange={(e) => setParams({ ...params, vizMode: parseInt(e.target.value) })}
+            onChange={(e) =>
+              setParams({ ...params, vizMode: parseInt(e.target.value) })
+            }
             className="bg-ctp-surface0 text-ctp-text text-sm rounded px-2 py-1.5 border border-ctp-surface1 focus:border-ctp-mauve outline-none"
             disabled={disabled}
           >
@@ -238,7 +273,9 @@ export default function ControlPanel({ params, setParams, onRender, disabled, ob
           <label className="text-xs text-ctp-subtext0">Collision Mode</label>
           <select
             value={params.collisionMode}
-            onChange={(e) => setParams({ ...params, collisionMode: parseInt(e.target.value) })}
+            onChange={(e) =>
+              setParams({ ...params, collisionMode: parseInt(e.target.value) })
+            }
             className="bg-ctp-surface0 text-ctp-text text-sm rounded px-2 py-1.5 border border-ctp-surface1 focus:border-ctp-mauve outline-none"
             disabled={disabled}
           >
@@ -249,7 +286,10 @@ export default function ControlPanel({ params, setParams, onRender, disabled, ob
             ))}
           </select>
           <p className="text-[10px] text-ctp-overlay0 leading-tight">
-            {collisionModes.find((m) => m.value === params.collisionMode)?.description}
+            {
+              collisionModes.find((m) => m.value === params.collisionMode)
+                ?.description
+            }
           </p>
         </div>
 
@@ -258,7 +298,11 @@ export default function ControlPanel({ params, setParams, onRender, disabled, ob
           disabled={renderDisabled}
           className="mt-2 bg-ctp-mauve hover:bg-ctp-lavender disabled:bg-ctp-surface1 disabled:text-ctp-overlay0 text-ctp-crust text-sm font-medium py-2 px-4 rounded transition-colors lg:block"
         >
-          {disabled ? 'Rendering...' : isCustom && !objFile ? 'Select OBJ first' : 'Start Render'}
+          {disabled
+            ? 'Rendering...'
+            : isCustom && !objFile
+              ? 'Select OBJ first'
+              : 'Start Render'}
         </button>
       </div>
     </div>

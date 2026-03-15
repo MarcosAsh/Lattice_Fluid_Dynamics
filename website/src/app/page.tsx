@@ -7,7 +7,12 @@ import StatusDisplay from '../components/StatusDisplay';
 import AboutSection from '../components/AboutSection';
 import ResultsPanel, { SimulationResult } from '../components/ResultsPanel';
 
-export type JobStatus = 'idle' | 'starting' | 'rendering' | 'complete' | 'error';
+export type JobStatus =
+  | 'idle'
+  | 'starting'
+  | 'rendering'
+  | 'complete'
+  | 'error';
 
 export interface SimulationParams {
   windSpeed: number;
@@ -152,8 +157,7 @@ export default function Home() {
       <div className="mb-4 lg:mb-8 flex items-center gap-3 lg:gap-4">
         <img src="/logo.png" alt="Lattice" className="h-12 lg:h-16" />
         <p className="text-xs lg:text-sm text-ctp-subtext0">
-          GPU-accelerated wind tunnel simulation
-          {' '}
+          GPU-accelerated wind tunnel simulation{' '}
           <a
             href="https://github.com/MarcosAsh/3dFluidDynamicsInC"
             target="_blank"
@@ -190,7 +194,11 @@ export default function Home() {
           <AboutSection />
         </div>
         <div className="flex-1 flex flex-col gap-4">
-          <VideoPlayer videoUrl={videoUrl} status={status} backendAvailable={backendAvailable} />
+          <VideoPlayer
+            videoUrl={videoUrl}
+            status={status}
+            backendAvailable={backendAvailable}
+          />
           <Link
             href="/docs"
             className="border border-ctp-surface1 rounded-lg p-4 bg-ctp-mantle flex items-center justify-between hover:border-ctp-mauve transition-colors"
@@ -200,11 +208,22 @@ export default function Home() {
                 White Paper
               </h2>
               <p className="text-xs text-ctp-overlay0">
-                LBM theory, compute shader implementation, and drag coefficient validation
+                LBM theory, compute shader implementation, and drag coefficient
+                validation
               </p>
             </div>
-            <svg className="w-4 h-4 text-ctp-overlay1 shrink-0 ml-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            <svg
+              className="w-4 h-4 text-ctp-overlay1 shrink-0 ml-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M9 5l7 7-7 7"
+              />
             </svg>
           </Link>
           <ResultsPanel

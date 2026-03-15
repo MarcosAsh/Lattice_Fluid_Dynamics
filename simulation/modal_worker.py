@@ -4,12 +4,13 @@ Deploy: modal deploy modal_worker.py
 Test: modal run modal_worker.py --duration=5 --model=ahmed25
 """
 
-import modal
-import subprocess
 import os
-import tempfile
 import shutil
+import subprocess
+import tempfile
 from pathlib import Path
+
+import modal
 
 app = modal.App("fluid-sim")
 
@@ -17,22 +18,33 @@ image = (
     modal.Image.debian_slim(python_version="3.11")
     .pip_install("cmake")
     .apt_install(
-        "build-essential", "pkg-config", "git",
-        "libgl1-mesa-dev", "libglew-dev", "libglu1-mesa-dev",
-        "libsdl2-dev", "libsdl2-ttf-dev",
-        "xvfb", "x11-utils",
+        "build-essential",
+        "pkg-config",
+        "git",
+        "libgl1-mesa-dev",
+        "libglew-dev",
+        "libglu1-mesa-dev",
+        "libsdl2-dev",
+        "libsdl2-ttf-dev",
+        "xvfb",
+        "x11-utils",
         "ffmpeg",
-        "mesa-utils", "libosmesa6-dev",
+        "mesa-utils",
+        "libosmesa6-dev",
     )
     .pip_install("requests", "fastapi[standard]", "boto3")
-    .env({
-        "DISPLAY": ":99",
-        "MESA_GL_VERSION_OVERRIDE": "4.3",
-        "LIBGL_ALWAYS_SOFTWARE": "1",
-    })
+    .env(
+        {
+            "DISPLAY": ":99",
+            "MESA_GL_VERSION_OVERRIDE": "4.3",
+            "LIBGL_ALWAYS_SOFTWARE": "1",
+        }
+    )
 )
 
-build_cache = modal.Volume.from_name("fluid-sim-build-cache", create_if_missing=True)
+build_cache = modal.Volume.from_name(
+    "fluid-sim-build-cache", create_if_missing=True
+)
 
 REPO_URL = "https://github.com/MarcosAsh/3dFluidDynamicsInC.git"
 
@@ -51,7 +63,8 @@ def build_simulation() -> str:
         print(f"Cloning {REPO_URL}")
         result = subprocess.run(
             ["git", "clone", "--depth=1", REPO_URL, str(repo_dir)],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         )
         if result.returncode != 0:
             raise Exception(f"Clone failed: {result.stderr}")
@@ -72,25 +85,29 @@ def build_simulation() -> str:
 
     result = subprocess.run(
         ["cmake", str(source_dir), "-DCMAKE_BUILD_TYPE=Release"],
-        cwd=build_dir, capture_output=True, text=True,
+        cwd=build_dir,
+        capture_output=True,
+        text=True,
     )
     print(result.stdout)
     if result.returncode != 0:
         raise Exception(f"CMake failed: {result.stderr}")
-    
+
     print("Running make...")
     result = subprocess.run(
         ["make", "-j4"],
-        cwd=build_dir, capture_output=True, text=True,
+        cwd=build_dir,
+        capture_output=True,
+        text=True,
     )
     print(result.stdout[-2000:])
     if result.returncode != 0:
         raise Exception(f"Make failed: {result.stderr}")
-    
+
     if not executable.exists():
         files = list(build_dir.iterdir())
         raise Exception(f"No executable. Got: {[f.name for f in files]}")
-    
+
     build_cache.commit()
     print(f"Done: {executable}")
     return str(executable)
@@ -114,17 +131,17 @@ def render_simulation(
     reynolds: float = 0,
 ) -> dict:
     import time
-    
+
     work_dir = Path(tempfile.mkdtemp(prefix="render_"))
     frames_dir = work_dir / "frames"
     frames_dir.mkdir()
-    
+
     xvfb = None
-    
+
     try:
         executable = Path("/cache/build/3d_fluid_simulation_car")
         source_dir = Path("/cache/source/simulation")
-        
+
         def ensure_built():
             """Make sure we have a fresh binary with the latest CLI flags."""
             if not executable.exists():
@@ -139,13 +156,15 @@ def render_simulation(
                 )
                 help_text = (help_out.stdout or "") + (help_out.stderr or "")
                 if "--model" not in help_text:
-                    print("Binary missing --model flag; rebuilding to refresh build cache...")
+                    print(
+                        "Binary missing --model flag; rebuilding to refresh build cache..."
+                    )
                     build_simulation.local()
-        
+
         ensure_built()
         if not executable.exists():
             return {"status": "error", "error": "Build failed"}
-        
+
         help_check = subprocess.run(
             [str(executable), "--help"],
             capture_output=True,
@@ -153,14 +172,15 @@ def render_simulation(
         )
         help_text = (help_check.stdout or "") + (help_check.stderr or "")
         supports_model_flag = "--model" in help_text
-        
+
         print("Starting Xvfb...")
         xvfb = subprocess.Popen(
             ["Xvfb", ":99", "-screen", "0", "1920x1080x24"],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
         )
         time.sleep(2)
-        
+
         # Select model path
         model_paths = {
             "car": "assets/3d-files/car-model.obj",
@@ -170,18 +190,21 @@ def render_simulation(
 
         if model == "custom" and obj_data:
             import base64
+
             custom_obj = work_dir / "custom_model.obj"
             custom_obj.write_bytes(base64.b64decode(obj_data))
             model_path = str(custom_obj)
             print(f"Custom OBJ: {custom_obj.stat().st_size / 1024:.0f} KB")
         else:
             model_path = model_paths.get(model, model_paths["car"])
-        
-        print(f"Running sim: wind={wind_speed}, viz={viz_mode}, model={model}, {duration}s")
-        
+
+        print(
+            f"Running sim: wind={wind_speed}, viz={viz_mode}, model={model}, {duration}s"
+        )
+
         env = os.environ.copy()
         env["DISPLAY"] = ":99"
-        
+
         cmd = [
             str(executable),
             f"--wind={wind_speed}",
@@ -190,40 +213,45 @@ def render_simulation(
             f"--duration={duration}",
             f"--output={frames_dir}",
         ]
-        
+
         if supports_model_flag:
             cmd.append(f"--model={model_path}")
         else:
-            print("Warning: binary does not support --model; using default compiled model.")
+            print(
+                "Warning: binary does not support --model; using default compiled model."
+            )
 
         if reynolds > 0:
             cmd.append(f"--reynolds={reynolds}")
-        
+
         result = subprocess.run(
-            cmd, cwd=str(source_dir), env=env,
-            capture_output=True, text=True,
+            cmd,
+            cwd=str(source_dir),
+            env=env,
+            capture_output=True,
+            text=True,
             timeout=duration * 3 + 60,
         )
-        
+
         print(f"stdout: {result.stdout[-1000:]}")
         if result.stderr:
             print(f"stderr: {result.stderr[-500:]}")
-        
+
         # Extract Cd and Cl values from stdout.
         # The simulation skips the first ~3s of output (warmup), so all
         # values here should already be past the startup transient.
         cd_values = []
         cl_values = []
-        for line in result.stdout.split('\n'):
-            if 'Cd=' in line:
+        for line in result.stdout.split("\n"):
+            if "Cd=" in line:
                 try:
-                    cd_str = line.split('Cd=')[1].split()[0]
+                    cd_str = line.split("Cd=")[1].split()[0]
                     cd_values.append(float(cd_str))
                 except:
                     pass
-            if 'Cl=' in line:
+            if "Cl=" in line:
                 try:
-                    cl_str = line.split('Cl=')[1].split()[0]
+                    cl_str = line.split("Cl=")[1].split()[0]
                     cl_values.append(float(cl_str))
                 except:
                     pass
@@ -236,40 +264,55 @@ def render_simulation(
         cl_value = None
         if cl_values:
             cl_value = sum(cl_values[-5:]) / len(cl_values[-5:])
-            
+
         if result.returncode != 0:
-            return {"status": "error", "error": f"Crashed: {result.stderr[-300:]}"}
-        
+            return {
+                "status": "error",
+                "error": f"Crashed: {result.stderr[-300:]}",
+            }
+
         frames = sorted(frames_dir.glob("frame_*.ppm"))
         print(f"Got {len(frames)} frames")
-        
+
         if len(frames) == 0:
             return {"status": "error", "error": "No frames rendered"}
-        
+
         print("Encoding video...")
         output_video = work_dir / "output.mp4"
-        
+
         ffmpeg_cmd = [
-            "ffmpeg", "-y",
-            "-framerate", "60",
-            "-i", str(frames_dir / "frame_%05d.ppm"),
-            "-c:v", "libx264",
-            "-preset", "fast",
-            "-crf", "22",
-            "-pix_fmt", "yuv420p",
+            "ffmpeg",
+            "-y",
+            "-framerate",
+            "60",
+            "-i",
+            str(frames_dir / "frame_%05d.ppm"),
+            "-c:v",
+            "libx264",
+            "-preset",
+            "fast",
+            "-crf",
+            "22",
+            "-pix_fmt",
+            "yuv420p",
             str(output_video),
         ]
-        
-        ffmpeg_result = subprocess.run(ffmpeg_cmd, capture_output=True, text=True, timeout=120)
-        
+
+        ffmpeg_result = subprocess.run(
+            ffmpeg_cmd, capture_output=True, text=True, timeout=120
+        )
+
         if not output_video.exists():
-            return {"status": "error", "error": f"FFmpeg failed: {ffmpeg_result.stderr[-300:]}"}
-        
+            return {
+                "status": "error",
+                "error": f"FFmpeg failed: {ffmpeg_result.stderr[-300:]}",
+            }
+
         video_size = output_video.stat().st_size
         print(f"Video size: {video_size / 1024 / 1024:.1f} MB")
-        
+
         video_url = upload_video(output_video, job_id)
-        
+
         return {
             "status": "complete",
             "video_url": video_url,
@@ -280,12 +323,16 @@ def render_simulation(
             "cd_series": cd_values,
             "cl_series": cl_values,
         }
-        
+
     except subprocess.TimeoutExpired:
         return {"status": "error", "error": "Timed out"}
     except Exception as e:
         import traceback
-        return {"status": "error", "error": f"{e}\n{traceback.format_exc()[-500:]}"}
+
+        return {
+            "status": "error",
+            "error": f"{e}\n{traceback.format_exc()[-500:]}",
+        }
     finally:
         if xvfb:
             xvfb.terminate()
@@ -294,27 +341,24 @@ def render_simulation(
 
 def upload_video(video_path: Path, job_id: str) -> str:
     import boto3
-    
+
     bucket = os.environ.get("S3_BUCKET", "fluid-sim-renders")
     region = os.environ.get("S3_REGION", "eu-west-2")
-    
+
     s3 = boto3.client(
         "s3",
         region_name=region,
         aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
         aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY"),
     )
-    
+
     key = f"renders/{job_id}.mp4"
-    
+
     print(f"Uploading to s3://{bucket}/{key}")
     s3.upload_file(
-        str(video_path),
-        bucket,
-        key,
-        ExtraArgs={"ContentType": "video/mp4"}
+        str(video_path), bucket, key, ExtraArgs={"ContentType": "video/mp4"}
     )
-    
+
     url = f"https://{bucket}.s3.{region}.amazonaws.com/{key}"
     print(f"Uploaded: {url}")
     return url
@@ -329,11 +373,12 @@ def upload_video(video_path: Path, job_id: str) -> str:
 )
 @modal.fastapi_endpoint(method="POST")
 def render_endpoint(data: dict) -> dict:
-    import requests
     import uuid
-    
+
+    import requests
+
     job_id = data.get("job_id", str(uuid.uuid4()))
-    
+
     result = render_simulation.local(
         job_id=job_id,
         wind_speed=float(data.get("wind_speed", 1.0)),
@@ -344,14 +389,16 @@ def render_endpoint(data: dict) -> dict:
         obj_data=data.get("obj_data"),
         reynolds=float(data.get("reynolds", 0)),
     )
-    
+
     callback_url = data.get("callback_url")
     if callback_url:
         try:
-            requests.post(callback_url, json={"job_id": job_id, **result}, timeout=10)
+            requests.post(
+                callback_url, json={"job_id": job_id, **result}, timeout=10
+            )
         except Exception as e:
             print(f"Callback failed: {e}")
-    
+
     return result
 
 
@@ -360,17 +407,17 @@ def force_rebuild() -> str:
     """Force a clean rebuild by clearing the cache."""
     source_dir = Path("/cache/source")
     build_dir = Path("/cache/build")
-    
+
     if build_dir.exists():
         shutil.rmtree(build_dir)
         print("Cleared build directory")
-    
+
     if source_dir.exists():
         shutil.rmtree(source_dir)
         print("Cleared source directory")
-    
+
     build_cache.commit()
-    
+
     # Now rebuild
     return build_simulation.local()
 
@@ -386,22 +433,24 @@ def main(
     rebuild: bool = False,
 ):
     import uuid
-    
+
     if rebuild:
         print("Force rebuilding...")
         path = force_rebuild.remote()
         print(f"Rebuilt: {path}")
         return
-    
+
     if build_only:
         print("Building...")
         path = build_simulation.remote()
         print(f"Built: {path}")
         return
-    
+
     job_id = str(uuid.uuid4())[:8]
-    print(f"Job {job_id}: wind={wind}, viz={viz}, collision={collision}, model={model}, {duration}s")
-    
+    print(
+        f"Job {job_id}: wind={wind}, viz={viz}, collision={collision}, model={model}, {duration}s"
+    )
+
     result = render_simulation.remote(
         job_id=job_id,
         wind_speed=wind,
@@ -410,13 +459,14 @@ def main(
         duration=duration,
         model=model,
     )
-    
+
     print(f"Status: {result['status']}")
     if result.get("video_url"):
         url = result["video_url"]
         if url.startswith("data:"):
-            print(f"Video: base64, {len(url)//1024}KB")
+            print(f"Video: base64, {len(url) // 1024}KB")
             import base64
+
             b64_data = url.split(",")[1]
             with open(f"render_{job_id}.mp4", "wb") as f:
                 f.write(base64.b64decode(b64_data))

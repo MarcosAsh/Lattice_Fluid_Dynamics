@@ -1,0 +1,14 @@
+[tool.ruff]
+line-length = 80
+exclude = ["ml/dataset"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+ignore = ["E722", "E741"]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["E501", "F401"]
+
+[tool.ruff.lint.isort]
+force-single-line = true
+known-first-party = ["ml"]

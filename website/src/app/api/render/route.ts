@@ -24,7 +24,10 @@ export async function POST(request: Request) {
 
   if (!modalEndpoint) {
     return NextResponse.json(
-      { status: 'error', error: 'Render backend is not configured. This is a demo instance.' },
+      {
+        status: 'error',
+        error: 'Render backend is not configured. This is a demo instance.',
+      },
       { status: 503 },
     );
   }
@@ -62,6 +65,9 @@ export async function POST(request: Request) {
     return NextResponse.json(result);
   } catch (error) {
     console.error('Modal call failed:', error);
-    return NextResponse.json({ status: 'error', error: 'Render failed' }, { status: 500 });
+    return NextResponse.json(
+      { status: 'error', error: 'Render failed' },
+      { status: 500 },
+    );
   }
 }

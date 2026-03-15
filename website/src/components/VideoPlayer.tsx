@@ -9,7 +9,11 @@ interface VideoPlayerProps {
   backendAvailable: boolean;
 }
 
-export default function VideoPlayer({ videoUrl, status, backendAvailable }: VideoPlayerProps) {
+export default function VideoPlayer({
+  videoUrl,
+  status,
+  backendAvailable,
+}: VideoPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [demoAvailable, setDemoAvailable] = useState(true);
@@ -79,9 +83,9 @@ export default function VideoPlayer({ videoUrl, status, backendAvailable }: Vide
               <>
                 <p className="text-ctp-subtext0 mb-2">Demo Mode</p>
                 <p className="text-xs text-ctp-overlay0 leading-relaxed">
-                  The GPU render backend is not connected. You can explore the controls
-                  and read the white paper. To run live simulations, configure the
-                  MODAL_RENDER_ENDPOINT environment variable.
+                  The GPU render backend is not connected. You can explore the
+                  controls and read the white paper. To run live simulations,
+                  configure the MODAL_RENDER_ENDPOINT environment variable.
                 </p>
               </>
             )}
@@ -91,7 +95,9 @@ export default function VideoPlayer({ videoUrl, status, backendAvailable }: Vide
             {status === 'rendering' && (
               <>
                 <p className="animate-pulse">Rendering simulation...</p>
-                <p className="text-xs text-ctp-overlay0 mt-1">This may take a minute</p>
+                <p className="text-xs text-ctp-overlay0 mt-1">
+                  This may take a minute
+                </p>
               </>
             )}
             {status === 'error' && (

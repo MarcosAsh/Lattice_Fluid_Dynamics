@@ -46,33 +46,33 @@ vec3 sampleLBMVelocity(vec3 worldPos) {
     gridPos.x = (worldPos.x + 4.0) / 8.0 * float(lbmGridSize.x);
     gridPos.y = (worldPos.y + 2.0) / 4.0 * float(lbmGridSize.y);
     gridPos.z = (worldPos.z + 2.0) / 4.0 * float(lbmGridSize.z);
-    
+
     gridPos = clamp(gridPos, vec3(0.5), vec3(lbmGridSize) - vec3(1.5));
-    
+
     ivec3 cell = ivec3(floor(gridPos));
     cell = clamp(cell, ivec3(0), lbmGridSize - ivec3(1));
-    
-    int idx = cell.x + cell.y * lbmGridSize.x + cell.z * lbmGridSize.x * lbmGridSize.y;
-    
+
+    int idx = cell.x + cell.y * lbmGridSize.x +
+              cell.z * lbmGridSize.x * lbmGridSize.y;
+
     int maxIdx = lbmGridSize.x * lbmGridSize.y * lbmGridSize.z - 1;
     idx = clamp(idx, 0, maxIdx);
-    
+
     return lbmVelocity[idx].xyz;
 }
 
 bool isInsideAABB(vec3 pos, vec3 minB, vec3 maxB) {
-    return pos.x >= minB.x && pos.x <= maxB.x &&
-           pos.y >= minB.y && pos.y <= maxB.y &&
-           pos.z >= minB.z && pos.z <= maxB.z;
+    return pos.x >= minB.x && pos.x <= maxB.x && pos.y >= minB.y &&
+           pos.y <= maxB.y && pos.z >= minB.z && pos.z <= maxB.z;
 }
 
 vec3 getAABBNormal(vec3 pos, vec3 minB, vec3 maxB, vec3 center) {
     vec3 toParticle = pos - center;
     vec3 absDir = abs(toParticle);
     vec3 halfSize = (maxB - minB) * 0.5;
-    
+
     vec3 normal = vec3(0.0);
-    if (absDir.x / halfSize.x > absDir.y / halfSize.y && 
+    if (absDir.x / halfSize.x > absDir.y / halfSize.y &&
         absDir.x / halfSize.x > absDir.z / halfSize.z) {
         normal.x = sign(toParticle.x);
     } else if (absDir.y / halfSize.y > absDir.z / halfSize.z) {
@@ -87,12 +87,12 @@ vec3 pushOutOfAABB(vec3 pos, vec3 minB, vec3 maxB) {
     vec3 center = (minB + maxB) * 0.5;
     vec3 halfSize = (maxB - minB) * 0.5;
     vec3 toParticle = pos - center;
-    
+
     vec3 penetration;
     penetration.x = halfSize.x - abs(toParticle.x);
     penetration.y = halfSize.y - abs(toParticle.y);
     penetration.z = halfSize.z - abs(toParticle.z);
-    
+
     if (penetration.x < penetration.y && penetration.x < penetration.z) {
         pos.x = center.x + sign(toParticle.x) * (halfSize.x + 0.01);
     } else if (penetration.y < penetration.z) {
@@ -103,34 +103,43 @@ vec3 pushOutOfAABB(vec3 pos, vec3 minB, vec3 maxB) {
     return pos;
 }
 
-float pointTriangleDistance(vec3 p, vec3 v0, vec3 v1, vec3 v2, out vec3 closestPoint, out vec3 normal) {
+float pointTriangleDistance(
+    vec3 p, vec3 v0, vec3 v1, vec3 v2, out vec3 closestPoint, out vec3 normal) {
     vec3 edge0 = v1 - v0;
     vec3 edge1 = v2 - v0;
     vec3 v0p = v0 - p;
-    
+
     float a = dot(edge0, edge0);
     float b = dot(edge0, edge1);
     float c = dot(edge1, edge1);
     float d = dot(edge0, v0p);
     float e = dot(edge1, v0p);
-    
+
     float det = a * c - b * b;
     float s = b * e - c * d;
     float t = b * d - a * e;
-    
+
     if (s + t <= det) {
         if (s < 0.0) {
             if (t < 0.0) {
-                if (d < 0.0) { t = 0.0; s = clamp(-d / a, 0.0, 1.0); }
-                else { s = 0.0; t = clamp(-e / c, 0.0, 1.0); }
+                if (d < 0.0) {
+                    t = 0.0;
+                    s = clamp(-d / a, 0.0, 1.0);
+                } else {
+                    s = 0.0;
+                    t = clamp(-e / c, 0.0, 1.0);
+                }
             } else {
-                s = 0.0; t = clamp(-e / c, 0.0, 1.0);
+                s = 0.0;
+                t = clamp(-e / c, 0.0, 1.0);
             }
         } else if (t < 0.0) {
-            t = 0.0; s = clamp(-d / a, 0.0, 1.0);
+            t = 0.0;
+            s = clamp(-d / a, 0.0, 1.0);
         } else {
             float invDet = 1.0 / det;
-            s *= invDet; t *= invDet;
+            s *= invDet;
+            t *= invDet;
         }
     } else {
         if (s < 0.0) {
@@ -139,21 +148,27 @@ float pointTriangleDistance(vec3 p, vec3 v0, vec3 v1, vec3 v2, out vec3 closestP
                 float numer = tmp1 - tmp0;
                 s = clamp(numer / (a - 2.0 * b + c), 0.0, 1.0);
                 t = 1.0 - s;
-            } else { s = 0.0; t = clamp(-e / c, 0.0, 1.0); }
+            } else {
+                s = 0.0;
+                t = clamp(-e / c, 0.0, 1.0);
+            }
         } else if (t < 0.0) {
             float tmp0 = b + e, tmp1 = a + d;
             if (tmp1 > tmp0) {
                 float numer = tmp1 - tmp0;
                 t = clamp(numer / (a - 2.0 * b + c), 0.0, 1.0);
                 s = 1.0 - t;
-            } else { t = 0.0; s = clamp(-d / a, 0.0, 1.0); }
+            } else {
+                t = 0.0;
+                s = clamp(-d / a, 0.0, 1.0);
+            }
         } else {
             float numer = (c + e) - (b + d);
             s = clamp(numer / (a - 2.0 * b + c), 0.0, 1.0);
             t = 1.0 - s;
         }
     }
-    
+
     closestPoint = v0 + s * edge0 + t * edge1;
     normal = normalize(cross(edge0, edge1));
     return length(p - closestPoint);
@@ -161,49 +176,56 @@ float pointTriangleDistance(vec3 p, vec3 v0, vec3 v1, vec3 v2, out vec3 closestP
 
 void main() {
     uint idx = gl_GlobalInvocationID.x;
-    if (idx >= particles.length()) return;
-    
+    if (idx >= particles.length())
+        return;
+
     Particle p = particles[idx];
-    
+
     vec3 flowVel;
     if (useLBM == 1 && lbmGridSize.x > 0) {
         flowVel = sampleLBMVelocity(p.position) * 15.0;
     } else {
         flowVel = wind;
     }
-    
+
     p.velocity = flowVel;
     p.position += p.velocity * dt;
-    
+
     if (collisionMode == 1) {
         if (isInsideAABB(p.position, carMin, carMax)) {
             vec3 normal = getAABBNormal(p.position, carMin, carMax, carCenter);
             p.position = pushOutOfAABB(p.position, carMin, carMax);
-            
+
             float velDotNormal = dot(p.velocity, normal);
             if (velDotNormal < 0.0) {
                 p.velocity = p.velocity - 1.5 * velDotNormal * normal;
-                p.velocity.y += (fract(sin(float(idx) * 12.9898) * 43758.5453) - 0.5) * 0.2;
-                p.velocity.z += (fract(sin(float(idx) * 78.233) * 43758.5453) - 0.5) * 0.2;
+                p.velocity.y +=
+                    (fract(sin(float(idx) * 12.9898) * 43758.5453) - 0.5) * 0.2;
+                p.velocity.z +=
+                    (fract(sin(float(idx) * 78.233) * 43758.5453) - 0.5) * 0.2;
             }
         }
-    }
-    else if (collisionMode == 2 && numTriangles > 0) {
+    } else if (collisionMode == 2 && numTriangles > 0) {
         float collisionRadius = 0.05;
-        
+
         for (int i = 0; i < numTriangles; i++) {
             Triangle tri = triangles[i];
             vec3 closestPoint, normal;
-            float dist = pointTriangleDistance(p.position, tri.v0, tri.v1, tri.v2, closestPoint, normal);
-            
+            float dist = pointTriangleDistance(
+                p.position, tri.v0, tri.v1, tri.v2, closestPoint, normal);
+
             if (dist < collisionRadius) {
                 p.position = closestPoint + normal * collisionRadius;
-                
+
                 float velDotNormal = dot(p.velocity, normal);
                 if (velDotNormal < 0.0) {
                     p.velocity = p.velocity - 1.5 * velDotNormal * normal;
-                    p.velocity.y += (fract(sin(float(idx) * 12.9898) * 43758.5453) - 0.5) * 0.2;
-                    p.velocity.z += (fract(sin(float(idx) * 78.233) * 43758.5453) - 0.5) * 0.2;
+                    p.velocity.y +=
+                        (fract(sin(float(idx) * 12.9898) * 43758.5453) - 0.5) *
+                        0.2;
+                    p.velocity.z +=
+                        (fract(sin(float(idx) * 78.233) * 43758.5453) - 0.5) *
+                        0.2;
                 }
                 break;
             }
@@ -211,25 +233,25 @@ void main() {
     }
     // Reset stuck particles
     float speed = length(p.velocity);
-    if (speed < 0.05 && p.position.x > carMin.x - 0.5 && p.position.x < carMax.x + 0.5) {
-        p.life = 0.0;  // Force respawn next frame
+    if (speed < 0.05 && p.position.x > carMin.x - 0.5 &&
+        p.position.x < carMax.x + 0.5) {
+        p.life = 0.0; // Force respawn next frame
     }
 
     p.life -= 0.01 * dt;
-    
-    if (p.life <= 0.0 || p.position.x > 4.0 || abs(p.position.y) > 2.0 || abs(p.position.z) > 2.0) {
+
+    if (p.life <= 0.0 || p.position.x > 4.0 || abs(p.position.y) > 2.0 ||
+        abs(p.position.z) > 2.0) {
         float seed1 = float(idx) + time * 1000.0;
         float seed2 = float(idx) * 1.5 + time * 1234.0;
-        
+
         float randY = fract(sin(seed1 * 43758.5453)) - 0.5;
         float randZ = fract(sin(seed2 * 12345.6789)) - 0.5;
-        
+
         p.position = vec3(-4.0, randY * 1.5, randZ * 1.5);
         p.velocity = vec3(0.5 + fract(sin(seed1 * 9876.54321)) * 0.2, 0.0, 0.0);
         p.life = 1.0;
     }
-    
 
-    
     particles[idx] = p;
 }

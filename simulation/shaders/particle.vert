@@ -14,13 +14,13 @@ out vec3 vPosition;
 
 void main() {
     gl_Position = projection * view * vec4(position, 1.0);
-    
+
     // Pass data to fragment shader
     vSpeed = length(velocity);
     vLife = life;
     vVelocity = velocity;
     vPosition = position;
-    
+
     // Size varies with distance for depth perception
     float dist = length(gl_Position.xyz);
     gl_PointSize = max(3.0, 8.0 / (dist * 0.5));

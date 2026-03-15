@@ -5,65 +5,72 @@ layout(local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
 // Stored as 19 floats per cell: f0, f1, ..., f18
 
 layout(std430, binding = 2) buffer LBMBuffer {
-    float f[];  // Distribution functions: size = 19 * gridX * gridY * gridZ
+    float f[]; // Distribution functions: size = 19 * gridX * gridY * gridZ
 };
 
 layout(std430, binding = 3) buffer LBMBufferNew {
-    float f_new[];  // Output buffer for streaming
+    float f_new[]; // Output buffer for streaming
 };
 
 layout(std430, binding = 4) buffer VelocityField {
-    vec4 velocity[];  // xyz = velocity, w = density (for particles to sample)
+    vec4 velocity[]; // xyz = velocity, w = density (for particles to sample)
 };
 
 layout(std430, binding = 5) buffer SolidMask {
-    int solid[];  // 1 = solid (car), 0 = fluid
+    int solid[]; // 1 = solid (car), 0 = fluid
 };
 
 uniform ivec3 gridSize;
-uniform float tau;  // Relaxation time (viscosity related)
+uniform float tau; // Relaxation time (viscosity related)
 uniform vec3 inletVelocity;
-uniform int useRegularized;  // 0 = BGK, 1 = regularized (stable at high Re)
+uniform int useRegularized; // 0 = BGK, 1 = regularized (stable at high Re)
 
 // D3Q19 lattice velocities
-const ivec3 e[19] = ivec3[19](
-    ivec3( 0,  0,  0),  // 0: rest
-    ivec3( 1,  0,  0),  // 1: +x
-    ivec3(-1,  0,  0),  // 2: -x
-    ivec3( 0,  1,  0),  // 3: +y
-    ivec3( 0, -1,  0),  // 4: -y
-    ivec3( 0,  0,  1),  // 5: +z
-    ivec3( 0,  0, -1),  // 6: -z
-    ivec3( 1,  1,  0),  // 7
-    ivec3(-1,  1,  0),  // 8
-    ivec3( 1, -1,  0),  // 9
-    ivec3(-1, -1,  0),  // 10
-    ivec3( 1,  0,  1),  // 11
-    ivec3(-1,  0,  1),  // 12
-    ivec3( 1,  0, -1),  // 13
-    ivec3(-1,  0, -1),  // 14
-    ivec3( 0,  1,  1),  // 15
-    ivec3( 0, -1,  1),  // 16
-    ivec3( 0,  1, -1),  // 17
-    ivec3( 0, -1, -1)   // 18
+const ivec3 e[19] = ivec3[19](ivec3(0, 0, 0),   // 0: rest
+                              ivec3(1, 0, 0),   // 1: +x
+                              ivec3(-1, 0, 0),  // 2: -x
+                              ivec3(0, 1, 0),   // 3: +y
+                              ivec3(0, -1, 0),  // 4: -y
+                              ivec3(0, 0, 1),   // 5: +z
+                              ivec3(0, 0, -1),  // 6: -z
+                              ivec3(1, 1, 0),   // 7
+                              ivec3(-1, 1, 0),  // 8
+                              ivec3(1, -1, 0),  // 9
+                              ivec3(-1, -1, 0), // 10
+                              ivec3(1, 0, 1),   // 11
+                              ivec3(-1, 0, 1),  // 12
+                              ivec3(1, 0, -1),  // 13
+                              ivec3(-1, 0, -1), // 14
+                              ivec3(0, 1, 1),   // 15
+                              ivec3(0, -1, 1),  // 16
+                              ivec3(0, 1, -1),  // 17
+                              ivec3(0, -1, -1)  // 18
 );
 
 // D3Q19 weights
-const float w[19] = float[19](
-    1.0/3.0,   // rest
-    1.0/18.0, 1.0/18.0, 1.0/18.0, 1.0/18.0, 1.0/18.0, 1.0/18.0,  // face neighbors
-    1.0/36.0, 1.0/36.0, 1.0/36.0, 1.0/36.0,  // edge neighbors
-    1.0/36.0, 1.0/36.0, 1.0/36.0, 1.0/36.0,
-    1.0/36.0, 1.0/36.0, 1.0/36.0, 1.0/36.0
-);
+const float w[19] = float[19](1.0 / 3.0, // rest
+                              1.0 / 18.0,
+                              1.0 / 18.0,
+                              1.0 / 18.0,
+                              1.0 / 18.0,
+                              1.0 / 18.0,
+                              1.0 / 18.0, // face neighbors
+                              1.0 / 36.0,
+                              1.0 / 36.0,
+                              1.0 / 36.0,
+                              1.0 / 36.0, // edge neighbors
+                              1.0 / 36.0,
+                              1.0 / 36.0,
+                              1.0 / 36.0,
+                              1.0 / 36.0,
+                              1.0 / 36.0,
+                              1.0 / 36.0,
+                              1.0 / 36.0,
+                              1.0 / 36.0);
 
 // Opposite direction indices for bounce-back
-const int opposite[19] = int[19](
-    0, 2, 1, 4, 3, 6, 5,
-    10, 9, 8, 7,
-    14, 13, 12, 11,
-    18, 17, 16, 15
-);
+const int opposite[19] =
+    int[19](0, 2, 1, 4, 3, 6, 5, 10, 9, 8, 7, 14, 13, 12, 11, 18, 17, 16, 15);
 
 int idx3D(int x, int y, int z) {
     return x + y * gridSize.x + z * gridSize.x * gridSize.y;
@@ -77,43 +84,47 @@ int idxF(int x, int y, int z, int i) {
 float feq(int i, float rho, vec3 u) {
     float eu = float(e[i].x) * u.x + float(e[i].y) * u.y + float(e[i].z) * u.z;
     float u2 = dot(u, u);
-    float cs2 = 1.0 / 3.0;  // Speed of sound squared
-    
-    return w[i] * rho * (1.0 + eu/cs2 + (eu*eu)/(2.0*cs2*cs2) - u2/(2.0*cs2));
+    float cs2 = 1.0 / 3.0; // Speed of sound squared
+
+    return w[i] * rho *
+           (1.0 + eu / cs2 + (eu * eu) / (2.0 * cs2 * cs2) - u2 / (2.0 * cs2));
 }
 
 void main() {
     ivec3 pos = ivec3(gl_GlobalInvocationID.xyz);
-    
-    if (pos.x >= gridSize.x || pos.y >= gridSize.y || pos.z >= gridSize.z) return;
-    
+
+    if (pos.x >= gridSize.x || pos.y >= gridSize.y || pos.z >= gridSize.z)
+        return;
+
     int cellIdx = idx3D(pos.x, pos.y, pos.z);
-    
+
     // Check if this is a solid cell (car)
     if (solid[cellIdx] == 1) {
         // Bounce-back: reverse directions
         for (int i = 0; i < 19; i++) {
-            f_new[idxF(pos.x, pos.y, pos.z, i)] = f[idxF(pos.x, pos.y, pos.z, opposite[i])];
+            f_new[idxF(pos.x, pos.y, pos.z, i)] =
+                f[idxF(pos.x, pos.y, pos.z, opposite[i])];
         }
         velocity[cellIdx] = vec4(0.0, 0.0, 0.0, 1.0);
         return;
     }
-    
+
     // Zou-He velocity inlet (left side, x=0)
     // Only sets the 5 unknown distributions (positive x direction) that can't
-    // come from streaming. Preserves non-equilibrium structure from the interior.
+    // come from streaming. Preserves non-equilibrium structure from the
+    // interior.
     if (pos.x == 0) {
         // Known distributions (streamed from interior):
         //   zero-x: f0, f3, f4, f5, f6, f15, f16, f17, f18
         //   neg-x:  f2, f8, f10, f12, f14
         // Unknown (positive-x): f1, f7, f9, f11, f13
-        float f0  = f[idxF(pos.x, pos.y, pos.z, 0)];
-        float f2  = f[idxF(pos.x, pos.y, pos.z, 2)];
-        float f3  = f[idxF(pos.x, pos.y, pos.z, 3)];
-        float f4  = f[idxF(pos.x, pos.y, pos.z, 4)];
-        float f5  = f[idxF(pos.x, pos.y, pos.z, 5)];
-        float f6  = f[idxF(pos.x, pos.y, pos.z, 6)];
-        float f8  = f[idxF(pos.x, pos.y, pos.z, 8)];
+        float f0 = f[idxF(pos.x, pos.y, pos.z, 0)];
+        float f2 = f[idxF(pos.x, pos.y, pos.z, 2)];
+        float f3 = f[idxF(pos.x, pos.y, pos.z, 3)];
+        float f4 = f[idxF(pos.x, pos.y, pos.z, 4)];
+        float f5 = f[idxF(pos.x, pos.y, pos.z, 5)];
+        float f6 = f[idxF(pos.x, pos.y, pos.z, 6)];
+        float f8 = f[idxF(pos.x, pos.y, pos.z, 8)];
         float f10 = f[idxF(pos.x, pos.y, pos.z, 10)];
         float f12 = f[idxF(pos.x, pos.y, pos.z, 12)];
         float f14 = f[idxF(pos.x, pos.y, pos.z, 14)];
@@ -122,7 +133,7 @@ void main() {
         float f17 = f[idxF(pos.x, pos.y, pos.z, 17)];
         float f18 = f[idxF(pos.x, pos.y, pos.z, 18)];
 
-        float knowns_0   = f0 + f3 + f4 + f5 + f6 + f15 + f16 + f17 + f18;
+        float knowns_0 = f0 + f3 + f4 + f5 + f6 + f15 + f16 + f17 + f18;
         float knowns_neg = f2 + f8 + f10 + f12 + f14;
 
         float ux = inletVelocity.x;
@@ -133,24 +144,27 @@ void main() {
         float rho_in = (knowns_0 + 2.0 * knowns_neg) / (1.0 - ux);
 
         // Non-equilibrium bounce-back for the 5 unknown distributions
-        f[idxF(pos.x, pos.y, pos.z, 1)]  = f2  + (1.0/3.0)  * rho_in * ux;
-        f[idxF(pos.x, pos.y, pos.z, 7)]  = f10 + (1.0/6.0)  * rho_in * (ux + uy);
-        f[idxF(pos.x, pos.y, pos.z, 9)]  = f8  + (1.0/6.0)  * rho_in * (ux - uy);
-        f[idxF(pos.x, pos.y, pos.z, 11)] = f14 + (1.0/6.0)  * rho_in * (ux + uz);
-        f[idxF(pos.x, pos.y, pos.z, 13)] = f12 + (1.0/6.0)  * rho_in * (ux - uz);
+        f[idxF(pos.x, pos.y, pos.z, 1)] = f2 + (1.0 / 3.0) * rho_in * ux;
+        f[idxF(pos.x, pos.y, pos.z, 7)] =
+            f10 + (1.0 / 6.0) * rho_in * (ux + uy);
+        f[idxF(pos.x, pos.y, pos.z, 9)] = f8 + (1.0 / 6.0) * rho_in * (ux - uy);
+        f[idxF(pos.x, pos.y, pos.z, 11)] =
+            f14 + (1.0 / 6.0) * rho_in * (ux + uz);
+        f[idxF(pos.x, pos.y, pos.z, 13)] =
+            f12 + (1.0 / 6.0) * rho_in * (ux - uz);
     }
 
     // Zou-He pressure outlet (right side, x=N-1)
     // Specifies rho=1 (atmospheric), computes outflow velocity from interior.
     if (pos.x == gridSize.x - 1) {
-        float f0  = f[idxF(pos.x, pos.y, pos.z, 0)];
-        float f1  = f[idxF(pos.x, pos.y, pos.z, 1)];
-        float f3  = f[idxF(pos.x, pos.y, pos.z, 3)];
-        float f4  = f[idxF(pos.x, pos.y, pos.z, 4)];
-        float f5  = f[idxF(pos.x, pos.y, pos.z, 5)];
-        float f6  = f[idxF(pos.x, pos.y, pos.z, 6)];
-        float f7  = f[idxF(pos.x, pos.y, pos.z, 7)];
-        float f9  = f[idxF(pos.x, pos.y, pos.z, 9)];
+        float f0 = f[idxF(pos.x, pos.y, pos.z, 0)];
+        float f1 = f[idxF(pos.x, pos.y, pos.z, 1)];
+        float f3 = f[idxF(pos.x, pos.y, pos.z, 3)];
+        float f4 = f[idxF(pos.x, pos.y, pos.z, 4)];
+        float f5 = f[idxF(pos.x, pos.y, pos.z, 5)];
+        float f6 = f[idxF(pos.x, pos.y, pos.z, 6)];
+        float f7 = f[idxF(pos.x, pos.y, pos.z, 7)];
+        float f9 = f[idxF(pos.x, pos.y, pos.z, 9)];
         float f11 = f[idxF(pos.x, pos.y, pos.z, 11)];
         float f13 = f[idxF(pos.x, pos.y, pos.z, 13)];
         float f15 = f[idxF(pos.x, pos.y, pos.z, 15)];
@@ -158,7 +172,7 @@ void main() {
         float f17 = f[idxF(pos.x, pos.y, pos.z, 17)];
         float f18 = f[idxF(pos.x, pos.y, pos.z, 18)];
 
-        float knowns_0   = f0 + f3 + f4 + f5 + f6 + f15 + f16 + f17 + f18;
+        float knowns_0 = f0 + f3 + f4 + f5 + f6 + f15 + f16 + f17 + f18;
         float knowns_pos = f1 + f7 + f9 + f11 + f13;
 
         float rho_out = 1.0;
@@ -166,17 +180,17 @@ void main() {
 
         // Non-equilibrium bounce-back for the 5 unknown distributions
         // Assume uy=0, uz=0 at outlet (fully developed flow)
-        f[idxF(pos.x, pos.y, pos.z, 2)]  = f1  - (1.0/3.0)  * rho_out * ux;
-        f[idxF(pos.x, pos.y, pos.z, 10)] = f7  - (1.0/6.0)  * rho_out * ux;
-        f[idxF(pos.x, pos.y, pos.z, 8)]  = f9  - (1.0/6.0)  * rho_out * ux;
-        f[idxF(pos.x, pos.y, pos.z, 14)] = f11 - (1.0/6.0)  * rho_out * ux;
-        f[idxF(pos.x, pos.y, pos.z, 12)] = f13 - (1.0/6.0)  * rho_out * ux;
+        f[idxF(pos.x, pos.y, pos.z, 2)] = f1 - (1.0 / 3.0) * rho_out * ux;
+        f[idxF(pos.x, pos.y, pos.z, 10)] = f7 - (1.0 / 6.0) * rho_out * ux;
+        f[idxF(pos.x, pos.y, pos.z, 8)] = f9 - (1.0 / 6.0) * rho_out * ux;
+        f[idxF(pos.x, pos.y, pos.z, 14)] = f11 - (1.0 / 6.0) * rho_out * ux;
+        f[idxF(pos.x, pos.y, pos.z, 12)] = f13 - (1.0 / 6.0) * rho_out * ux;
     }
-    
+
     // Compute macroscopic quantities
     float rho = 0.0;
     vec3 u = vec3(0.0);
-    
+
     for (int i = 0; i < 19; i++) {
         float fi = f[idxF(pos.x, pos.y, pos.z, i)];
         rho += fi;
@@ -184,20 +198,21 @@ void main() {
         u.y += float(e[i].y) * fi;
         u.z += float(e[i].z) * fi;
     }
-    
+
     if (rho > 0.0001) {
         u /= rho;
     }
-    
+
     // Store velocity for particle advection
     velocity[cellIdx] = vec4(u, rho);
 
     float omega = 1.0 / tau;
 
     if (useRegularized == 1) {
-        // Regularized collision: reconstruct distributions from the stress tensor
-        // only, filtering out unstable higher-order non-equilibrium moments.
-        // This gives MRT-like stability without the 19x19 matrix transform.
+        // Regularized collision: reconstruct distributions from the stress
+        // tensor only, filtering out unstable higher-order non-equilibrium
+        // moments. This gives MRT-like stability without the 19x19 matrix
+        // transform.
 
         // Step 1: compute the non-equilibrium stress tensor
         // Pi_neq_ab = sum_i (e_ia * e_ib * f_neq_i)
@@ -227,7 +242,7 @@ void main() {
         // f_neq_reg_i = w_i / (2 * cs^4) * Q_iab * Pi_neq_ab
         // where Q_iab = e_ia * e_ib - cs^2 * delta_ab
         // and cs^2 = 1/3, cs^4 = 1/9
-        float inv_2cs4 = 4.5;  // 1 / (2 * (1/9)) = 9/2
+        float inv_2cs4 = 4.5; // 1 / (2 * (1/9)) = 9/2
 
         for (int i = 0; i < 19; i++) {
             float fi_eq = feq(i, rho, u);
@@ -239,17 +254,15 @@ void main() {
             float cs2 = 1.0 / 3.0;
 
             // Q_iab * Pi_ab (symmetric tensor contraction)
-            float QP = (ex*ex - cs2) * Pxx
-                     + (ey*ey - cs2) * Pyy
-                     + (ez*ez - cs2) * Pzz
-                     + 2.0 * ex * ey * Pxy
-                     + 2.0 * ex * ez * Pxz
-                     + 2.0 * ey * ez * Pyz;
+            float QP = (ex * ex - cs2) * Pxx + (ey * ey - cs2) * Pyy +
+                       (ez * ez - cs2) * Pzz + 2.0 * ex * ey * Pxy +
+                       2.0 * ex * ez * Pxz + 2.0 * ey * ez * Pyz;
 
             float f_neq_reg = w[i] * inv_2cs4 * QP;
 
             // Collide on the regularized distribution
-            f_new[idxF(pos.x, pos.y, pos.z, i)] = fi_eq + (1.0 - omega) * f_neq_reg;
+            f_new[idxF(pos.x, pos.y, pos.z, i)] =
+                fi_eq + (1.0 - omega) * f_neq_reg;
         }
     } else {
         // Standard BGK (SRT) collision

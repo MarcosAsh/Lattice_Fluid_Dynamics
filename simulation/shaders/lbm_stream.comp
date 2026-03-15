@@ -14,27 +14,25 @@ layout(std430, binding = 3) buffer LBMBufferNew {
 uniform ivec3 gridSize;
 
 // D3Q19 lattice velocities
-const ivec3 e[19] = ivec3[19](
-    ivec3( 0,  0,  0),
-    ivec3( 1,  0,  0),
-    ivec3(-1,  0,  0),
-    ivec3( 0,  1,  0),
-    ivec3( 0, -1,  0),
-    ivec3( 0,  0,  1),
-    ivec3( 0,  0, -1),
-    ivec3( 1,  1,  0),
-    ivec3(-1,  1,  0),
-    ivec3( 1, -1,  0),
-    ivec3(-1, -1,  0),
-    ivec3( 1,  0,  1),
-    ivec3(-1,  0,  1),
-    ivec3( 1,  0, -1),
-    ivec3(-1,  0, -1),
-    ivec3( 0,  1,  1),
-    ivec3( 0, -1,  1),
-    ivec3( 0,  1, -1),
-    ivec3( 0, -1, -1)
-);
+const ivec3 e[19] = ivec3[19](ivec3(0, 0, 0),
+                              ivec3(1, 0, 0),
+                              ivec3(-1, 0, 0),
+                              ivec3(0, 1, 0),
+                              ivec3(0, -1, 0),
+                              ivec3(0, 0, 1),
+                              ivec3(0, 0, -1),
+                              ivec3(1, 1, 0),
+                              ivec3(-1, 1, 0),
+                              ivec3(1, -1, 0),
+                              ivec3(-1, -1, 0),
+                              ivec3(1, 0, 1),
+                              ivec3(-1, 0, 1),
+                              ivec3(1, 0, -1),
+                              ivec3(-1, 0, -1),
+                              ivec3(0, 1, 1),
+                              ivec3(0, -1, 1),
+                              ivec3(0, 1, -1),
+                              ivec3(0, -1, -1));
 
 int idx3D(int x, int y, int z) {
     return x + y * gridSize.x + z * gridSize.x * gridSize.y;
@@ -46,26 +44,33 @@ int idxF(int x, int y, int z, int i) {
 
 void main() {
     ivec3 pos = ivec3(gl_GlobalInvocationID.xyz);
-    
-    if (pos.x >= gridSize.x || pos.y >= gridSize.y || pos.z >= gridSize.z) return;
-    
+
+    if (pos.x >= gridSize.x || pos.y >= gridSize.y || pos.z >= gridSize.z)
+        return;
+
     // Stream: pull from neighbors
     for (int i = 0; i < 19; i++) {
-        // Source position 
+        // Source position
         ivec3 src = pos - e[i];
-        
+
         // Periodic or clamp boundaries for y and z
-        if (src.y < 0) src.y = 0;
-        if (src.y >= gridSize.y) src.y = gridSize.y - 1;
-        if (src.z < 0) src.z = 0;
-        if (src.z >= gridSize.z) src.z = gridSize.z - 1;
-        
+        if (src.y < 0)
+            src.y = 0;
+        if (src.y >= gridSize.y)
+            src.y = gridSize.y - 1;
+        if (src.z < 0)
+            src.z = 0;
+        if (src.z >= gridSize.z)
+            src.z = gridSize.z - 1;
+
         // Handle x boundaries
         if (src.x < 0 || src.x >= gridSize.x) {
             // Keep current value (handled by collision boundary conditions)
-            f[idxF(pos.x, pos.y, pos.z, i)] = f_new[idxF(pos.x, pos.y, pos.z, i)];
+            f[idxF(pos.x, pos.y, pos.z, i)] =
+                f_new[idxF(pos.x, pos.y, pos.z, i)];
         } else {
-            f[idxF(pos.x, pos.y, pos.z, i)] = f_new[idxF(src.x, src.y, src.z, i)];
+            f[idxF(pos.x, pos.y, pos.z, i)] =
+                f_new[idxF(src.x, src.y, src.z, i)];
         }
     }
 }
