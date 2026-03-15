@@ -324,16 +324,10 @@ def render_simulation(
         )
         supports_model = "--model" in help_text
 
-        # Xvfb
+        # Skip Xvfb -- the EGL path doesn't need X.
+        # If EGL fails and SDL fallback needs X, start it.
         t_xvfb = time.monotonic()
-        log.info("starting xvfb", extra=ctx)
-        xvfb = subprocess.Popen(
-            ["Xvfb", ":99", "-screen", "0", "1920x1080x24"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        time.sleep(2)
-        timings["xvfb_start"] = time.monotonic() - t_xvfb
+        timings["xvfb_start"] = 0
 
         # Model selection
         model_paths = {
@@ -362,9 +356,10 @@ def render_simulation(
                 model, model_paths["car"]
             )
 
-        # Run simulation
+        # Run simulation. Unset DISPLAY to force EGL path
+        # (no X server needed for headless rendering).
         env = os.environ.copy()
-        env["DISPLAY"] = ":99"
+        env.pop("DISPLAY", None)
 
         cmd = [
             str(executable),
