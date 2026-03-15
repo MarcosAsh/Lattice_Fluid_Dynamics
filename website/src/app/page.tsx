@@ -65,7 +65,15 @@ export default function Home() {
   const [status, setStatus] = useState<JobStatus>('idle');
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [results, setResults] = useState<SimulationResult[]>([]);
+  const [results, setResults] = useState<SimulationResult[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const saved = localStorage.getItem('lattice_results');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   const [backendAvailable, setBackendAvailable] = useState(true);
   const [objFile, setObjFile] = useState<File | null>(null);
   const renderStartTime = useRef<number | null>(null);
@@ -76,6 +84,20 @@ export default function Home() {
       .then((data) => setBackendAvailable(data.available))
       .catch(() => setBackendAvailable(false));
   }, []);
+
+  // Persist results to localStorage
+  useEffect(() => {
+    try {
+      // Keep last 50 results max
+      const toSave = results.slice(-50);
+      localStorage.setItem(
+        'lattice_results',
+        JSON.stringify(toSave),
+      );
+    } catch {
+      // localStorage full or unavailable
+    }
+  }, [results]);
 
   // Write hash on param change
   const initialized = useRef(false);

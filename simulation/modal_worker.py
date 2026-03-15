@@ -154,6 +154,81 @@ def build_simulation() -> str:
     return str(executable)
 
 
+def _cache_key(
+    model: str,
+    wind_speed: float,
+    viz_mode: int,
+    collision_mode: int,
+    reynolds: float,
+) -> str:
+    """Hash render params to check for cached results."""
+    import hashlib
+
+    key = (
+        f"{model}_{wind_speed}_{viz_mode}_"
+        f"{collision_mode}_{reynolds}"
+    )
+    return hashlib.md5(key.encode()).hexdigest()[:12]
+
+
+def _check_cache(cache_id: str) -> dict | None:
+    """Check S3 for a cached render result."""
+    try:
+        import boto3
+
+        bucket = os.environ.get(
+            "S3_BUCKET", "fluid-sim-renders"
+        )
+        region = os.environ.get("S3_REGION", "eu-west-2")
+        s3 = boto3.client(
+            "s3",
+            region_name=region,
+            aws_access_key_id=os.environ.get(
+                "AWS_ACCESS_KEY_ID"
+            ),
+            aws_secret_access_key=os.environ.get(
+                "AWS_SECRET_ACCESS_KEY"
+            ),
+        )
+        meta_key = f"cache/{cache_id}.json"
+        resp = s3.get_object(Bucket=bucket, Key=meta_key)
+        return json.loads(resp["Body"].read())
+    except Exception:
+        return None
+
+
+def _save_cache(cache_id: str, result: dict):
+    """Save render result metadata to S3 for caching."""
+    try:
+        import boto3
+
+        bucket = os.environ.get(
+            "S3_BUCKET", "fluid-sim-renders"
+        )
+        region = os.environ.get("S3_REGION", "eu-west-2")
+        s3 = boto3.client(
+            "s3",
+            region_name=region,
+            aws_access_key_id=os.environ.get(
+                "AWS_ACCESS_KEY_ID"
+            ),
+            aws_secret_access_key=os.environ.get(
+                "AWS_SECRET_ACCESS_KEY"
+            ),
+        )
+        meta_key = f"cache/{cache_id}.json"
+        s3.put_object(
+            Bucket=bucket,
+            Key=meta_key,
+            Body=json.dumps(result),
+            ContentType="application/json",
+        )
+    except Exception as e:
+        log.warning(
+            "cache save failed", extra={"error": str(e)}
+        )
+
+
 @app.function(
     image=image,
     gpu="T4",
@@ -186,6 +261,18 @@ def render_simulation(
         "reynolds": reynolds,
         "duration": duration,
     }
+
+    # Check cache for non-custom models
+    if model != "custom":
+        cache_id = _cache_key(
+            model, wind_speed, viz_mode,
+            collision_mode, reynolds,
+        )
+        cached = _check_cache(cache_id)
+        if cached:
+            log.info("cache hit", extra={**ctx, "cache_id": cache_id})
+            return cached
+
     log.info("render start", extra=ctx)
 
     try:
@@ -440,7 +527,7 @@ def render_simulation(
             },
         )
 
-        return {
+        result = {
             "status": "complete",
             "video_url": video_url,
             "model": model,
@@ -452,9 +539,20 @@ def render_simulation(
             "effective_re": effective_re,
             "grid_size": grid_size,
             "timings": {
-                k: round(v, 2) for k, v in timings.items()
+                k: round(v, 2)
+                for k, v in timings.items()
             },
         }
+
+        # Cache for future identical requests
+        if model != "custom":
+            cid = _cache_key(
+                model, wind_speed, viz_mode,
+                collision_mode, reynolds,
+            )
+            _save_cache(cid, result)
+
+        return result
 
     except subprocess.TimeoutExpired:
         log.error("render timed out", extra=ctx)

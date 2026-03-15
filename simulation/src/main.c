@@ -982,6 +982,12 @@ int main(int argc, char *argv[]) {
     int frameCount = 0;
     int maxFrames = (renderDuration > 0) ? renderDuration * 60 : 0;
 
+    // Convergence detection for auto-stop
+    #define CD_HISTORY_SIZE 10
+    float cdHistory[CD_HISTORY_SIZE];
+    int cdHistoryCount = 0;
+    int converged = 0;
+
     while (running) {
         if (!paused || stepOnce)
             frameCount++;
@@ -1280,12 +1286,43 @@ int main(int argc, char *argv[]) {
             float Cl =
                 LBM_ComputeLiftCoefficient(lbmGrid, latticeVelocity, refArea);
 
-            printf("  Drag Force: (%.4f, %.4f, %.4f), Cd=%.3f Cl=%.3f\n",
-                   fx,
-                   fy,
-                   fz,
-                   Cd,
-                   Cl);
+            printf("  Drag Force: (%.4f, %.4f, %.4f),"
+                   " Cd=%.3f Cl=%.3f\n",
+                   fx, fy, fz, Cd, Cl);
+
+            // Track Cd for convergence detection
+            if (Cd > 0 && Cd < 1000) {
+                cdHistory[cdHistoryCount % CD_HISTORY_SIZE] = Cd;
+                cdHistoryCount++;
+
+                if (cdHistoryCount >= CD_HISTORY_SIZE && !converged) {
+                    float mean = 0;
+                    for (int j = 0; j < CD_HISTORY_SIZE; j++)
+                        mean += cdHistory[j];
+                    mean /= CD_HISTORY_SIZE;
+
+                    float var = 0;
+                    for (int j = 0; j < CD_HISTORY_SIZE; j++) {
+                        float d = cdHistory[j] - mean;
+                        var += d * d;
+                    }
+                    float relStd = sqrtf(var / CD_HISTORY_SIZE) / (mean + 1e-10f);
+
+                    if (relStd < 0.02f) {
+                        converged = 1;
+                        printf("  Cd converged (mean=%.3f,"
+                               " relStd=%.4f)\n",
+                               mean, relStd);
+                        // Auto-stop in headless mode
+                        if (maxFrames > 0) {
+                            // Run 2 more seconds for clean video ending
+                            int extra = 120;
+                            if (frameCount + extra < maxFrames)
+                                maxFrames = frameCount + extra;
+                        }
+                    }
+                }
+            }
         }
 
         if (maxFrames > 0 && frameCount >= maxFrames) {
