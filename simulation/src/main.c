@@ -706,21 +706,21 @@ int main(int argc, char *argv[]) {
     }
 
     // Initialize LBM grid
-    int lbmSizeX = 64;
-    int lbmSizeY = 32;
-    int lbmSizeZ = 32;
+    int lbmSizeX = 96;
+    int lbmSizeY = 48;
+    int lbmSizeZ = 48;
     if (collisionMode == 2) {
-        // Per-triangle collision is heavier; run a slightly coarser LBM grid.
-        lbmSizeX = 48;
-        lbmSizeY = 24;
-        lbmSizeZ = 24;
+        // Per-triangle is heavier, use coarser grid.
+        lbmSizeX = 64;
+        lbmSizeY = 32;
+        lbmSizeZ = 32;
     }
-    float lbmViscosity = 0.1f;
+    float lbmViscosity = 0.02f;
 
     if (reynoldsNumber > 0) {
         float scaleX = lbmSizeX / 8.0f;
         float charLength = (carBounds.maxX - carBounds.minX) * scaleX;
-        float latticeVelocity = windSpeed * 0.05f;
+        float latticeVelocity = windSpeed * 0.1f;
         lbmViscosity = (latticeVelocity * charLength) / reynoldsNumber;
         float tau = 3.0f * lbmViscosity + 0.5f;
         printf("Reynolds number: %.0f\n", reynoldsNumber);
@@ -767,7 +767,20 @@ int main(int argc, char *argv[]) {
                    lbmGrid->tau);
         }
 
-        LBM_InitializeFlow(lbmGrid, windSpeed * 0.05f, 0.0f, 0.0f);
+        LBM_InitializeFlow(lbmGrid, windSpeed * 0.1f, 0.0f, 0.0f);
+
+        // Print effective Reynolds number
+        {
+            float sX = lbmGrid->sizeX / 8.0f;
+            float charL =
+                (carBounds.maxX - carBounds.minX) * sX;
+            float latU = windSpeed * 0.1f;
+            float nu = (lbmGrid->tau - 0.5f) / 3.0f;
+            float re = (nu > 1e-10f) ? latU * charL / nu : 0;
+            printf("Effective Re = %.0f "
+                   "(U=%.3f, L=%.1f, nu=%.4f)\n",
+                   re, latU, charL, nu);
+        }
         printf("LBM initialized successfully\n");
     } else {
         printf("Warning: LBM initialization failed, using simple wind\n");
@@ -1127,7 +1140,7 @@ int main(int argc, char *argv[]) {
         // Run LBM simulation FIRST (skip when paused unless single-stepping)
         if (lbmGrid && useLBM && (!paused || stepOnce)) {
             for (int i = 0; i < lbmSubsteps; i++) {
-                LBM_Step(lbmGrid, windSpeed * 0.05f, 0.0f, 0.0f);
+                LBM_Step(lbmGrid, windSpeed * 0.1f, 0.0f, 0.0f);
             }
         }
 
@@ -1232,9 +1245,9 @@ int main(int argc, char *argv[]) {
             float refArea = (carBounds.maxY - carBounds.minY) * scaleY *
                             (carBounds.maxZ - carBounds.minZ) * scaleZ;
             float Cd =
-                LBM_ComputeDragCoefficient(lbmGrid, windSpeed * 0.05f, refArea);
+                LBM_ComputeDragCoefficient(lbmGrid, windSpeed * 0.1f, refArea);
             float Cl =
-                LBM_ComputeLiftCoefficient(lbmGrid, windSpeed * 0.05f, refArea);
+                LBM_ComputeLiftCoefficient(lbmGrid, windSpeed * 0.1f, refArea);
 
             printf("  Drag Force: (%.4f, %.4f, %.4f), Cd=%.3f Cl=%.3f\n",
                    fx,
