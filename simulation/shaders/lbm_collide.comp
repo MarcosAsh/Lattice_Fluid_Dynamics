@@ -98,19 +98,78 @@ void main() {
         return;
     }
     
-    // Inlet boundary (left side)
+    // Zou-He velocity inlet (left side, x=0)
+    // Only sets the 5 unknown distributions (positive x direction) that can't
+    // come from streaming. Preserves non-equilibrium structure from the interior.
     if (pos.x == 0) {
-        float rho = 1.0;
-        for (int i = 0; i < 19; i++) {
-            f[idxF(pos.x, pos.y, pos.z, i)] = feq(i, rho, inletVelocity);
-        }
+        // Known distributions (streamed from interior):
+        //   zero-x: f0, f3, f4, f5, f6, f15, f16, f17, f18
+        //   neg-x:  f2, f8, f10, f12, f14
+        // Unknown (positive-x): f1, f7, f9, f11, f13
+        float f0  = f[idxF(pos.x, pos.y, pos.z, 0)];
+        float f2  = f[idxF(pos.x, pos.y, pos.z, 2)];
+        float f3  = f[idxF(pos.x, pos.y, pos.z, 3)];
+        float f4  = f[idxF(pos.x, pos.y, pos.z, 4)];
+        float f5  = f[idxF(pos.x, pos.y, pos.z, 5)];
+        float f6  = f[idxF(pos.x, pos.y, pos.z, 6)];
+        float f8  = f[idxF(pos.x, pos.y, pos.z, 8)];
+        float f10 = f[idxF(pos.x, pos.y, pos.z, 10)];
+        float f12 = f[idxF(pos.x, pos.y, pos.z, 12)];
+        float f14 = f[idxF(pos.x, pos.y, pos.z, 14)];
+        float f15 = f[idxF(pos.x, pos.y, pos.z, 15)];
+        float f16 = f[idxF(pos.x, pos.y, pos.z, 16)];
+        float f17 = f[idxF(pos.x, pos.y, pos.z, 17)];
+        float f18 = f[idxF(pos.x, pos.y, pos.z, 18)];
+
+        float knowns_0   = f0 + f3 + f4 + f5 + f6 + f15 + f16 + f17 + f18;
+        float knowns_neg = f2 + f8 + f10 + f12 + f14;
+
+        float ux = inletVelocity.x;
+        float uy = inletVelocity.y;
+        float uz = inletVelocity.z;
+
+        // Compute density from Zou-He constraint
+        float rho_in = (knowns_0 + 2.0 * knowns_neg) / (1.0 - ux);
+
+        // Non-equilibrium bounce-back for the 5 unknown distributions
+        f[idxF(pos.x, pos.y, pos.z, 1)]  = f2  + (1.0/3.0)  * rho_in * ux;
+        f[idxF(pos.x, pos.y, pos.z, 7)]  = f10 + (1.0/6.0)  * rho_in * (ux + uy);
+        f[idxF(pos.x, pos.y, pos.z, 9)]  = f8  + (1.0/6.0)  * rho_in * (ux - uy);
+        f[idxF(pos.x, pos.y, pos.z, 11)] = f14 + (1.0/6.0)  * rho_in * (ux + uz);
+        f[idxF(pos.x, pos.y, pos.z, 13)] = f12 + (1.0/6.0)  * rho_in * (ux - uz);
     }
-    
-    // Outlet boundary (right side) - zero gradient
+
+    // Zou-He pressure outlet (right side, x=N-1)
+    // Specifies rho=1 (atmospheric), computes outflow velocity from interior.
     if (pos.x == gridSize.x - 1) {
-        for (int i = 0; i < 19; i++) {
-            f[idxF(pos.x, pos.y, pos.z, i)] = f[idxF(pos.x - 1, pos.y, pos.z, i)];
-        }
+        float f0  = f[idxF(pos.x, pos.y, pos.z, 0)];
+        float f1  = f[idxF(pos.x, pos.y, pos.z, 1)];
+        float f3  = f[idxF(pos.x, pos.y, pos.z, 3)];
+        float f4  = f[idxF(pos.x, pos.y, pos.z, 4)];
+        float f5  = f[idxF(pos.x, pos.y, pos.z, 5)];
+        float f6  = f[idxF(pos.x, pos.y, pos.z, 6)];
+        float f7  = f[idxF(pos.x, pos.y, pos.z, 7)];
+        float f9  = f[idxF(pos.x, pos.y, pos.z, 9)];
+        float f11 = f[idxF(pos.x, pos.y, pos.z, 11)];
+        float f13 = f[idxF(pos.x, pos.y, pos.z, 13)];
+        float f15 = f[idxF(pos.x, pos.y, pos.z, 15)];
+        float f16 = f[idxF(pos.x, pos.y, pos.z, 16)];
+        float f17 = f[idxF(pos.x, pos.y, pos.z, 17)];
+        float f18 = f[idxF(pos.x, pos.y, pos.z, 18)];
+
+        float knowns_0   = f0 + f3 + f4 + f5 + f6 + f15 + f16 + f17 + f18;
+        float knowns_pos = f1 + f7 + f9 + f11 + f13;
+
+        float rho_out = 1.0;
+        float ux = -1.0 + (knowns_0 + 2.0 * knowns_pos) / rho_out;
+
+        // Non-equilibrium bounce-back for the 5 unknown distributions
+        // Assume uy=0, uz=0 at outlet (fully developed flow)
+        f[idxF(pos.x, pos.y, pos.z, 2)]  = f1  - (1.0/3.0)  * rho_out * ux;
+        f[idxF(pos.x, pos.y, pos.z, 10)] = f7  - (1.0/6.0)  * rho_out * ux;
+        f[idxF(pos.x, pos.y, pos.z, 8)]  = f9  - (1.0/6.0)  * rho_out * ux;
+        f[idxF(pos.x, pos.y, pos.z, 14)] = f11 - (1.0/6.0)  * rho_out * ux;
+        f[idxF(pos.x, pos.y, pos.z, 12)] = f13 - (1.0/6.0)  * rho_out * ux;
     }
     
     // Compute macroscopic quantities
