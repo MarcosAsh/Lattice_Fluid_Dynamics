@@ -128,11 +128,14 @@ def build_simulation() -> str:
             "cmake",
             str(source_dir),
             "-DCMAKE_BUILD_TYPE=Release",
+            "-DCMAKE_C_FLAGS=-DHAVE_EGL",
+            "-DCMAKE_EXE_LINKER_FLAGS=-lEGL",
         ],
         cwd=build_dir,
         capture_output=True,
         text=True,
     )
+    log.info("cmake output: " + result.stdout[-500:])
     if result.returncode != 0:
         raise Exception(f"CMake failed: {result.stderr}")
 
