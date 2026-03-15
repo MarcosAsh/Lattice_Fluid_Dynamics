@@ -616,6 +616,13 @@ int main(int argc, char* argv[]) {
                             carBounds.minX, carBounds.minY, carBounds.minZ,
                             carBounds.maxX, carBounds.maxY, carBounds.maxZ);
         }
+        // Auto-enable regularized collision when tau is low (high Re).
+        // Standard BGK becomes unstable below ~0.55.
+        if (lbmGrid->tau < 0.6f) {
+            lbmGrid->useRegularized = 1;
+            printf("Regularized collision enabled (tau=%.3f near stability limit)\n", lbmGrid->tau);
+        }
+
         LBM_InitializeFlow(lbmGrid, windSpeed * 0.05f, 0.0f, 0.0f);
         printf("LBM initialized successfully\n");
     } else {

@@ -23,6 +23,7 @@ layout(std430, binding = 5) buffer SolidMask {
 uniform ivec3 gridSize;
 uniform float tau;  // Relaxation time (viscosity related)
 uniform vec3 inletVelocity;
+uniform int useRegularized;  // 0 = BGK, 1 = regularized (stable at high Re)
 
 // D3Q19 lattice velocities
 const ivec3 e[19] = ivec3[19](
@@ -190,13 +191,72 @@ void main() {
     
     // Store velocity for particle advection
     velocity[cellIdx] = vec4(u, rho);
-    
-    // BGK collision
+
     float omega = 1.0 / tau;
-    
-    for (int i = 0; i < 19; i++) {
-        float fi = f[idxF(pos.x, pos.y, pos.z, i)];
-        float fi_eq = feq(i, rho, u);
-        f_new[idxF(pos.x, pos.y, pos.z, i)] = fi - omega * (fi - fi_eq);
+
+    if (useRegularized == 1) {
+        // Regularized collision: reconstruct distributions from the stress tensor
+        // only, filtering out unstable higher-order non-equilibrium moments.
+        // This gives MRT-like stability without the 19x19 matrix transform.
+
+        // Step 1: compute the non-equilibrium stress tensor
+        // Pi_neq_ab = sum_i (e_ia * e_ib * f_neq_i)
+        // where f_neq_i = f_i - f_eq_i
+        float Pxx = 0.0, Pyy = 0.0, Pzz = 0.0;
+        float Pxy = 0.0, Pxz = 0.0, Pyz = 0.0;
+
+        for (int i = 0; i < 19; i++) {
+            float fi = f[idxF(pos.x, pos.y, pos.z, i)];
+            float fi_eq = feq(i, rho, u);
+            float f_neq = fi - fi_eq;
+
+            float ex = float(e[i].x);
+            float ey = float(e[i].y);
+            float ez = float(e[i].z);
+
+            Pxx += ex * ex * f_neq;
+            Pyy += ey * ey * f_neq;
+            Pzz += ez * ez * f_neq;
+            Pxy += ex * ey * f_neq;
+            Pxz += ex * ez * f_neq;
+            Pyz += ey * ez * f_neq;
+        }
+
+        // Step 2: reconstruct regularized distribution
+        // f_i = f_eq_i + f_neq_reg_i
+        // f_neq_reg_i = w_i / (2 * cs^4) * Q_iab * Pi_neq_ab
+        // where Q_iab = e_ia * e_ib - cs^2 * delta_ab
+        // and cs^2 = 1/3, cs^4 = 1/9
+        float inv_2cs4 = 4.5;  // 1 / (2 * (1/9)) = 9/2
+
+        for (int i = 0; i < 19; i++) {
+            float fi_eq = feq(i, rho, u);
+
+            float ex = float(e[i].x);
+            float ey = float(e[i].y);
+            float ez = float(e[i].z);
+
+            float cs2 = 1.0 / 3.0;
+
+            // Q_iab * Pi_ab (symmetric tensor contraction)
+            float QP = (ex*ex - cs2) * Pxx
+                     + (ey*ey - cs2) * Pyy
+                     + (ez*ez - cs2) * Pzz
+                     + 2.0 * ex * ey * Pxy
+                     + 2.0 * ex * ez * Pxz
+                     + 2.0 * ey * ez * Pyz;
+
+            float f_neq_reg = w[i] * inv_2cs4 * QP;
+
+            // Collide on the regularized distribution
+            f_new[idxF(pos.x, pos.y, pos.z, i)] = fi_eq + (1.0 - omega) * f_neq_reg;
+        }
+    } else {
+        // Standard BGK (SRT) collision
+        for (int i = 0; i < 19; i++) {
+            float fi = f[idxF(pos.x, pos.y, pos.z, i)];
+            float fi_eq = feq(i, rho, u);
+            f_new[idxF(pos.x, pos.y, pos.z, i)] = fi - omega * (fi - fi_eq);
+        }
     }
 }
