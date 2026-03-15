@@ -1,0 +1,27 @@
+name: Deploy Modal Worker
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'simulation/modal_worker.py'
+
+jobs:
+  deploy:
+    name: Deploy to Modal
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Modal
+        run: pip install modal
+
+      - name: Deploy
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+        run: modal deploy simulation/modal_worker.py

@@ -27,9 +27,11 @@ typedef struct {
     GLint collide_inletVelLoc;
     GLint collide_useRegularizedLoc;
     GLint stream_gridSizeLoc;
+    GLint stream_periodicYZLoc;
     GLint force_gridSizeLoc;
 
-    int useRegularized; // 0 = BGK, 1 = regularized collision
+    int useRegularized; // 0 = BGK, 1 = regularized
+    int periodicYZ;     // 0 = clamp, 1 = periodic y/z
 } LBMGrid;
 
 // Initialize LBM grid

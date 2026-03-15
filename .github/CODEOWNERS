@@ -1,0 +1,12 @@
+# Default owner
+* @MarcosAsh
+
+# Simulation and physics
+simulation/ @MarcosAsh
+simulation/shaders/ @MarcosAsh
+
+# Website
+website/ @MarcosAsh
+
+# ML
+ml/ @MarcosAsh

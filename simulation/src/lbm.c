@@ -115,6 +115,7 @@ LBMGrid *LBM_Create(int sizeX, int sizeY, int sizeZ, float viscosity) {
     }
 
     grid->useRegularized = 0;
+    grid->periodicYZ = 0;
 
     // Get uniform locations
     glUseProgram(grid->collideShader);
@@ -129,6 +130,8 @@ LBMGrid *LBM_Create(int sizeX, int sizeY, int sizeZ, float viscosity) {
     glUseProgram(grid->streamShader);
     grid->stream_gridSizeLoc =
         glGetUniformLocation(grid->streamShader, "gridSize");
+    grid->stream_periodicYZLoc =
+        glGetUniformLocation(grid->streamShader, "periodicYZ");
 
     if (grid->forceShader) {
         glUseProgram(grid->forceShader);
@@ -285,6 +288,7 @@ void LBM_Step(LBMGrid *grid,
     glUseProgram(grid->streamShader);
     glUniform3i(
         grid->stream_gridSizeLoc, grid->sizeX, grid->sizeY, grid->sizeZ);
+    glUniform1i(grid->stream_periodicYZLoc, grid->periodicYZ);
 
     glDispatchCompute(
         (grid->sizeX + 7) / 8, (grid->sizeY + 7) / 8, (grid->sizeZ + 7) / 8);
