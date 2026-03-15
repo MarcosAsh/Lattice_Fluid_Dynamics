@@ -724,20 +724,42 @@ int main(int argc, char *argv[]) {
     int lbmSizeX = gridX;
     int lbmSizeY = gridY;
     int lbmSizeZ = gridZ;
-    float lbmViscosity = 0.02f;
+
+    // Map physical wind speed to a safe lattice velocity.
+    // LBM is stable when the Mach number Ma = U/cs < 0.2
+    // (cs = 1/sqrt(3) ~ 0.577). We cap the lattice velocity
+    // at 0.08 and scale viscosity so higher wind speeds just
+    // increase Re instead of blowing up the simulation.
+    float maxLatticeVel = 0.08f;
+    float latticeVelocity = windSpeed * 0.1f;
+    if (latticeVelocity > maxLatticeVel)
+        latticeVelocity = maxLatticeVel;
+
+    // Viscosity scales with wind speed so Re increases
+    // with wind: Re = U_phys * L / nu_phys. In lattice
+    // units, we keep U_lat fixed and lower nu to raise Re.
+    float baseViscosity = 0.02f;
+    float lbmViscosity = baseViscosity;
+    if (windSpeed > 0.8f) {
+        lbmViscosity = baseViscosity * 0.8f / windSpeed;
+        if (lbmViscosity < 0.003f)
+            lbmViscosity = 0.003f;
+    }
 
     if (reynoldsNumber > 0) {
         float scaleX = lbmSizeX / 8.0f;
-        float charLength = (carBounds.maxX - carBounds.minX) * scaleX;
-        float latticeVelocity = windSpeed * 0.1f;
-        lbmViscosity = (latticeVelocity * charLength) / reynoldsNumber;
+        float charLength =
+            (carBounds.maxX - carBounds.minX) * scaleX;
+        lbmViscosity =
+            (latticeVelocity * charLength) / reynoldsNumber;
         float tau = 3.0f * lbmViscosity + 0.5f;
         printf("Reynolds number: %.0f\n", reynoldsNumber);
-        printf("  Characteristic length: %.1f lattice units\n", charLength);
-        printf("  Computed viscosity: %.6f\n", lbmViscosity);
-        printf("  Relaxation time (tau): %.4f\n", tau);
+        printf("  Char length: %.1f lattice units\n",
+               charLength);
+        printf("  Viscosity: %.6f\n", lbmViscosity);
+        printf("  tau: %.4f\n", tau);
         if (tau <= 0.5f) {
-            printf("  WARNING: tau <= 0.5 -- simulation will be unstable. "
+            printf("  WARNING: tau <= 0.5, unstable. "
                    "Lower Re or wind speed.\n");
         }
     }
@@ -776,14 +798,14 @@ int main(int argc, char *argv[]) {
                    lbmGrid->tau);
         }
 
-        LBM_InitializeFlow(lbmGrid, windSpeed * 0.1f, 0.0f, 0.0f);
+        LBM_InitializeFlow(lbmGrid, latticeVelocity, 0.0f, 0.0f);
 
         // Print effective Reynolds number
         {
             float sX = lbmGrid->sizeX / 8.0f;
             float charL =
                 (carBounds.maxX - carBounds.minX) * sX;
-            float latU = windSpeed * 0.1f;
+            float latU = latticeVelocity;
             float nu = (lbmGrid->tau - 0.5f) / 3.0f;
             float re = (nu > 1e-10f) ? latU * charL / nu : 0;
             printf("Effective Re = %.0f "
@@ -1149,7 +1171,7 @@ int main(int argc, char *argv[]) {
         // Run LBM simulation FIRST (skip when paused unless single-stepping)
         if (lbmGrid && useLBM && (!paused || stepOnce)) {
             for (int i = 0; i < lbmSubsteps; i++) {
-                LBM_Step(lbmGrid, windSpeed * 0.1f, 0.0f, 0.0f);
+                LBM_Step(lbmGrid, latticeVelocity, 0.0f, 0.0f);
             }
         }
 
@@ -1254,9 +1276,9 @@ int main(int argc, char *argv[]) {
             float refArea = (carBounds.maxY - carBounds.minY) * scaleY *
                             (carBounds.maxZ - carBounds.minZ) * scaleZ;
             float Cd =
-                LBM_ComputeDragCoefficient(lbmGrid, windSpeed * 0.1f, refArea);
+                LBM_ComputeDragCoefficient(lbmGrid, latticeVelocity, refArea);
             float Cl =
-                LBM_ComputeLiftCoefficient(lbmGrid, windSpeed * 0.1f, refArea);
+                LBM_ComputeLiftCoefficient(lbmGrid, latticeVelocity, refArea);
 
             printf("  Drag Force: (%.4f, %.4f, %.4f), Cd=%.3f Cl=%.3f\n",
                    fx,
