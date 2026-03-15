@@ -57,7 +57,8 @@ image = (
         {
             "DISPLAY": ":99",
             "MESA_GL_VERSION_OVERRIDE": "4.3",
-            "LIBGL_ALWAYS_SOFTWARE": "1",
+            # Try hardware GL first (T4 GPU). Falls back
+            # to software if NVIDIA drivers aren't available.
         }
     )
 )
@@ -367,7 +368,7 @@ def render_simulation(
             f"--collision={collision_mode}",
             f"--duration={duration}",
             f"--output={frames_dir}",
-            "--grid=64x32x32",
+            "--grid=128x64x64",
         ]
         if supports_model:
             cmd.append(f"--model={model_path}")
