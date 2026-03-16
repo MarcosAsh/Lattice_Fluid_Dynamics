@@ -44,7 +44,7 @@ static float feq(int i, float rho, float ux, float uy, float uz) {
 }
 
 LBMGrid *LBM_Create(int sizeX, int sizeY, int sizeZ, float viscosity) {
-    LBMGrid *grid = (LBMGrid *)malloc(sizeof(LBMGrid));
+    LBMGrid *grid = (LBMGrid *)calloc(1, sizeof(LBMGrid));
     if (!grid)
         return NULL;
 
@@ -66,6 +66,20 @@ LBMGrid *LBM_Create(int sizeX, int sizeY, int sizeZ, float viscosity) {
            grid->totalCells,
            grid->tau);
 
+    // Query GPU limits for validation
+    GLint64 maxSSBOSize = 0;
+    glGetInteger64v(GL_MAX_SHADER_STORAGE_BLOCK_SIZE, &maxSSBOSize);
+    GLint maxComputeWG[3] = {0, 0, 0};
+    glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 0, &maxComputeWG[0]);
+    glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 1, &maxComputeWG[1]);
+    glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, 2, &maxComputeWG[2]);
+
+    printf("GPU limits: SSBO=%.0f MB, dispatch=%d x %d x %d\n",
+           maxSSBOSize / (1024.0 * 1024.0),
+           maxComputeWG[0],
+           maxComputeWG[1],
+           maxComputeWG[2]);
+
     // Allocate GPU buffers
     size_t fSize = 19 * grid->totalCells * sizeof(float);
     size_t velSize = grid->totalCells * 4 * sizeof(float);
@@ -73,31 +87,109 @@ LBMGrid *LBM_Create(int sizeX, int sizeY, int sizeZ, float viscosity) {
     size_t forceSize =
         4 * sizeof(int); // forceX, forceY, forceZ, count (as ints)
 
+    size_t totalGPU = 2 * fSize + velSize + solidSize + forceSize;
+    printf("GPU memory: f=%.1f MB x2, vel=%.1f MB, solid=%.1f MB, "
+           "total=%.1f MB\n",
+           fSize / (1024.0 * 1024.0),
+           velSize / (1024.0 * 1024.0),
+           solidSize / (1024.0 * 1024.0),
+           totalGPU / (1024.0 * 1024.0));
+
+    // Validate buffer sizes against SSBO limit
+    if (maxSSBOSize > 0 && (GLint64)fSize > maxSSBOSize) {
+        printf("ERROR: f buffer (%zu bytes) exceeds "
+               "GL_MAX_SHADER_STORAGE_BLOCK_SIZE (%lld bytes)\n",
+               fSize,
+               (long long)maxSSBOSize);
+        free(grid);
+        return NULL;
+    }
+
+    // Validate dispatch size
+    int dispX = (sizeX + 7) / 8;
+    int dispY = (sizeY + 7) / 8;
+    int dispZ = (sizeZ + 7) / 8;
+    if (dispX > maxComputeWG[0] || dispY > maxComputeWG[1] ||
+        dispZ > maxComputeWG[2]) {
+        printf("ERROR: dispatch %dx%dx%d exceeds GPU limit %dx%dx%d\n",
+               dispX,
+               dispY,
+               dispZ,
+               maxComputeWG[0],
+               maxComputeWG[1],
+               maxComputeWG[2]);
+        free(grid);
+        return NULL;
+    }
+
+    // Drain any prior GL errors
+    while (glGetError() != GL_NO_ERROR) {
+    }
+
+    // Allocate each SSBO and immediately clear it with glClearBufferData.
+    // The clear forces the driver to back every virtual page with physical
+    // memory, preventing NVIDIA GPU MMU faults on large lazy allocations.
+    // Use GL_DYNAMIC_COPY for shader-written buffers (more accurate hint
+    // than GL_DYNAMIC_DRAW which implies CPU writes).
+    float fZero = 0.0f;
+    int iZero = 0;
+
     glGenBuffers(1, &grid->fBuffer);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->fBuffer);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, fSize, NULL, GL_DYNAMIC_DRAW);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, fSize, NULL, GL_DYNAMIC_COPY);
+    if (glGetError() != GL_NO_ERROR) {
+        printf("ERROR: GPU alloc failed for fBuffer (%.1f MB)\n",
+               fSize / (1024.0 * 1024.0));
+        LBM_Free(grid);
+        return NULL;
+    }
+    glClearBufferData(
+        GL_SHADER_STORAGE_BUFFER, GL_R32F, GL_RED, GL_FLOAT, &fZero);
 
     glGenBuffers(1, &grid->fNewBuffer);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->fNewBuffer);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, fSize, NULL, GL_DYNAMIC_DRAW);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, fSize, NULL, GL_DYNAMIC_COPY);
+    if (glGetError() != GL_NO_ERROR) {
+        printf("ERROR: GPU alloc failed for fNewBuffer (%.1f MB)\n",
+               fSize / (1024.0 * 1024.0));
+        LBM_Free(grid);
+        return NULL;
+    }
+    glClearBufferData(
+        GL_SHADER_STORAGE_BUFFER, GL_R32F, GL_RED, GL_FLOAT, &fZero);
 
     glGenBuffers(1, &grid->velocityBuffer);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->velocityBuffer);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, velSize, NULL, GL_DYNAMIC_DRAW);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, velSize, NULL, GL_DYNAMIC_COPY);
+    if (glGetError() != GL_NO_ERROR) {
+        printf("ERROR: GPU alloc failed for velocityBuffer (%.1f MB)\n",
+               velSize / (1024.0 * 1024.0));
+        LBM_Free(grid);
+        return NULL;
+    }
+    glClearBufferData(
+        GL_SHADER_STORAGE_BUFFER, GL_R32F, GL_RED, GL_FLOAT, &fZero);
 
     glGenBuffers(1, &grid->solidBuffer);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->solidBuffer);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, solidSize, NULL, GL_DYNAMIC_DRAW);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, solidSize, NULL, GL_STATIC_DRAW);
+    if (glGetError() != GL_NO_ERROR) {
+        printf("ERROR: GPU alloc failed for solidBuffer (%.1f MB)\n",
+               solidSize / (1024.0 * 1024.0));
+        LBM_Free(grid);
+        return NULL;
+    }
+    glClearBufferData(
+        GL_SHADER_STORAGE_BUFFER, GL_R32I, GL_RED_INTEGER, GL_INT, &iZero);
 
     glGenBuffers(1, &grid->forceBuffer);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->forceBuffer);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, forceSize, NULL, GL_DYNAMIC_DRAW);
-
-    // Initialize solid mask to all fluid
-    int *solidData = (int *)calloc(grid->totalCells, sizeof(int));
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->solidBuffer);
-    glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, solidSize, solidData);
-    free(solidData);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, forceSize, NULL, GL_DYNAMIC_COPY);
+    if (glGetError() != GL_NO_ERROR) {
+        printf("ERROR: GPU alloc failed for forceBuffer\n");
+        LBM_Free(grid);
+        return NULL;
+    }
 
     // Load shaders
     grid->collideShader = createComputeShader("shaders/lbm_collide.comp");
@@ -234,6 +326,17 @@ void LBM_InitializeFlow(LBMGrid *grid, float ux, float uy, float uz) {
 
     float *fData = (float *)malloc(19 * grid->totalCells * sizeof(float));
     float *velData = (float *)malloc(4 * grid->totalCells * sizeof(float));
+
+    if (!fData || !velData) {
+        printf("ERROR: Failed to allocate CPU buffers for LBM init "
+               "(need %.1f MB)\n",
+               (19 * grid->totalCells * sizeof(float) +
+                4 * grid->totalCells * sizeof(float)) /
+                   (1024.0 * 1024.0));
+        free(fData);
+        free(velData);
+        return;
+    }
 
     for (int idx = 0; idx < grid->totalCells; idx++) {
         for (int i = 0; i < 19; i++) {
