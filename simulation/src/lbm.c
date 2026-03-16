@@ -145,9 +145,13 @@ LBMGrid *LBM_Create(int sizeX, int sizeY, int sizeZ, float viscosity) {
         return NULL;
     }
 
+    // Use glBufferStorage (immutable store) for the large f buffers.
+    // Unlike glBufferData, immutable storage cannot be orphaned or
+    // reallocated, giving the driver stronger page table guarantees.
     glGenBuffers(1, &grid->fBuffer);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->fBuffer);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, fSize, fZeros, GL_DYNAMIC_COPY);
+    glBufferStorage(
+        GL_SHADER_STORAGE_BUFFER, fSize, fZeros, GL_DYNAMIC_STORAGE_BIT);
     if (glGetError() != GL_NO_ERROR) {
         printf("ERROR: GPU alloc failed for fBuffer (%.1f MB)\n",
                fSize / (1024.0 * 1024.0));
@@ -160,7 +164,8 @@ LBMGrid *LBM_Create(int sizeX, int sizeY, int sizeZ, float viscosity) {
 
     glGenBuffers(1, &grid->fNewBuffer);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->fNewBuffer);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, fSize, fZeros, GL_DYNAMIC_COPY);
+    glBufferStorage(
+        GL_SHADER_STORAGE_BUFFER, fSize, fZeros, GL_DYNAMIC_STORAGE_BIT);
     if (glGetError() != GL_NO_ERROR) {
         printf("ERROR: GPU alloc failed for fNewBuffer (%.1f MB)\n",
                fSize / (1024.0 * 1024.0));
@@ -207,6 +212,11 @@ LBMGrid *LBM_Create(int sizeX, int sizeY, int sizeZ, float viscosity) {
         LBM_Free(grid);
         return NULL;
     }
+
+    // Force GPU to finish all pending DMA transfers before any compute
+    // dispatch. Without this, NVIDIA T4 can evict freshly uploaded pages.
+    glFinish();
+    printf("GPU buffers allocated and committed\n");
 
     // Load shaders
     grid->collideShader = createComputeShader("shaders/lbm_collide.comp");
