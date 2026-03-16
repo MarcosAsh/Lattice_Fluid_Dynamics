@@ -363,6 +363,7 @@ def render_simulation(
         env["DISPLAY"] = ":99"
 
         cmd = [
+            "stdbuf", "-oL",
             str(executable),
             f"--wind={wind_speed}",
             f"--viz={viz_mode}",
