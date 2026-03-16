@@ -557,11 +557,20 @@ def render_simulation(
 
         return result
 
-    except subprocess.TimeoutExpired:
-        log.error("render timed out", extra=ctx)
+    except subprocess.TimeoutExpired as te:
+        stdout_tail = (te.stdout or "")[-1000:] if te.stdout else ""
+        stderr_tail = (te.stderr or "")[-1000:] if te.stderr else ""
+        log.error(
+            "render timed out",
+            extra={
+                **ctx,
+                "stdout_tail": stdout_tail,
+                "stderr_tail": stderr_tail,
+            },
+        )
         return {
             "status": "error",
-            "error": "Timed out",
+            "error": f"Timed out\nstdout: {stdout_tail}\nstderr: {stderr_tail}",
             "error_type": "timeout",
         }
     except Exception as e:
