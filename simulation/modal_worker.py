@@ -73,7 +73,7 @@ REPO_URL = (
 @app.function(
     image=image,
     volumes={"/cache": build_cache},
-    timeout=1000,
+    timeout=1800,
 )
 def build_simulation() -> str:
     repo_dir = Path("/cache/source")
@@ -236,7 +236,7 @@ def _save_cache(cache_id: str, result: dict):
     gpu="T4",
     volumes={"/cache": build_cache},
     secrets=[modal.Secret.from_name("aws-secret")],
-    timeout=1000,
+    timeout=1800,
 )
 def render_simulation(
     job_id: str,
@@ -379,7 +379,7 @@ def render_simulation(
 
         log.info("simulation starting", extra=ctx)
         t_sim = time.monotonic()
-        sim_timeout = duration * 5 + 120
+        sim_timeout = duration * 20 + 120
         proc = subprocess.Popen(
             cmd,
             cwd=str(source_dir),
@@ -656,7 +656,7 @@ def upload_video(video_path: Path, job_id: str) -> str:
     gpu="T4",
     volumes={"/cache": build_cache},
     secrets=[modal.Secret.from_name("aws-secret")],
-    timeout=1000,
+    timeout=1800,
 )
 @modal.fastapi_endpoint(method="POST")
 def render_endpoint(data: dict) -> dict:
