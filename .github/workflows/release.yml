@@ -17,9 +17,9 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential cmake pkg-config \
-            libsdl2-dev libsdl2-ttf-dev libglew-dev \
+            libsdl2-dev libsdl2-ttf-dev \
             mesa-common-dev libgl1-mesa-dev libosmesa6-dev \
-            xvfb mesa-utils
+            libegl1-mesa-dev xvfb mesa-utils
 
       - name: Configure
         run: cmake -B build -S simulation -DCMAKE_BUILD_TYPE=Release
@@ -31,6 +31,7 @@ jobs:
         run: |
           export MESA_GL_VERSION_OVERRIDE=4.3
           export LIBGL_ALWAYS_SOFTWARE=1
+          export USE_EGL=0
           cd simulation
           xvfb-run ../build/test_lbm
 
