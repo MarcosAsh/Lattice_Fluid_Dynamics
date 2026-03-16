@@ -453,8 +453,9 @@ void LBM_ComputeDragForce(LBMGrid *grid,
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->forceBuffer);
     glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(zeros), zeros);
 
-    // Bind buffers
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, grid->fBuffer);
+    // Bind buffers -- force shader reads post-collision f_new (binding 3)
+    // which holds distributions at their original positions before streaming.
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, grid->fNewBuffer);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, grid->solidBuffer);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 6, grid->forceBuffer);
 

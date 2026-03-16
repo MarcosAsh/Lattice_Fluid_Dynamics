@@ -1,8 +1,11 @@
 #version 430 core
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
 
-layout(std430, binding = 2) buffer LBMBuffer {
-    float f[];
+// Post-collision distributions (f_new from collision step).
+// After LBM_Step, this buffer still holds the collision output at
+// each cell's OWN position, before streaming moved them.
+layout(std430, binding = 3) buffer LBMBufferNew {
+    float f_new[];
 };
 
 layout(std430, binding = 5) buffer SolidMask {
@@ -37,9 +40,6 @@ const ivec3 e[19] = ivec3[19](ivec3(0, 0, 0),
                               ivec3(0, -1, 1),
                               ivec3(0, 1, -1),
                               ivec3(0, -1, -1));
-
-const int opposite[19] =
-    int[19](0, 2, 1, 4, 3, 6, 5, 10, 9, 8, 7, 14, 13, 12, 11, 18, 17, 16, 15);
 
 int idx3D(int x, int y, int z) {
     return x + y * gridSize.x + z * gridSize.x * gridSize.y;
@@ -78,17 +78,18 @@ void main() {
         if (solid[neighborIdx] == 1) {
             hasSolidNeighbor = true;
 
-            // Momentum exchange: F = 2 * f_i * e_i
-            // f_i is the distribution going INTO the solid
-            // After bounce-back, momentum change is 2 * f_i * e_i
-            float fi = f[idxF(pos.x, pos.y, pos.z, i)];
-            float fi_opp = f[idxF(pos.x, pos.y, pos.z, opposite[i])];
+            // Ladd (1994) momentum exchange for stationary bounce-back:
+            // F = 2 * e_i * f_i*(x_b)
+            // where f_i* is the POST-COLLISION distribution at the
+            // boundary fluid cell going toward the wall. The factor of
+            // 2 accounts for the bounce-back reversing the momentum.
+            // We read from f_new (post-collision buffer) which holds
+            // distributions at their ORIGINAL positions before streaming.
+            float fi = f_new[idxF(pos.x, pos.y, pos.z, i)];
 
-            // Momentum exchange (Mei-Luo-Shyy, post-streaming):
-            // F = e_i * (f_i + f_~i)
-            localForce.x += (fi + fi_opp) * float(e[i].x);
-            localForce.y += (fi + fi_opp) * float(e[i].y);
-            localForce.z += (fi + fi_opp) * float(e[i].z);
+            localForce.x += 2.0 * fi * float(e[i].x);
+            localForce.y += 2.0 * fi * float(e[i].y);
+            localForce.z += 2.0 * fi * float(e[i].z);
         }
     }
 
