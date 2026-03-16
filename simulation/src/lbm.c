@@ -126,65 +126,82 @@ LBMGrid *LBM_Create(int sizeX, int sizeY, int sizeZ, float viscosity) {
     while (glGetError() != GL_NO_ERROR) {
     }
 
-    // Allocate each SSBO and immediately clear it with glClearBufferData.
-    // The clear forces the driver to back every virtual page with physical
-    // memory, preventing NVIDIA GPU MMU faults on large lazy allocations.
-    // Use GL_DYNAMIC_COPY for shader-written buffers (more accurate hint
-    // than GL_DYNAMIC_DRAW which implies CPU writes).
-    float fZero = 0.0f;
-    int iZero = 0;
+    // Allocate each SSBO with zero-initialized CPU data passed directly
+    // to glBufferData. Passing data (not NULL) forces the NVIDIA driver
+    // to fully map every page in the GPU's virtual address space during
+    // the DMA transfer. NULL allocations use lazy mapping which causes
+    // MMU faults (FAULT_PDE) on T4 GPUs with large buffers.
+
+    void *fZeros = calloc(1, fSize);
+    void *velZeros = calloc(1, velSize);
+    void *solidZeros = calloc(1, solidSize);
+    if (!fZeros || !velZeros || !solidZeros) {
+        printf("ERROR: CPU alloc failed for GPU init buffers (%.1f MB)\n",
+               (2.0 * fSize + velSize + solidSize) / (1024.0 * 1024.0));
+        free(fZeros);
+        free(velZeros);
+        free(solidZeros);
+        free(grid);
+        return NULL;
+    }
 
     glGenBuffers(1, &grid->fBuffer);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->fBuffer);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, fSize, NULL, GL_DYNAMIC_COPY);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, fSize, fZeros, GL_DYNAMIC_COPY);
     if (glGetError() != GL_NO_ERROR) {
         printf("ERROR: GPU alloc failed for fBuffer (%.1f MB)\n",
                fSize / (1024.0 * 1024.0));
+        free(fZeros);
+        free(velZeros);
+        free(solidZeros);
         LBM_Free(grid);
         return NULL;
     }
-    glClearBufferData(
-        GL_SHADER_STORAGE_BUFFER, GL_R32F, GL_RED, GL_FLOAT, &fZero);
 
     glGenBuffers(1, &grid->fNewBuffer);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->fNewBuffer);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, fSize, NULL, GL_DYNAMIC_COPY);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, fSize, fZeros, GL_DYNAMIC_COPY);
     if (glGetError() != GL_NO_ERROR) {
         printf("ERROR: GPU alloc failed for fNewBuffer (%.1f MB)\n",
                fSize / (1024.0 * 1024.0));
+        free(fZeros);
+        free(velZeros);
+        free(solidZeros);
         LBM_Free(grid);
         return NULL;
     }
-    glClearBufferData(
-        GL_SHADER_STORAGE_BUFFER, GL_R32F, GL_RED, GL_FLOAT, &fZero);
+    free(fZeros);
 
     glGenBuffers(1, &grid->velocityBuffer);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->velocityBuffer);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, velSize, NULL, GL_DYNAMIC_COPY);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, velSize, velZeros, GL_DYNAMIC_COPY);
     if (glGetError() != GL_NO_ERROR) {
         printf("ERROR: GPU alloc failed for velocityBuffer (%.1f MB)\n",
                velSize / (1024.0 * 1024.0));
+        free(velZeros);
+        free(solidZeros);
         LBM_Free(grid);
         return NULL;
     }
-    glClearBufferData(
-        GL_SHADER_STORAGE_BUFFER, GL_R32F, GL_RED, GL_FLOAT, &fZero);
+    free(velZeros);
 
     glGenBuffers(1, &grid->solidBuffer);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->solidBuffer);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, solidSize, NULL, GL_STATIC_DRAW);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, solidSize, solidZeros, GL_STATIC_DRAW);
     if (glGetError() != GL_NO_ERROR) {
         printf("ERROR: GPU alloc failed for solidBuffer (%.1f MB)\n",
                solidSize / (1024.0 * 1024.0));
+        free(solidZeros);
         LBM_Free(grid);
         return NULL;
     }
-    glClearBufferData(
-        GL_SHADER_STORAGE_BUFFER, GL_R32I, GL_RED_INTEGER, GL_INT, &iZero);
+    free(solidZeros);
 
+    int forceZeros[4] = {0, 0, 0, 0};
     glGenBuffers(1, &grid->forceBuffer);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->forceBuffer);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, forceSize, NULL, GL_DYNAMIC_COPY);
+    glBufferData(
+        GL_SHADER_STORAGE_BUFFER, forceSize, forceZeros, GL_DYNAMIC_COPY);
     if (glGetError() != GL_NO_ERROR) {
         printf("ERROR: GPU alloc failed for forceBuffer\n");
         LBM_Free(grid);

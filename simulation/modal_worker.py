@@ -34,6 +34,8 @@ log.addHandler(_handler)
 
 app = modal.App("fluid-sim")
 
+GRID = "256x128x128"
+
 image = (
     modal.Image.from_registry(
         "nvidia/opengl:1.2-glvnd-devel-ubuntu22.04",
@@ -158,14 +160,15 @@ def _cache_key(
     viz_mode: int,
     collision_mode: int,
     reynolds: float,
-    grid: str = "256x128x128",
+    duration: int,
+    grid: str,
 ) -> str:
     """Hash render params to check for cached results."""
     import hashlib
 
     key = (
         f"{model}_{wind_speed}_{viz_mode}_"
-        f"{collision_mode}_{reynolds}_{grid}"
+        f"{collision_mode}_{reynolds}_{duration}_{grid}"
     )
     return hashlib.md5(key.encode()).hexdigest()[:12]
 
@@ -266,6 +269,7 @@ def render_simulation(
         cache_id = _cache_key(
             model, wind_speed, viz_mode,
             collision_mode, reynolds,
+            duration, GRID,
         )
         cached = _check_cache(cache_id)
         if cached:
@@ -365,7 +369,7 @@ def render_simulation(
             f"--collision={collision_mode}",
             f"--duration={duration}",
             f"--output={frames_dir}",
-            "--grid=256x128x128",
+            f"--grid={GRID}",
         ]
         if supports_model:
             cmd.append(f"--model={model_path}")
@@ -547,6 +551,7 @@ def render_simulation(
             cid = _cache_key(
                 model, wind_speed, viz_mode,
                 collision_mode, reynolds,
+                duration, GRID,
             )
             _save_cache(cid, result)
 
