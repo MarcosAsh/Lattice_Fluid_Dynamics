@@ -35,30 +35,25 @@ log.addHandler(_handler)
 app = modal.App("fluid-sim")
 
 image = (
-    modal.Image.debian_slim(python_version="3.11")
-    .pip_install("cmake")
+    modal.Image.from_registry(
+        "nvidia/opengl:1.2-glvnd-devel-ubuntu22.04",
+        add_python="3.11",
+    )
     .apt_install(
         "build-essential",
+        "cmake",
         "pkg-config",
         "git",
-        "libgl1-mesa-dev",
-        "libglew-dev",
-        "libglu1-mesa-dev",
         "libsdl2-dev",
         "libsdl2-ttf-dev",
         "libegl1-mesa-dev",
         "xvfb",
-        "x11-utils",
         "ffmpeg",
-        "mesa-utils",
-        "libosmesa6-dev",
     )
     .pip_install("requests", "fastapi[standard]", "boto3")
     .env(
         {
-            "DISPLAY": ":99",
-            "MESA_GL_VERSION_OVERRIDE": "4.3",
-            "LIBGL_ALWAYS_SOFTWARE": "1",
+            "NVIDIA_DRIVER_CAPABILITIES": "all",
         }
     )
 )
@@ -361,7 +356,6 @@ def render_simulation(
 
         env = os.environ.copy()
         env["DISPLAY"] = ":99"
-        env["USE_EGL"] = "0"
 
         cmd = [
             str(executable),
@@ -370,7 +364,7 @@ def render_simulation(
             f"--collision={collision_mode}",
             f"--duration={duration}",
             f"--output={frames_dir}",
-            "--grid=80x40x40",
+            "--grid=256x128x128",
         ]
         if supports_model:
             cmd.append(f"--model={model_path}")
