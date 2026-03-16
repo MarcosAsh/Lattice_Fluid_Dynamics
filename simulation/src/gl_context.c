@@ -148,29 +148,21 @@ static GLContext *headless_sdl_fallback(int w, int h) {
 /* ---- EGL path (headless GPU) ---- */
 
 #ifdef HAVE_EGL
+/* Need raw EGL for bootstrap (eglGetProcAddress etc.)
+ * before glad can load the full API. */
+#define EGL_EGLEXT_PROTOTYPES
 #include <EGL/egl.h>
-#include <glad/egl.h>
-
-/* EXT function types for device enumeration */
-typedef EGLBoolean (*PFNEGLQUERYDEVICESEXTPROC)(
-    EGLint, EGLDeviceEXT *, EGLint *);
-typedef EGLDisplay (*PFNEGLGETPLATFORMDISPLAYEXTPROC)(
-    EGLenum, void *, const EGLint *);
-
-#ifndef EGL_PLATFORM_DEVICE_EXT
-#define EGL_PLATFORM_DEVICE_EXT 0x313F
-#endif
+#include <EGL/eglext.h>
 
 static EGLDisplay get_egl_device_display(void) {
-    /* Try the EXT device enumeration API first.
-     * This is the only way to get NVIDIA GPU on
-     * headless systems without X. */
+    /* Load EXT functions at runtime via eglGetProcAddress.
+     * These aren't in the base libEGL. */
     PFNEGLQUERYDEVICESEXTPROC queryDevices =
-        (PFNEGLQUERYDEVICESEXTPROC)eglGetProcAddress(
-            "eglQueryDevicesEXT");
+        (PFNEGLQUERYDEVICESEXTPROC)
+            eglGetProcAddress("eglQueryDevicesEXT");
     PFNEGLGETPLATFORMDISPLAYEXTPROC getPlatformDisplay =
-        (PFNEGLGETPLATFORMDISPLAYEXTPROC)eglGetProcAddress(
-            "eglGetPlatformDisplayEXT");
+        (PFNEGLGETPLATFORMDISPLAYEXTPROC)
+            eglGetProcAddress("eglGetPlatformDisplayEXT");
 
     if (queryDevices && getPlatformDisplay) {
         EGLDeviceEXT devices[8];
@@ -179,16 +171,18 @@ static EGLDisplay get_egl_device_display(void) {
             numDevices > 0) {
             printf("EGL: found %d device(s)\n",
                    numDevices);
-            /* Use first device */
             EGLDisplay d = getPlatformDisplay(
                 EGL_PLATFORM_DEVICE_EXT,
                 devices[0], NULL);
             if (d != EGL_NO_DISPLAY)
                 return d;
+            printf("EGL: platform display failed\n");
         }
+    } else {
+        printf("EGL: device enum not available\n");
     }
 
-    /* Fall back to default display */
+    printf("EGL: using default display\n");
     return eglGetDisplay(EGL_DEFAULT_DISPLAY);
 }
 
@@ -214,9 +208,7 @@ GLContext *GLContext_CreateHeadless(int w, int h) {
     }
     printf("EGL %d.%d initialized\n", major, minor);
 
-    /* Load full EGL API via glad */
-    gladLoadEGL(display,
-                (GLADloadfunc)eglGetProcAddress);
+    /* EGL functions loaded via eglext.h prototypes */
 
     eglBindAPI(EGL_OPENGL_API);
 
