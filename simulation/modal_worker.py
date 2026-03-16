@@ -378,14 +378,46 @@ def render_simulation(
 
         log.info("simulation starting", extra=ctx)
         t_sim = time.monotonic()
-        result = subprocess.run(
+        sim_timeout = duration * 5 + 120
+        proc = subprocess.Popen(
             cmd,
             cwd=str(source_dir),
             env=env,
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
-            timeout=duration * 5 + 120,
         )
+        try:
+            stdout, stderr = proc.communicate(
+                timeout=sim_timeout
+            )
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            stdout, stderr = proc.communicate()
+            log.error(
+                "render timed out",
+                extra={
+                    **ctx,
+                    "stdout_tail": (stdout or "")[-2000:],
+                    "stderr_tail": (stderr or "")[-500:],
+                },
+            )
+            return {
+                "status": "error",
+                "error": (
+                    f"Timed out\nstdout:\n"
+                    f"{(stdout or '')[-2000:]}"
+                ),
+                "error_type": "timeout",
+            }
+
+        class _Result:
+            pass
+
+        result = _Result()
+        result.stdout = stdout
+        result.stderr = stderr
+        result.returncode = proc.returncode
         timings["simulation"] = time.monotonic() - t_sim
 
         # Parse Cd/Cl
@@ -557,20 +589,12 @@ def render_simulation(
 
         return result
 
-    except subprocess.TimeoutExpired as te:
-        stdout_tail = (te.stdout or "")[-1000:] if te.stdout else ""
-        stderr_tail = (te.stderr or "")[-1000:] if te.stderr else ""
-        log.error(
-            "render timed out",
-            extra={
-                **ctx,
-                "stdout_tail": stdout_tail,
-                "stderr_tail": stderr_tail,
-            },
-        )
+    except subprocess.TimeoutExpired:
+        # Handled inside the Popen block above; this catches
+        # any other TimeoutExpired (shouldn't happen).
         return {
             "status": "error",
-            "error": f"Timed out\nstdout: {stdout_tail}\nstderr: {stderr_tail}",
+            "error": "Timed out (outer)",
             "error_type": "timeout",
         }
     except Exception as e:
