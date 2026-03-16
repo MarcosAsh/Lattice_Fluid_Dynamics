@@ -183,12 +183,19 @@ void main() {
 
     vec3 flowVel;
     if (useLBM == 1 && lbmGridSize.x > 0) {
-        flowVel = sampleLBMVelocity(p.position) * 15.0;
+        vec3 lbmVel = sampleLBMVelocity(p.position) * 15.0;
+        // Blend: mostly wind direction with LBM detail for wake
+        flowVel = mix(wind, lbmVel, 0.4);
     } else {
         flowVel = wind;
     }
 
-    p.velocity = flowVel;
+    // Gradual velocity update -- particles have inertia
+    p.velocity = mix(p.velocity, flowVel, 0.08);
+
+    // Always move forward at least 60% of wind speed
+    p.velocity.x = max(p.velocity.x, wind.x * 0.6);
+
     p.position += p.velocity * dt;
 
     if (collisionMode == 1) {
@@ -206,7 +213,7 @@ void main() {
             }
         }
     } else if (collisionMode == 2 && numTriangles > 0) {
-        float collisionRadius = 0.05;
+        float collisionRadius = 0.03;
 
         for (int i = 0; i < numTriangles; i++) {
             Triangle tri = triangles[i];
@@ -215,17 +222,13 @@ void main() {
                 p.position, tri.v0, tri.v1, tri.v2, closestPoint, normal);
 
             if (dist < collisionRadius) {
-                p.position = closestPoint + normal * collisionRadius;
+                // Gently slide along surface instead of bouncing
+                p.position = closestPoint + normal * (collisionRadius + 0.001);
 
                 float velDotNormal = dot(p.velocity, normal);
                 if (velDotNormal < 0.0) {
-                    p.velocity = p.velocity - 1.5 * velDotNormal * normal;
-                    p.velocity.y +=
-                        (fract(sin(float(idx) * 12.9898) * 43758.5453) - 0.5) *
-                        0.2;
-                    p.velocity.z +=
-                        (fract(sin(float(idx) * 78.233) * 43758.5453) - 0.5) *
-                        0.2;
+                    // Remove only the normal component (slide, don't bounce)
+                    p.velocity = p.velocity - 1.05 * velDotNormal * normal;
                 }
                 break;
             }
@@ -240,15 +243,21 @@ void main() {
 
     p.life -= 0.01 * dt;
 
-    if (p.life <= 0.0 || p.position.x > 4.0 || abs(p.position.y) > 2.0 ||
-        abs(p.position.z) > 2.0) {
+    // Keep particles inside the wind tunnel corridor
+    float tunnelY = 1.0;
+    float tunnelZ = 1.0;
+    p.position.y = clamp(p.position.y, -tunnelY, tunnelY);
+    p.position.z = clamp(p.position.z, -tunnelZ, tunnelZ);
+
+    if (p.life <= 0.0 || p.position.x > 4.0 || abs(p.position.y) >= tunnelY ||
+        abs(p.position.z) >= tunnelZ) {
         float seed1 = float(idx) + time * 1000.0;
         float seed2 = float(idx) * 1.5 + time * 1234.0;
 
         float randY = fract(sin(seed1 * 43758.5453)) - 0.5;
         float randZ = fract(sin(seed2 * 12345.6789)) - 0.5;
 
-        p.position = vec3(-4.0, randY * 1.5, randZ * 1.5);
+        p.position = vec3(-4.0, randY * 2.0 * tunnelY, randZ * 2.0 * tunnelZ);
         p.velocity = vec3(0.5 + fract(sin(seed1 * 9876.54321)) * 0.2, 0.0, 0.0);
         p.life = 1.0;
     }

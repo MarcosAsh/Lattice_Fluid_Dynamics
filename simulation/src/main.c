@@ -318,7 +318,7 @@ int main(int argc, char *argv[]) {
     // Parse command line arguments
     float windSpeed = 1.0f;
     int visualizationMode = 1;
-    int collisionMode = 1;
+    int collisionMode = 2;
     int renderDuration = 0;
     char outputPath[256] = "";
     char modelPath[512] = "assets/3d-files/car-model.obj";
