@@ -651,6 +651,17 @@ def upload_video(video_path: Path, job_id: str) -> str:
     return url
 
 
+@app.function(image=image, timeout=30)
+@modal.fastapi_endpoint(method="GET")
+def health() -> dict:
+    """Lightweight health check -- no GPU needed."""
+    return {
+        "status": "ok",
+        "grid": GRID,
+        "gpu": "T4",
+    }
+
+
 @app.function(
     image=image,
     gpu="T4",

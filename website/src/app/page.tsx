@@ -75,14 +75,23 @@ export default function Home() {
     }
   });
   const [backendAvailable, setBackendAvailable] = useState(true);
+  const [backendStatus, setBackendStatus] = useState<
+    'checking' | 'healthy' | 'slow' | 'down' | 'not_configured'
+  >('checking');
   const [objFile, setObjFile] = useState<File | null>(null);
   const renderStartTime = useRef<number | null>(null);
 
   useEffect(() => {
     fetch('/api/render')
       .then((r) => r.json())
-      .then((data) => setBackendAvailable(data.available))
-      .catch(() => setBackendAvailable(false));
+      .then((data) => {
+        setBackendAvailable(data.available);
+        setBackendStatus(data.status ?? (data.available ? 'healthy' : 'not_configured'));
+      })
+      .catch(() => {
+        setBackendAvailable(false);
+        setBackendStatus('down');
+      });
   }, []);
 
   // Persist results to localStorage
@@ -207,6 +216,29 @@ export default function Home() {
             objFile={objFile}
             onObjFileChange={setObjFile}
           />
+          {backendStatus !== 'checking' && (
+            <div className="flex items-center gap-2 text-xs px-3 py-2 rounded border border-ctp-surface1 bg-ctp-mantle">
+              <div
+                className={`w-2 h-2 rounded-full ${
+                  backendStatus === 'healthy'
+                    ? 'bg-ctp-green'
+                    : backendStatus === 'slow'
+                      ? 'bg-ctp-yellow'
+                      : 'bg-ctp-red'
+                }`}
+              />
+              <span className="text-ctp-subtext0">
+                Backend:{' '}
+                {backendStatus === 'healthy'
+                  ? 'Healthy'
+                  : backendStatus === 'slow'
+                    ? 'Slow'
+                    : backendStatus === 'down'
+                      ? 'Down'
+                      : 'Not configured'}
+              </span>
+            </div>
+          )}
           <StatusDisplay
             status={status}
             error={error}

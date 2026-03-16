@@ -4,8 +4,40 @@ const RATE_LIMIT = new Map<string, number>();
 const MAX_OBJ_SIZE = 5 * 1024 * 1024; // 5 MB base64
 
 export async function GET() {
-  const configured = !!process.env.MODAL_RENDER_ENDPOINT;
-  return NextResponse.json({ available: configured });
+  const endpoint = process.env.MODAL_RENDER_ENDPOINT;
+  if (!endpoint) {
+    return NextResponse.json({ available: false, status: 'not_configured' });
+  }
+
+  // Derive the health URL from the render endpoint.
+  // Render: https://<user>--fluid-sim-render-endpoint-dev.modal.run
+  // Health: https://<user>--fluid-sim-health-dev.modal.run
+  const healthUrl = endpoint.replace(
+    /render-endpoint(-\w+)?\.modal\.run/,
+    'health$1.modal.run',
+  );
+
+  try {
+    const start = Date.now();
+    const res = await fetch(healthUrl, {
+      signal: AbortSignal.timeout(8000),
+    });
+    const latency = Date.now() - start;
+    const data = await res.json();
+
+    return NextResponse.json({
+      available: true,
+      status: latency < 5000 ? 'healthy' : 'slow',
+      latency,
+      grid: data.grid,
+      gpu: data.gpu,
+    });
+  } catch {
+    return NextResponse.json({
+      available: true,
+      status: 'down',
+    });
+  }
 }
 
 export async function POST(request: Request) {
