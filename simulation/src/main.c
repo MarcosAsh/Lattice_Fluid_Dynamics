@@ -701,8 +701,9 @@ int main(int argc, char *argv[]) {
     float lbmViscosity = baseViscosity;
     if (windSpeed > 0.8f) {
         lbmViscosity = baseViscosity * 0.8f / windSpeed;
-        if (lbmViscosity < 0.003f)
-            lbmViscosity = 0.003f;
+        float minViscosity = 0.0167f; // tau_min=0.55 -> nu=(0.55-0.5)/3
+        if (lbmViscosity < minViscosity)
+            lbmViscosity = minViscosity;
     }
 
     if (reynoldsNumber > 0) {
@@ -752,7 +753,7 @@ int main(int argc, char *argv[]) {
         // Adds local eddy viscosity so we can simulate at
         // effectively higher Re on coarse grids.
         lbmGrid->useSmagorinsky = 1;
-        lbmGrid->smagorinskyCs = 0.1f;
+        lbmGrid->smagorinskyCs = 0.15f;
         printf("Smagorinsky SGS enabled (Cs=%.2f)\n",
                lbmGrid->smagorinskyCs);
 
@@ -1140,8 +1141,16 @@ int main(int argc, char *argv[]) {
 
         // Run LBM simulation FIRST (skip when paused unless single-stepping)
         if (lbmGrid && useLBM && (!paused || stepOnce)) {
+            // Ramp inlet velocity over first 300 frames (~5s) to avoid
+            // impulsive acoustic startup that destabilizes low-tau runs.
+            int rampFrames = 300;
+            float rampFactor = (frameCount < rampFrames)
+                                   ? (float)frameCount / (float)rampFrames
+                                   : 1.0f;
+            float currentInletVel = latticeVelocity * rampFactor;
+
             for (int i = 0; i < lbmSubsteps; i++) {
-                LBM_Step(lbmGrid, latticeVelocity, 0.0f, 0.0f);
+                LBM_Step(lbmGrid, currentInletVel, 0.0f, 0.0f);
             }
         }
 
