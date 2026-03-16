@@ -151,6 +151,47 @@ static GLContext *headless_sdl_fallback(int w, int h) {
 #include <EGL/egl.h>
 #include <glad/egl.h>
 
+/* EXT function types for device enumeration */
+typedef EGLBoolean (*PFNEGLQUERYDEVICESEXTPROC)(
+    EGLint, EGLDeviceEXT *, EGLint *);
+typedef EGLDisplay (*PFNEGLGETPLATFORMDISPLAYEXTPROC)(
+    EGLenum, void *, const EGLint *);
+
+#ifndef EGL_PLATFORM_DEVICE_EXT
+#define EGL_PLATFORM_DEVICE_EXT 0x313F
+#endif
+
+static EGLDisplay get_egl_device_display(void) {
+    /* Try the EXT device enumeration API first.
+     * This is the only way to get NVIDIA GPU on
+     * headless systems without X. */
+    PFNEGLQUERYDEVICESEXTPROC queryDevices =
+        (PFNEGLQUERYDEVICESEXTPROC)eglGetProcAddress(
+            "eglQueryDevicesEXT");
+    PFNEGLGETPLATFORMDISPLAYEXTPROC getPlatformDisplay =
+        (PFNEGLGETPLATFORMDISPLAYEXTPROC)eglGetProcAddress(
+            "eglGetPlatformDisplayEXT");
+
+    if (queryDevices && getPlatformDisplay) {
+        EGLDeviceEXT devices[8];
+        EGLint numDevices = 0;
+        if (queryDevices(8, devices, &numDevices) &&
+            numDevices > 0) {
+            printf("EGL: found %d device(s)\n",
+                   numDevices);
+            /* Use first device */
+            EGLDisplay d = getPlatformDisplay(
+                EGL_PLATFORM_DEVICE_EXT,
+                devices[0], NULL);
+            if (d != EGL_NO_DISPLAY)
+                return d;
+        }
+    }
+
+    /* Fall back to default display */
+    return eglGetDisplay(EGL_DEFAULT_DISPLAY);
+}
+
 GLContext *GLContext_CreateHeadless(int w, int h) {
     /* Skip EGL if explicitly disabled. */
     const char *skip = getenv("USE_EGL");
@@ -160,9 +201,7 @@ GLContext *GLContext_CreateHeadless(int w, int h) {
 
     printf("Trying EGL headless...\n");
 
-    /* Bootstrap: load just enough EGL to get a display.
-     * eglGetDisplay/eglInitialize are in libEGL directly. */
-    EGLDisplay display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+    EGLDisplay display = get_egl_device_display();
     if (display == EGL_NO_DISPLAY) {
         printf("EGL: no display, falling back\n");
         return headless_sdl_fallback(w, h);
@@ -175,7 +214,7 @@ GLContext *GLContext_CreateHeadless(int w, int h) {
     }
     printf("EGL %d.%d initialized\n", major, minor);
 
-    /* Reload EGL with the display to get full API */
+    /* Load full EGL API via glad */
     gladLoadEGL(display,
                 (GLADloadfunc)eglGetProcAddress);
 
