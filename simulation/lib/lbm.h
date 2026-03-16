@@ -1,7 +1,7 @@
 #ifndef LBM_H
 #define LBM_H
 
-#include <GL/glew.h>
+#include <glad/gl.h>
 
 typedef struct {
     int sizeX, sizeY, sizeZ;

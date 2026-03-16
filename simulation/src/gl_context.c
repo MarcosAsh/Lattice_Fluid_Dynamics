@@ -1,6 +1,8 @@
 #include "../lib/gl_context.h"
+#include <glad/gl.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 /* ---- SDL path (interactive) ---- */
 
@@ -53,23 +55,24 @@ GLContext *GLContext_CreateInteractive(int w, int h) {
     SDL_GL_MakeCurrent(win, gl);
     SDL_GL_SetSwapInterval(1);
 
-    glewExperimental = GL_TRUE;
-    if (glewInit() != GLEW_OK) {
-        printf("GLEW init failed\n");
+    int version = gladLoadGL(
+        (GLADloadfunc)SDL_GL_GetProcAddress);
+    if (!version) {
+        printf("glad failed to load GL\n");
         SDL_GL_DeleteContext(gl);
         SDL_DestroyWindow(win);
         SDL_Quit();
         free(ctx);
         return NULL;
     }
-    glGetError(); /* clear spurious error */
 
     ctx->sdlWindow = win;
     ctx->sdlContext = gl;
 
     printf("GL context: SDL (interactive)\n");
     printf("  OpenGL: %s\n", glGetString(GL_VERSION));
-    printf("  Renderer: %s\n", glGetString(GL_RENDERER));
+    printf("  Renderer: %s\n",
+           glGetString(GL_RENDERER));
     return ctx;
 }
 
@@ -77,8 +80,7 @@ GLContext *GLContext_CreateInteractive(int w, int h) {
 static GLContext *headless_sdl_fallback(int w, int h) {
     printf("Using SDL hidden window for headless\n");
 
-    /* Force software GL to avoid GLX conflicts with
-     * NVIDIA drivers when running under Xvfb. */
+    /* Force software GL for Xvfb environments. */
     setenv("LIBGL_ALWAYS_SOFTWARE", "1", 1);
     setenv("MESA_GL_VERSION_OVERRIDE", "4.3", 0);
 
@@ -122,60 +124,61 @@ static GLContext *headless_sdl_fallback(int w, int h) {
     }
     SDL_GL_MakeCurrent(win, gl);
 
-    glewExperimental = GL_TRUE;
-    if (glewInit() != GLEW_OK) {
-        printf("GLEW init failed\n");
+    int version = gladLoadGL(
+        (GLADloadfunc)SDL_GL_GetProcAddress);
+    if (!version) {
+        printf("glad failed to load GL\n");
         SDL_GL_DeleteContext(gl);
         SDL_DestroyWindow(win);
         SDL_Quit();
         free(ctx);
         return NULL;
     }
-    glGetError();
 
     ctx->sdlWindow = win;
     ctx->sdlContext = gl;
 
-    printf("GL context: SDL hidden (headless fallback)\n");
+    printf("GL context: SDL hidden (headless)\n");
     printf("  OpenGL: %s\n", glGetString(GL_VERSION));
-    printf("  Renderer: %s\n", glGetString(GL_RENDERER));
+    printf("  Renderer: %s\n",
+           glGetString(GL_RENDERER));
     return ctx;
 }
 
-/* ---- EGL path (headless) ---- */
+/* ---- EGL path (headless GPU) ---- */
 
 #ifdef HAVE_EGL
 #include <EGL/egl.h>
+#include <glad/egl.h>
 
 GLContext *GLContext_CreateHeadless(int w, int h) {
-    /* Try EGL first for headless GPU rendering.
-     * Set USE_EGL=0 to skip and force SDL fallback. */
-    const char *skip_egl = getenv("USE_EGL");
-    if (skip_egl && skip_egl[0] == '0') {
+    /* Skip EGL if explicitly disabled. */
+    const char *skip = getenv("USE_EGL");
+    if (skip && skip[0] == '0') {
         return headless_sdl_fallback(w, h);
     }
 
-    GLContext *ctx = (GLContext *)calloc(1, sizeof(*ctx));
-    ctx->useEGL = 1;
-    ctx->width = w;
-    ctx->height = h;
+    printf("Trying EGL headless...\n");
 
+    /* Bootstrap: load just enough EGL to get a display.
+     * eglGetDisplay/eglInitialize are in libEGL directly. */
     EGLDisplay display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
     if (display == EGL_NO_DISPLAY) {
-        printf("EGL: no display available\n");
-        free(ctx);
+        printf("EGL: no display, falling back\n");
         return headless_sdl_fallback(w, h);
     }
 
     EGLint major, minor;
     if (!eglInitialize(display, &major, &minor)) {
-        printf("EGL: init failed\n");
-        free(ctx);
-        return NULL;
+        printf("EGL: init failed, falling back\n");
+        return headless_sdl_fallback(w, h);
     }
     printf("EGL %d.%d initialized\n", major, minor);
 
-    /* Request full OpenGL (not ES) */
+    /* Reload EGL with the display to get full API */
+    gladLoadEGL(display,
+                (GLADloadfunc)eglGetProcAddress);
+
     eglBindAPI(EGL_OPENGL_API);
 
     EGLint configAttribs[] = {
@@ -194,10 +197,9 @@ GLContext *GLContext_CreateHeadless(int w, int h) {
             display, configAttribs, &config, 1,
             &numConfigs) ||
         numConfigs == 0) {
-        printf("EGL: no suitable config\n");
+        printf("EGL: no config, falling back\n");
         eglTerminate(display);
-        free(ctx);
-        return NULL;
+        return headless_sdl_fallback(w, h);
     }
 
     EGLint ctxAttribs[] = {
@@ -211,11 +213,11 @@ GLContext *GLContext_CreateHeadless(int w, int h) {
     EGLContext eglCtx = eglCreateContext(
         display, config, EGL_NO_CONTEXT, ctxAttribs);
     if (eglCtx == EGL_NO_CONTEXT) {
-        printf("EGL: context creation failed (0x%x)\n",
+        printf("EGL: context failed (0x%x), "
+               "falling back\n",
                eglGetError());
         eglTerminate(display);
-        free(ctx);
-        return NULL;
+        return headless_sdl_fallback(w, h);
     }
 
     EGLint surfAttribs[] = {
@@ -226,11 +228,10 @@ GLContext *GLContext_CreateHeadless(int w, int h) {
     EGLSurface surface = eglCreatePbufferSurface(
         display, config, surfAttribs);
     if (surface == EGL_NO_SURFACE) {
-        printf("EGL: pbuffer creation failed\n");
+        printf("EGL: surface failed, falling back\n");
         eglDestroyContext(display, eglCtx);
         eglTerminate(display);
-        free(ctx);
-        return NULL;
+        return headless_sdl_fallback(w, h);
     }
 
     if (!eglMakeCurrent(
@@ -239,31 +240,33 @@ GLContext *GLContext_CreateHeadless(int w, int h) {
         eglDestroySurface(display, surface);
         eglDestroyContext(display, eglCtx);
         eglTerminate(display);
-        free(ctx);
-        return NULL;
+        return headless_sdl_fallback(w, h);
     }
 
-    glewExperimental = GL_TRUE;
-    GLenum glewErr = glewInit();
-    if (glewErr != GLEW_OK) {
-        printf("EGL: GLEW init failed (%s), "
-               "falling back to SDL\n",
-               glewGetErrorString(glewErr));
+    /* Load GL functions via EGL */
+    int glver = gladLoadGL(
+        (GLADloadfunc)eglGetProcAddress);
+    if (!glver) {
+        printf("EGL: glad GL load failed, "
+               "falling back\n");
         eglDestroySurface(display, surface);
         eglDestroyContext(display, eglCtx);
         eglTerminate(display);
-        free(ctx);
         return headless_sdl_fallback(w, h);
     }
-    glGetError();
 
+    GLContext *ctx = (GLContext *)calloc(1, sizeof(*ctx));
+    ctx->useEGL = 1;
+    ctx->width = w;
+    ctx->height = h;
     ctx->eglDisplay = display;
     ctx->eglContext = eglCtx;
     ctx->eglSurface = surface;
 
     printf("GL context: EGL (headless GPU)\n");
     printf("  OpenGL: %s\n", glGetString(GL_VERSION));
-    printf("  Renderer: %s\n", glGetString(GL_RENDERER));
+    printf("  Renderer: %s\n",
+           glGetString(GL_RENDERER));
     return ctx;
 }
 
@@ -272,7 +275,7 @@ GLContext *GLContext_CreateHeadless(int w, int h) {
 GLContext *GLContext_CreateHeadless(int w, int h) {
     return headless_sdl_fallback(w, h);
 }
-#endif /* HAVE_EGL */
+#endif
 
 /* ---- Common ---- */
 
@@ -299,9 +302,11 @@ void GLContext_Destroy(GLContext *ctx) {
 #endif
 
     if (ctx->sdlContext)
-        SDL_GL_DeleteContext((SDL_GLContext)ctx->sdlContext);
+        SDL_GL_DeleteContext(
+            (SDL_GLContext)ctx->sdlContext);
     if (ctx->sdlWindow)
-        SDL_DestroyWindow((SDL_Window *)ctx->sdlWindow);
+        SDL_DestroyWindow(
+            (SDL_Window *)ctx->sdlWindow);
     SDL_Quit();
     free(ctx);
 }

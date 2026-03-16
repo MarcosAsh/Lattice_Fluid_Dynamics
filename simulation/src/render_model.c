@@ -1,6 +1,6 @@
 #include "../lib/render_model.h"
 #include "../lib/config.h"
-#include <GL/glew.h>
+#include <glad/gl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>

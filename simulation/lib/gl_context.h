@@ -1,7 +1,7 @@
 #ifndef GL_CONTEXT_H
 #define GL_CONTEXT_H
 
-#include <GL/glew.h>
+#include <glad/gl.h>
 
 typedef struct {
     int useEGL;

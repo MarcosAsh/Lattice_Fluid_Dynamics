@@ -6,7 +6,7 @@
  */
 
 #include "../lib/lbm.h"
-#include <GL/glew.h>
+#include <glad/gl.h>
 #include <SDL2/SDL.h>
 #include <math.h>
 #include <stdio.h>
@@ -208,12 +208,12 @@ static int init_gl(void) {
                SDL_GetError());
         return 0;
     }
-    glewExperimental = GL_TRUE;
-    if (glewInit() != GLEW_OK) {
-        printf("GLEW init failed\n");
+    SDL_GL_MakeCurrent(win, ctx);
+    if (!gladLoadGL(
+            (GLADloadfunc)SDL_GL_GetProcAddress)) {
+        printf("glad GL load failed\n");
         return 0;
     }
-    glGetError(); /* clear spurious error */
     return 1;
 }
 

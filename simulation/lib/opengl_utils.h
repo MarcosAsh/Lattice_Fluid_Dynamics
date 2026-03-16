@@ -1,7 +1,7 @@
 #ifndef OPENGL_UTILS_H
 #define OPENGL_UTILS_H
 
-#include <GL/glew.h>
+#include <glad/gl.h>
 
 // Function declarations
 GLuint createShaderProgram(const char *vertexPath, const char *fragmentPath);
