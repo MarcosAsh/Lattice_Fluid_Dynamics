@@ -12,10 +12,7 @@ export async function GET() {
   // Derive the health URL from the render endpoint.
   // Render: https://<user>--fluid-sim-render-endpoint-dev.modal.run
   // Health: https://<user>--fluid-sim-health-dev.modal.run
-  const healthUrl = endpoint.replace(
-    /render-endpoint(-\w+)?\.modal\.run/,
-    'health$1.modal.run',
-  );
+  const healthUrl = endpoint.replace('render-endpoint', 'health');
 
   try {
     const start = Date.now();
