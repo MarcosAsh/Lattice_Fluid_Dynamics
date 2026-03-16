@@ -701,7 +701,7 @@ int main(int argc, char *argv[]) {
     float lbmViscosity = baseViscosity;
     if (windSpeed > 0.8f) {
         lbmViscosity = baseViscosity * 0.8f / windSpeed;
-        float minViscosity = 0.0167f; // tau_min=0.55 -> nu=(0.55-0.5)/3
+        float minViscosity = 0.0067f; // tau_min=0.52 -> nu=(0.52-0.5)/3
         if (lbmViscosity < minViscosity)
             lbmViscosity = minViscosity;
     }

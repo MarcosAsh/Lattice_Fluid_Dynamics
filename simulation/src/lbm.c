@@ -54,8 +54,8 @@ LBMGrid *LBM_Create(int sizeX, int sizeY, int sizeZ, float viscosity) {
     grid->totalCells = sizeX * sizeY * sizeZ;
 
     grid->tau = 0.5f + 3.0f * viscosity;
-    if (grid->tau < 0.55f)
-        grid->tau = 0.55f;
+    if (grid->tau < 0.52f)
+        grid->tau = 0.52f;
     if (grid->tau > 2.0f)
         grid->tau = 2.0f;
 
