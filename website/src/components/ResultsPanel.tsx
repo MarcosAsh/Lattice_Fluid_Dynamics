@@ -41,6 +41,164 @@ function downloadCsv(result: SimulationResult) {
   URL.revokeObjectURL(url);
 }
 
+function CdChart({
+  cdSeries,
+  clSeries,
+}: {
+  cdSeries: number[];
+  clSeries: number[];
+}) {
+  if (cdSeries.length < 2) return null;
+
+  const W = 320;
+  const H = 120;
+  const pad = { top: 8, right: 8, bottom: 20, left: 36 };
+  const plotW = W - pad.left - pad.right;
+  const plotH = H - pad.top - pad.bottom;
+
+  const allVals = [...cdSeries, ...clSeries].filter(
+    (v) => Number.isFinite(v) && v >= 0
+  );
+  if (allVals.length === 0) return null;
+
+  const yMax = Math.max(...allVals) * 1.1 || 1;
+  const n = cdSeries.length;
+
+  function toPath(series: number[]) {
+    return series
+      .map((v, i) => {
+        const x = pad.left + (i / (n - 1)) * plotW;
+        const y = pad.top + plotH - (Math.max(0, v) / yMax) * plotH;
+        return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
+      })
+      .join(' ');
+  }
+
+  const yTicks = [0, yMax / 2, yMax];
+
+  return (
+    <div className="mb-3">
+      <div className="text-[10px] text-ctp-overlay0 uppercase tracking-wider mb-1">
+        Convergence
+      </div>
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        className="w-full"
+        style={{ maxWidth: W }}
+      >
+        {/* Grid lines */}
+        {yTicks.map((v) => {
+          const y = pad.top + plotH - (v / yMax) * plotH;
+          return (
+            <g key={v}>
+              <line
+                x1={pad.left}
+                y1={y}
+                x2={W - pad.right}
+                y2={y}
+                className="stroke-ctp-surface1"
+                strokeWidth={0.5}
+              />
+              <text
+                x={pad.left - 4}
+                y={y + 3}
+                textAnchor="end"
+                className="fill-ctp-overlay0"
+                fontSize={8}
+              >
+                {v < 10 ? v.toFixed(2) : v.toFixed(1)}
+              </text>
+            </g>
+          );
+        })}
+
+        {/* Axes */}
+        <line
+          x1={pad.left}
+          y1={pad.top}
+          x2={pad.left}
+          y2={H - pad.bottom}
+          className="stroke-ctp-surface1"
+          strokeWidth={1}
+        />
+        <line
+          x1={pad.left}
+          y1={H - pad.bottom}
+          x2={W - pad.right}
+          y2={H - pad.bottom}
+          className="stroke-ctp-surface1"
+          strokeWidth={1}
+        />
+
+        {/* Cd line */}
+        <path
+          d={toPath(cdSeries)}
+          fill="none"
+          className="stroke-ctp-blue"
+          strokeWidth={1.5}
+        />
+
+        {/* Cl line */}
+        {clSeries.length >= 2 && (
+          <path
+            d={toPath(clSeries)}
+            fill="none"
+            className="stroke-ctp-mauve"
+            strokeWidth={1.5}
+            strokeDasharray="3,2"
+          />
+        )}
+
+        {/* X axis label */}
+        <text
+          x={pad.left + plotW / 2}
+          y={H - 2}
+          textAnchor="middle"
+          className="fill-ctp-overlay0"
+          fontSize={8}
+        >
+          Measurement step
+        </text>
+
+        {/* Legend */}
+        <line
+          x1={W - pad.right - 60}
+          y1={pad.top + 4}
+          x2={W - pad.right - 48}
+          y2={pad.top + 4}
+          className="stroke-ctp-blue"
+          strokeWidth={1.5}
+        />
+        <text
+          x={W - pad.right - 45}
+          y={pad.top + 7}
+          className="fill-ctp-overlay1"
+          fontSize={8}
+        >
+          Cd
+        </text>
+        <line
+          x1={W - pad.right - 30}
+          y1={pad.top + 4}
+          x2={W - pad.right - 18}
+          y2={pad.top + 4}
+          className="stroke-ctp-mauve"
+          strokeWidth={1.5}
+          strokeDasharray="3,2"
+        />
+        <text
+          x={W - pad.right - 15}
+          y={pad.top + 7}
+          className="fill-ctp-overlay1"
+          fontSize={8}
+        >
+          Cl
+        </text>
+      </svg>
+    </div>
+  );
+}
+
 export default function ResultsPanel({
   current,
   history,
@@ -85,6 +243,10 @@ export default function ResultsPanel({
             </div>
           </div>
         </div>
+      )}
+
+      {current && current.cdSeries.length >= 2 && (
+        <CdChart cdSeries={current.cdSeries} clSeries={current.clSeries} />
       )}
 
       {current && current.cdSeries.length > 0 && (
