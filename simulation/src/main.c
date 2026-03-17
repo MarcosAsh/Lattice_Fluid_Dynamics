@@ -698,9 +698,10 @@ int main(int argc, char *argv[]) {
     // not the LBM physics -- Re is controlled separately.
     float latticeVelocity = 0.05f;
 
-    // Viscosity for Re ~300 at default settings. With Smagorinsky
-    // SGS and regularized collision, tau down to 0.52 is stable.
-    float lbmViscosity = 0.01f;
+    // Viscosity for Re ~480 at default settings (body ~64 cells,
+    // U=0.05). With Smagorinsky SGS and regularized collision,
+    // tau=0.52 is stable.
+    float lbmViscosity = 0.0067f;
 
     if (reynoldsNumber > 0) {
         float scaleX = lbmSizeX / 8.0f;
