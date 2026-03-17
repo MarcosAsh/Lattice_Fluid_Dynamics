@@ -193,8 +193,14 @@ void main() {
     // Gradual velocity update -- particles have inertia
     p.velocity = mix(p.velocity, flowVel, 0.08);
 
-    // Always move forward at least 60% of wind speed
-    p.velocity.x = max(p.velocity.x, wind.x * 0.6);
+    // Only force forward when not near the car -- otherwise this overrides
+    // collision reflection and particles oscillate at the AABB front face.
+    vec3 margin = vec3(0.3, 0.3, 0.3);
+    bool nearCar = collisionMode > 0 &&
+                   isInsideAABB(p.position, carMin - margin, carMax + margin);
+    if (!nearCar) {
+        p.velocity.x = max(p.velocity.x, wind.x * 0.6);
+    }
 
     p.position += p.velocity * dt;
 
