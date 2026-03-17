@@ -94,11 +94,11 @@ vec3 pushOutOfAABB(vec3 pos, vec3 minB, vec3 maxB) {
     penetration.z = halfSize.z - abs(toParticle.z);
 
     if (penetration.x < penetration.y && penetration.x < penetration.z) {
-        pos.x = center.x + sign(toParticle.x) * (halfSize.x + 0.01);
+        pos.x = center.x + sign(toParticle.x) * (halfSize.x + 0.03);
     } else if (penetration.y < penetration.z) {
-        pos.y = center.y + sign(toParticle.y) * (halfSize.y + 0.01);
+        pos.y = center.y + sign(toParticle.y) * (halfSize.y + 0.03);
     } else {
-        pos.z = center.z + sign(toParticle.z) * (halfSize.z + 0.01);
+        pos.z = center.z + sign(toParticle.z) * (halfSize.z + 0.03);
     }
     return pos;
 }
@@ -193,12 +193,11 @@ void main() {
     // Gradual velocity update -- particles have inertia
     p.velocity = mix(p.velocity, flowVel, 0.08);
 
-    // Only force forward when not near the car -- otherwise this overrides
-    // collision reflection and particles oscillate at the AABB front face.
-    vec3 margin = vec3(0.3, 0.3, 0.3);
-    bool nearCar = collisionMode > 0 &&
-                   isInsideAABB(p.position, carMin - margin, carMax + margin);
-    if (!nearCar) {
+    // Force forward except right at the AABB surface to avoid fighting
+    // collision responses. Small margin prevents one-frame re-entry.
+    bool insideAABB = collisionMode > 0 &&
+                      isInsideAABB(p.position, carMin - vec3(0.05), carMax + vec3(0.05));
+    if (!insideAABB) {
         p.velocity.x = max(p.velocity.x, wind.x * 0.6);
     }
 
@@ -211,11 +210,16 @@ void main() {
 
             float velDotNormal = dot(p.velocity, normal);
             if (velDotNormal < 0.0) {
-                p.velocity = p.velocity - 1.5 * velDotNormal * normal;
-                p.velocity.y +=
-                    (fract(sin(float(idx) * 12.9898) * 43758.5453) - 0.5) * 0.2;
-                p.velocity.z +=
-                    (fract(sin(float(idx) * 78.233) * 43758.5453) - 0.5) * 0.2;
+                // Slide along surface (like per-triangle mode)
+                p.velocity -= 1.05 * velDotNormal * normal;
+
+                // Deflect around the car in YZ plane
+                vec3 away = p.position - carCenter;
+                away.x = 0.0;
+                float awayLen = length(away);
+                if (awayLen > 0.001) {
+                    p.velocity += normalize(away) * abs(velDotNormal) * 0.4;
+                }
             }
         }
     } else if (collisionMode == 2 && numTriangles > 0) {
