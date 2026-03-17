@@ -1159,6 +1159,15 @@ int main(int argc, char *argv[]) {
             }
         }
 
+        // Fast LBM-only convergence: skip particles and rendering
+        // until the flow is developed enough for Cd measurement.
+        // This is ~5x faster than rendering every frame.
+        int flowThroughFrames = lbmGrid
+            ? (int)(lbmGrid->sizeX / (latticeVelocity * lbmSubsteps * 2)) : 150;
+        int cdStartFrame = 300 + 3 * flowThroughFrames;
+        int skipRendering = (renderDuration > 0 && frameCount < cdStartFrame);
+
+        if (!skipRendering) {
         // Now set up particle compute shader
         glUseProgram(computeShaderProgram);
 
@@ -1246,16 +1255,10 @@ int main(int argc, char *argv[]) {
 
             checkGLError("After rendering model");
         }
+        } // end skipRendering
 
-        // Compute and display drag coefficient every 60 frames.
-        // Skip the first 180 frames (~3s at 60fps) to avoid startup
-        // oscillation.
-        // Measure Cd/Cl after 3 flow-throughs past the body.
-        // Use half the domain length (body is upstream, wake fills
-        // the downstream half).
-        int flowThroughFrames = lbmGrid
-            ? (int)(lbmGrid->sizeX / (latticeVelocity * lbmSubsteps * 2)) : 150;
-        int cdStartFrame = 300 + 3 * flowThroughFrames;
+        // Compute and display drag coefficient every 60 frames
+        // once the flow has developed (cdStartFrame computed above).
         if (frameCount >= cdStartFrame && frameCount % 60 == 0 && lbmGrid && useLBM) {
             // Compute force once, derive Cd and Cl from it
             float fx, fy, fz;
@@ -1315,7 +1318,7 @@ int main(int argc, char *argv[]) {
             running = 0;
         }
 
-        if (renderDuration > 0 && strlen(outputPath) > 0) {
+        if (!skipRendering && renderDuration > 0 && strlen(outputPath) > 0) {
             char framePath[512];
             snprintf(framePath,
                      sizeof(framePath),
@@ -1326,7 +1329,8 @@ int main(int argc, char *argv[]) {
         }
 
         stepOnce = 0;
-        GLContext_SwapBuffers(glCtx);
+        if (!skipRendering)
+            GLContext_SwapBuffers(glCtx);
     }
 
     printf("Cleaning up...\n");
