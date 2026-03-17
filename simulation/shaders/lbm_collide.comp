@@ -209,9 +209,9 @@ void main() {
     // cell to equilibrium. Prevents a few bad cells from cascading into
     // a full domain blowup and eventual GPU MMU fault.
     float u_mag = length(u);
-    if (rho < 0.5 || rho > 1.5 || u_mag > 0.3 || isinf(rho) || isnan(rho)) {
+    if (rho < 0.5 || rho > 1.5 || u_mag > 0.15 || isinf(rho) || isnan(rho)) {
         rho = 1.0;
-        u = inletVelocity;
+        u = vec3(0.0);  // zero velocity -- don't inject directional momentum
         for (int i = 0; i < 19; i++) {
             float fi_eq = feq(i, rho, u);
             f[idxF(pos.x, pos.y, pos.z, i)] = fi_eq;

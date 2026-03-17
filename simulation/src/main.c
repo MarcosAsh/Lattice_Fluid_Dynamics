@@ -58,7 +58,7 @@ float maxSpeed = 2.0f;
 // LBM settings
 int useLBM = 1;
 LBMGrid *lbmGrid = NULL;
-int lbmSubsteps = 5;
+int lbmSubsteps = 20;
 
 // Pause / single-step
 int paused = 0;
@@ -381,9 +381,9 @@ int main(int argc, char *argv[]) {
         case 'a':
             slantAngle = atoi(optarg);
             if (slantAngle == 25) {
-                strncpy(modelPath, "assets/3d-files/ahmed-25deg.obj", 511);
+                strncpy(modelPath, "assets/3d-files/ahmed_25deg_m.obj", 511);
             } else if (slantAngle == 35) {
-                strncpy(modelPath, "assets/3d-files/ahmed-35deg.obj", 511);
+                strncpy(modelPath, "assets/3d-files/ahmed_35deg_m.obj", 511);
             }
             break;
         case 's':
@@ -685,26 +685,15 @@ int main(int argc, char *argv[]) {
     int lbmSizeZ = gridZ;
 
     // Map physical wind speed to a safe lattice velocity.
-    // LBM is stable when the Mach number Ma = U/cs < 0.2
-    // (cs = 1/sqrt(3) ~ 0.577). We cap the lattice velocity
-    // at 0.08 and scale viscosity so higher wind speeds just
-    // increase Re instead of blowing up the simulation.
-    float maxLatticeVel = 0.08f;
-    float latticeVelocity = windSpeed * 0.1f;
-    if (latticeVelocity > maxLatticeVel)
-        latticeVelocity = maxLatticeVel;
+    // LBM is stable when Ma = U/cs < 0.1 (cs = 1/sqrt(3) ~ 0.577).
+    // We use a fixed lattice velocity of 0.05 (Ma = 0.087) for
+    // stability. Wind speed only affects particle visualization,
+    // not the LBM physics -- Re is controlled separately.
+    float latticeVelocity = 0.05f;
 
-    // Viscosity scales with wind speed so Re increases
-    // with wind: Re = U_phys * L / nu_phys. In lattice
-    // units, we keep U_lat fixed and lower nu to raise Re.
-    float baseViscosity = 0.02f;
-    float lbmViscosity = baseViscosity;
-    if (windSpeed > 0.8f) {
-        lbmViscosity = baseViscosity * 0.8f / windSpeed;
-        float minViscosity = 0.0067f; // tau_min=0.52 -> nu=(0.52-0.5)/3
-        if (lbmViscosity < minViscosity)
-            lbmViscosity = minViscosity;
-    }
+    // Fixed viscosity giving tau = 0.6, safely above the
+    // stability boundary of 0.5. nu = (tau - 0.5) / 3.
+    float lbmViscosity = 0.033f;
 
     if (reynoldsNumber > 0) {
         float scaleX = lbmSizeX / 8.0f;
@@ -713,15 +702,19 @@ int main(int argc, char *argv[]) {
         lbmViscosity =
             (latticeVelocity * charLength) / reynoldsNumber;
         float tau = 3.0f * lbmViscosity + 0.5f;
+        if (tau < 0.55f) {
+            printf("  WARNING: tau=%.4f too low for Re=%.0f, "
+                   "clamping to 0.55\n", tau, reynoldsNumber);
+            lbmViscosity = (0.55f - 0.5f) / 3.0f;
+            tau = 0.55f;
+            float actualRe = (latticeVelocity * charLength) / lbmViscosity;
+            printf("  Effective Re capped at %.0f\n", actualRe);
+        }
         printf("Reynolds number: %.0f\n", reynoldsNumber);
         printf("  Char length: %.1f lattice units\n",
                charLength);
         printf("  Viscosity: %.6f\n", lbmViscosity);
         printf("  tau: %.4f\n", tau);
-        if (tau <= 0.5f) {
-            printf("  WARNING: tau <= 0.5, unstable. "
-                   "Lower Re or wind speed.\n");
-        }
     }
 
     printf("Initializing LBM grid...\n");
@@ -749,12 +742,16 @@ int main(int argc, char *argv[]) {
                              carBounds.maxY,
                              carBounds.maxZ);
         }
+        // Periodic lateral boundaries -- correct for external aero
+        // when blockage ratio < 5%.
+        lbmGrid->periodicYZ = 1;
+
         // Enable Smagorinsky SGS turbulence model by default.
         // Adds local eddy viscosity so we can simulate at
         // effectively higher Re on coarse grids.
         lbmGrid->useSmagorinsky = 1;
-        lbmGrid->smagorinskyCs = 0.15f;
-        printf("Smagorinsky SGS enabled (Cs=%.2f)\n",
+        lbmGrid->smagorinskyCs = 0.1f;
+        printf("Smagorinsky SGS enabled (Cs=%.2f), periodic YZ\n",
                lbmGrid->smagorinskyCs);
 
         // Auto-enable regularized when tau is low.
@@ -948,7 +945,7 @@ int main(int argc, char *argv[]) {
     int maxFrames = (renderDuration > 0) ? renderDuration * 60 : 0;
 
     // Convergence detection for auto-stop
-    #define CD_HISTORY_SIZE 10
+    #define CD_HISTORY_SIZE 30
     float cdHistory[CD_HISTORY_SIZE];
     int cdHistoryCount = 0;
     int converged = 0;
@@ -1245,7 +1242,13 @@ int main(int argc, char *argv[]) {
         // Compute and display drag coefficient every 60 frames.
         // Skip the first 180 frames (~3s at 60fps) to avoid startup
         // oscillation.
-        if (frameCount >= 300 && frameCount % 60 == 0 && lbmGrid && useLBM) {
+        // Measure Cd/Cl after 5 flow-through times.
+        // Flow-through = sizeX / latticeVelocity / lbmSubsteps frames.
+        int flowThroughFrames = lbmGrid
+            ? (int)(lbmGrid->sizeX / (latticeVelocity * lbmSubsteps)) : 300;
+        int cdStartFrame = 300 + 5 * flowThroughFrames;
+        if (frameCount >= cdStartFrame && frameCount % 60 == 0 && lbmGrid && useLBM) {
+            // Compute force once, derive Cd and Cl from it
             float fx, fy, fz;
             LBM_ComputeDragForce(lbmGrid, &fx, &fy, &fz);
 
@@ -1254,10 +1257,10 @@ int main(int argc, char *argv[]) {
             float scaleZ = lbmGrid->sizeZ / 4.0f;
             float refArea = (carBounds.maxY - carBounds.minY) * scaleY *
                             (carBounds.maxZ - carBounds.minZ) * scaleZ;
-            float Cd =
-                LBM_ComputeDragCoefficient(lbmGrid, latticeVelocity, refArea);
-            float Cl =
-                LBM_ComputeLiftCoefficient(lbmGrid, latticeVelocity, refArea);
+            float dynP = 0.5f * latticeVelocity * latticeVelocity;
+            float denom = dynP * refArea;
+            float Cd = (denom > 1e-10f) ? fabsf(fx) / denom : 0.0f;
+            float Cl = (denom > 1e-10f) ? fabsf(fy) / denom : 0.0f;
 
             printf("  Drag Force: (%.4f, %.4f, %.4f),"
                    " Cd=%.3f Cl=%.3f\n",
@@ -1281,7 +1284,7 @@ int main(int argc, char *argv[]) {
                     }
                     float relStd = sqrtf(var / CD_HISTORY_SIZE) / (mean + 1e-10f);
 
-                    if (relStd < 0.02f) {
+                    if (relStd < 0.01f) {
                         converged = 1;
                         printf("  Cd converged (mean=%.3f,"
                                " relStd=%.4f)\n",
@@ -1335,5 +1338,6 @@ int main(int argc, char *argv[]) {
     GLContext_Destroy(glCtx);
 
     printf("Cleanup complete. Exiting.\n");
+    printf("Thanks for Running my project! If you liked it please consider contributing or leaving a star on GitHub!");
     return 0;
 }
