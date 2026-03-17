@@ -950,6 +950,7 @@ int main(int argc, char *argv[]) {
     int running = 1;
     Uint32 lastTime = SDL_GetTicks();
     int frameCount = 0;
+    int outputFrameCount = 0;
     int maxFrames = (renderDuration > 0) ? renderDuration * 60 : 0;
 
     // Convergence detection for auto-stop
@@ -1324,8 +1325,9 @@ int main(int argc, char *argv[]) {
                      sizeof(framePath),
                      "%s/frame_%05d.ppm",
                      outputPath,
-                     frameCount);
+                     outputFrameCount);
             saveFrameToPPM(framePath, WIDTH, HEIGHT);
+            outputFrameCount++;
         }
 
         stepOnce = 0;
