@@ -154,6 +154,20 @@ def build_simulation() -> str:
     return str(executable)
 
 
+def _get_code_version() -> str:
+    """Get the git short hash from the cached source."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd="/cache/source",
+            capture_output=True,
+            text=True,
+        )
+        return result.stdout.strip() or "unknown"
+    except Exception:
+        return "unknown"
+
+
 def _cache_key(
     model: str,
     wind_speed: float,
@@ -163,12 +177,13 @@ def _cache_key(
     duration: int,
     grid: str,
 ) -> str:
-    """Hash render params to check for cached results."""
+    """Hash render params + code version to check for cached results."""
     import hashlib
 
+    version = _get_code_version()
     key = (
         f"{model}_{wind_speed}_{viz_mode}_"
-        f"{collision_mode}_{reynolds}_{duration}_{grid}"
+        f"{collision_mode}_{reynolds}_{duration}_{grid}_{version}"
     )
     return hashlib.md5(key.encode()).hexdigest()[:12]
 
