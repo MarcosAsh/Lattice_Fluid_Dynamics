@@ -58,7 +58,7 @@ float maxSpeed = 2.0f;
 // LBM settings
 int useLBM = 1;
 LBMGrid *lbmGrid = NULL;
-int lbmSubsteps = 20;
+int lbmSubsteps = 10;
 
 // Pause / single-step
 int paused = 0;
@@ -1250,11 +1250,12 @@ int main(int argc, char *argv[]) {
         // Compute and display drag coefficient every 60 frames.
         // Skip the first 180 frames (~3s at 60fps) to avoid startup
         // oscillation.
-        // Measure Cd/Cl after 5 flow-through times.
-        // Flow-through = sizeX / latticeVelocity / lbmSubsteps frames.
+        // Measure Cd/Cl after 3 flow-throughs past the body.
+        // Use half the domain length (body is upstream, wake fills
+        // the downstream half).
         int flowThroughFrames = lbmGrid
-            ? (int)(lbmGrid->sizeX / (latticeVelocity * lbmSubsteps)) : 300;
-        int cdStartFrame = 300 + 5 * flowThroughFrames;
+            ? (int)(lbmGrid->sizeX / (latticeVelocity * lbmSubsteps * 2)) : 150;
+        int cdStartFrame = 300 + 3 * flowThroughFrames;
         if (frameCount >= cdStartFrame && frameCount % 60 == 0 && lbmGrid && useLBM) {
             // Compute force once, derive Cd and Cl from it
             float fx, fy, fz;

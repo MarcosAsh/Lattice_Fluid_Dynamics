@@ -90,7 +90,17 @@ export async function POST(request: Request) {
       body: JSON.stringify(body),
     });
 
-    const result = await response.json();
+    const text = await response.text();
+    let result;
+    try {
+      result = JSON.parse(text);
+    } catch {
+      console.error('Modal returned non-JSON:', text.slice(0, 500));
+      return NextResponse.json(
+        { status: 'error', error: 'Backend returned invalid response' },
+        { status: 502 },
+      );
+    }
     return NextResponse.json(result);
   } catch (error) {
     console.error('Modal call failed:', error);
