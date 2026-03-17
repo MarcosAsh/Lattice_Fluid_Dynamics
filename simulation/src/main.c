@@ -615,10 +615,9 @@ int main(int argc, char *argv[]) {
         }
         printf("Auto scale: %.6f (max dim: %.2f)\n", g_modelScale, maxDim);
 
-        // Auto-center then shift upstream so front face is at ~20%
-        // of domain (x=-4 to 4). Center model at x=-1.5 to give
-        // wake room downstream.
-        g_offsetX = -centerX * g_modelScale - 1.5f;
+        // Auto-center then shift upstream. Center model at x=-2.0
+        // to give ~1 body length upstream and ~3 downstream.
+        g_offsetX = -centerX * g_modelScale - 2.0f;
         g_offsetY = -centerY * g_modelScale;
         g_offsetZ = -centerZ * g_modelScale;
 
@@ -699,9 +698,9 @@ int main(int argc, char *argv[]) {
     // not the LBM physics -- Re is controlled separately.
     float latticeVelocity = 0.05f;
 
-    // Fixed viscosity giving tau = 0.6, safely above the
-    // stability boundary of 0.5. nu = (tau - 0.5) / 3.
-    float lbmViscosity = 0.033f;
+    // Viscosity for Re ~300 at default settings. With Smagorinsky
+    // SGS and regularized collision, tau down to 0.52 is stable.
+    float lbmViscosity = 0.01f;
 
     if (reynoldsNumber > 0) {
         float scaleX = lbmSizeX / 8.0f;
@@ -710,11 +709,11 @@ int main(int argc, char *argv[]) {
         lbmViscosity =
             (latticeVelocity * charLength) / reynoldsNumber;
         float tau = 3.0f * lbmViscosity + 0.5f;
-        if (tau < 0.55f) {
+        if (tau < 0.52f) {
             printf("  WARNING: tau=%.4f too low for Re=%.0f, "
-                   "clamping to 0.55\n", tau, reynoldsNumber);
-            lbmViscosity = (0.55f - 0.5f) / 3.0f;
-            tau = 0.55f;
+                   "clamping to 0.52\n", tau, reynoldsNumber);
+            lbmViscosity = (0.52f - 0.5f) / 3.0f;
+            tau = 0.52f;
             float actualRe = (latticeVelocity * charLength) / lbmViscosity;
             printf("  Effective Re capped at %.0f\n", actualRe);
         }
