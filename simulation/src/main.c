@@ -605,12 +605,15 @@ int main(int argc, char *argv[]) {
         float sizeZ = maxZ - minZ;
         float maxDim = fmaxf(sizeX, fmaxf(sizeY, sizeZ));
 
-        // Scale so largest dimension fits in ~2 units
-        g_modelScale = 2.0f / maxDim;
+        // Scale so largest dimension fits in ~1 world unit (~12.5% of
+        // domain length). Keeps blockage low and leaves room for wake.
+        g_modelScale = 1.0f / maxDim;
         printf("Auto scale: %.6f (max dim: %.2f)\n", g_modelScale, maxDim);
 
-        // Auto-center: offset so model center is at origin
-        g_offsetX = -centerX * g_modelScale;
+        // Auto-center then shift upstream so front face is at ~20%
+        // of domain (x=-4 to 4). Center model at x=-1.5 to give
+        // ~2.5 body lengths upstream and ~5 downstream.
+        g_offsetX = -centerX * g_modelScale - 1.5f;
         g_offsetY = -centerY * g_modelScale;
         g_offsetZ = -centerZ * g_modelScale;
 

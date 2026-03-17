@@ -34,7 +34,7 @@ log.addHandler(_handler)
 
 app = modal.App("fluid-sim")
 
-GRID = "320x160x160"
+GRID = "192x96x96"
 
 image = (
     modal.Image.from_registry(
