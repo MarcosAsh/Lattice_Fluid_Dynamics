@@ -326,6 +326,7 @@ int main(int argc, char *argv[]) {
     float reynoldsNumber = 0.0f;
     int scaleFromCLI = 0;
     int gridX = 128, gridY = 64, gridZ = 64;
+    float smagorinskyCs = 0.1f;
 
     static struct option long_options[] = {
         {"wind", required_argument, 0, 'w'},
@@ -338,6 +339,7 @@ int main(int argc, char *argv[]) {
         {"scale", required_argument, 0, 's'},
         {"reynolds", required_argument, 0, 'r'},
         {"grid", required_argument, 0, 'g'},
+        {"smagorinsky", required_argument, 0, 'S'},
         {"help", no_argument, 0, 'h'},
         {0, 0, 0, 0}
 
@@ -345,7 +347,7 @@ int main(int argc, char *argv[]) {
 
     int opt;
     while ((opt = getopt_long(
-                argc, argv, "w:v:c:d:o:m:a:r:s:g:h", long_options, NULL)) != -1) {
+                argc, argv, "w:v:c:d:o:m:a:r:s:g:S:h", long_options, NULL)) != -1) {
         switch (opt) {
         case 'w':
             windSpeed = atof(optarg);
@@ -396,6 +398,13 @@ int main(int argc, char *argv[]) {
             if (reynoldsNumber < 0)
                 reynoldsNumber = 0;
             break;
+        case 'S':
+            smagorinskyCs = atof(optarg);
+            if (smagorinskyCs < 0.0f)
+                smagorinskyCs = 0.0f;
+            if (smagorinskyCs > 0.5f)
+                smagorinskyCs = 0.5f;
+            break;
         case 'g':
             if (sscanf(optarg, "%dx%dx%d",
                         &gridX, &gridY, &gridZ) != 3) {
@@ -428,6 +437,8 @@ int main(int argc, char *argv[]) {
             printf("  -r, --reynolds=RE     Target Reynolds number (0=fixed "
                    "viscosity)\n");
             printf("  -g, --grid=XxYxZ      Grid size (default: 128x64x64)\n");
+            printf("  -S, --smagorinsky=CS  Smagorinsky constant 0-0.5 "
+                   "(default: 0.1)\n");
             printf("  -h, --help            Show this help\n");
             return 0;
         }
@@ -758,7 +769,7 @@ int main(int argc, char *argv[]) {
         // Adds local eddy viscosity so we can simulate at
         // effectively higher Re on coarse grids.
         lbmGrid->useSmagorinsky = 1;
-        lbmGrid->smagorinskyCs = 0.1f;
+        lbmGrid->smagorinskyCs = smagorinskyCs;
         printf("Smagorinsky SGS enabled (Cs=%.2f), periodic YZ\n",
                lbmGrid->smagorinskyCs);
 
