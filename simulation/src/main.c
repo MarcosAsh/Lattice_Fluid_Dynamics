@@ -434,8 +434,8 @@ int main(int argc, char *argv[]) {
                 "  -a, --angle=DEGREES   Ahmed body slant angle (25 or 35)\n");
             printf(
                 "  -s, --scale=SCALE     Model scale factor (default: 0.05)\n");
-            printf("  -r, --reynolds=RE     Target Reynolds number (0=fixed "
-                   "viscosity)\n");
+            printf("  -r, --reynolds=RE     Target Reynolds number "
+                   "(0=derive from wind speed)\n");
             printf("  -g, --grid=XxYxZ      Grid size (default: 128x64x64)\n");
             printf("  -S, --smagorinsky=CS  Smagorinsky constant 0-0.5 "
                    "(default: 0.1)\n");
@@ -702,39 +702,42 @@ int main(int argc, char *argv[]) {
     int lbmSizeY = gridY;
     int lbmSizeZ = gridZ;
 
-    // Map physical wind speed to a safe lattice velocity.
-    // LBM is stable when Ma = U/cs < 0.1 (cs = 1/sqrt(3) ~ 0.577).
-    // We use a fixed lattice velocity of 0.05 (Ma = 0.087) for
-    // stability. Wind speed only affects particle visualization,
-    // not the LBM physics -- Re is controlled separately.
+    // Lattice velocity fixed at Ma ~0.087 for stability.
+    // (cs = 1/sqrt(3) ~ 0.577, so Ma = 0.05/0.577 = 0.087)
     float latticeVelocity = 0.05f;
 
-    // Viscosity for Re ~480 at default settings (body ~64 cells,
-    // U=0.05). With Smagorinsky SGS and regularized collision,
-    // tau=0.52 is stable.
-    float lbmViscosity = 0.0067f;
+    // Derive Reynolds number from wind speed when --reynolds is
+    // not given. This makes the wind speed slider actually change
+    // the flow physics instead of only affecting particle viz.
+    // Scale: 200 * windSpeed, so wind=1 -> Re=200, wind=5 -> Re=1000.
+    // The tau clamp caps the effective Re on coarse grids.
+    float scaleX = lbmSizeX / 8.0f;
+    float charLength =
+        (carBounds.maxX - carBounds.minX) * scaleX;
 
-    if (reynoldsNumber > 0) {
-        float scaleX = lbmSizeX / 8.0f;
-        float charLength =
-            (carBounds.maxX - carBounds.minX) * scaleX;
-        lbmViscosity =
-            (latticeVelocity * charLength) / reynoldsNumber;
-        float tau = 3.0f * lbmViscosity + 0.5f;
-        if (tau < 0.52f) {
-            printf("  WARNING: tau=%.4f too low for Re=%.0f, "
-                   "clamping to 0.52\n", tau, reynoldsNumber);
-            lbmViscosity = (0.52f - 0.5f) / 3.0f;
-            tau = 0.52f;
-            float actualRe = (latticeVelocity * charLength) / lbmViscosity;
-            printf("  Effective Re capped at %.0f\n", actualRe);
-        }
-        printf("Reynolds number: %.0f\n", reynoldsNumber);
-        printf("  Char length: %.1f lattice units\n",
-               charLength);
-        printf("  Viscosity: %.6f\n", lbmViscosity);
-        printf("  tau: %.4f\n", tau);
+    if (reynoldsNumber <= 0) {
+        reynoldsNumber = 200.0f * windSpeed;
+        if (reynoldsNumber < 50.0f)
+            reynoldsNumber = 50.0f;
     }
+
+    float lbmViscosity =
+        (latticeVelocity * charLength) / reynoldsNumber;
+    float tau = 3.0f * lbmViscosity + 0.5f;
+    if (tau < 0.52f) {
+        lbmViscosity = (0.52f - 0.5f) / 3.0f;
+        tau = 0.52f;
+        float actualRe =
+            (latticeVelocity * charLength) / lbmViscosity;
+        printf("  Re capped at %.0f (tau would be too low for "
+               "Re=%.0f)\n",
+               actualRe, reynoldsNumber);
+        reynoldsNumber = actualRe;
+    }
+    printf("Reynolds number: %.0f\n", reynoldsNumber);
+    printf("  Char length: %.1f lattice units\n", charLength);
+    printf("  Viscosity: %.6f\n", lbmViscosity);
+    printf("  tau: %.4f\n", tau);
 
     printf("Initializing LBM grid...\n");
     lbmGrid = LBM_Create(lbmSizeX, lbmSizeY, lbmSizeZ, lbmViscosity);
