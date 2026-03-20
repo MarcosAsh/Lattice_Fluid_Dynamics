@@ -23,9 +23,12 @@ if [ ! -x "$BINARY" ]; then
 fi
 
 # Test 1: basic run produces frames
+# Use a small grid so the convergence phase fits within the duration.
+# Default 128x64x64 needs ~684 frames to start Cd output, but 5s
+# at 60fps is only 300 frames. 64x32x32 brings it under budget.
 echo "test: 5s render produces frames and Cd"
 OUTPUT=$($BINARY \
-    --wind=1.0 --duration=5 \
+    --wind=1.0 --duration=5 --grid=64x32x32 \
     --model=$MODEL --output=$OUTDIR 2>&1)
 FRAMES=$(ls "$OUTDIR"/frame_*.ppm 2>/dev/null | wc -l)
 if [ "$FRAMES" -gt 0 ]; then

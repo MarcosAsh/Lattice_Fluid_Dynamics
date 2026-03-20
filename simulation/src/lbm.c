@@ -465,7 +465,8 @@ void LBM_ComputeDragForce(LBMGrid *grid,
 
     glDispatchCompute(
         (grid->sizeX + 7) / 8, (grid->sizeY + 7) / 8, (grid->sizeZ + 7) / 8);
-    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT |
+                    GL_BUFFER_UPDATE_BARRIER_BIT);
 
     // Read back results
     int results[4];

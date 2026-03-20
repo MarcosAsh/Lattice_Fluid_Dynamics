@@ -965,10 +965,11 @@ int main(int argc, char *argv[]) {
     int maxFrames = (renderDuration > 0) ? renderDuration * 60 : 0;
 
     // Convergence detection for auto-stop
-    #define CD_HISTORY_SIZE 30
+    #define CD_HISTORY_SIZE 100
     float cdHistory[CD_HISTORY_SIZE];
     int cdHistoryCount = 0;
     int converged = 0;
+    float cdEma = 0.0f;
 
     while (running) {
         if (!paused || stepOnce)
@@ -1174,9 +1175,18 @@ int main(int argc, char *argv[]) {
         // Fast LBM-only convergence: skip particles and rendering
         // until the flow is developed enough for Cd measurement.
         // This is ~5x faster than rendering every frame.
+        int rampEnd = 300;
         int flowThroughFrames = lbmGrid
             ? (int)(lbmGrid->sizeX / (latticeVelocity * lbmSubsteps * 2)) : 150;
-        int cdStartFrame = 300 + 3 * flowThroughFrames;
+        int cdStartFrame = rampEnd + 3 * flowThroughFrames;
+
+        // For short headless runs, cap the skip so we still produce
+        // some frames and Cd output rather than exiting with nothing.
+        if (maxFrames > 0 && cdStartFrame >= maxFrames) {
+            cdStartFrame = maxFrames * 2 / 3;
+            if (cdStartFrame < rampEnd && maxFrames > rampEnd)
+                cdStartFrame = rampEnd;
+        }
         int skipRendering = (renderDuration > 0 && frameCount < cdStartFrame);
 
         if (!skipRendering) {
@@ -1269,9 +1279,9 @@ int main(int argc, char *argv[]) {
         }
         } // end skipRendering
 
-        // Compute and display drag coefficient every 60 frames
+        // Compute and display drag coefficient every 20 frames
         // once the flow has developed (cdStartFrame computed above).
-        if (frameCount >= cdStartFrame && frameCount % 60 == 0 && lbmGrid && useLBM) {
+        if (frameCount >= cdStartFrame && frameCount % 20 == 0 && lbmGrid && useLBM) {
             // Compute force once, derive Cd and Cl from it
             float fx, fy, fz;
             LBM_ComputeDragForce(lbmGrid, &fx, &fy, &fz);
@@ -1286,9 +1296,17 @@ int main(int argc, char *argv[]) {
             float Cd = (denom > 1e-10f) ? fabsf(fx) / denom : 0.0f;
             float Cl = (denom > 1e-10f) ? fabsf(fy) / denom : 0.0f;
 
+            // Exponential moving average for stable reporting
+            if (cdHistoryCount == 0) {
+                cdEma = Cd;
+            } else {
+                float alpha = 0.1f;
+                cdEma = alpha * Cd + (1.0f - alpha) * cdEma;
+            }
+
             printf("  Drag Force: (%.4f, %.4f, %.4f),"
-                   " Cd=%.3f Cl=%.3f\n",
-                   fx, fy, fz, Cd, Cl);
+                   " Cd=%.3f Cl=%.3f (avg=%.3f)\n",
+                   fx, fy, fz, Cd, Cl, cdEma);
 
             // Track Cd for convergence detection
             if (Cd > 0 && Cd < 1000) {

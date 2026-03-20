@@ -94,10 +94,11 @@ void main() {
     }
 
     if (hasSolidNeighbor) {
-        // Use atomicAdd with integer scaling (multiply by 10000 for precision)
-        atomicAdd(forceXInt, int(localForce.x * 10000.0));
-        atomicAdd(forceYInt, int(localForce.y * 10000.0));
-        atomicAdd(forceZInt, int(localForce.z * 10000.0));
+        // Use atomicAdd with integer scaling (multiply by 10000 for precision).
+        // round() avoids the systematic truncation bias from int().
+        atomicAdd(forceXInt, int(round(localForce.x * 10000.0)));
+        atomicAdd(forceYInt, int(round(localForce.y * 10000.0)));
+        atomicAdd(forceZInt, int(round(localForce.z * 10000.0)));
         atomicAdd(solidCount, 1);
     }
 }
