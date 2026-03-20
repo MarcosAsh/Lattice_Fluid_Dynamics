@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { JobStatus } from '../app/page';
 
 interface VideoPlayerProps {
@@ -15,8 +15,10 @@ export default function VideoPlayer({
   backendAvailable,
 }: VideoPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [demoAvailable, setDemoAvailable] = useState(true);
+  const [gifProgress, setGifProgress] = useState<string | null>(null);
 
   useEffect(() => {
     const onChange = () => {
@@ -41,6 +43,85 @@ export default function VideoPlayer({
     }
   };
 
+  // Capture current video frame as PNG
+  const captureScreenshot = useCallback(() => {
+    const video = videoRef.current;
+    if (!video || video.readyState < 2) return;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.drawImage(video, 0, 0);
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'lattice-screenshot.png';
+      a.click();
+      URL.revokeObjectURL(url);
+    }, 'image/png');
+  }, []);
+
+  // Record ~3 seconds of frames and export as WebM
+  // (browser-native MediaRecorder, no extra deps)
+  const captureGif = useCallback(async () => {
+    const video = videoRef.current;
+    if (!video || video.readyState < 2) return;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Use MediaRecorder on a canvas stream for a short clip
+    const stream = canvas.captureStream(15); // 15 fps
+    const recorder = new MediaRecorder(stream, {
+      mimeType: 'video/webm;codecs=vp9',
+      videoBitsPerSecond: 2_000_000,
+    });
+
+    const chunks: Blob[] = [];
+    recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) chunks.push(e.data);
+    };
+
+    setGifProgress('Recording 3s...');
+
+    // Draw video frames to canvas for 3 seconds
+    let stopped = false;
+    const drawFrame = () => {
+      if (stopped) return;
+      ctx.drawImage(video, 0, 0);
+      requestAnimationFrame(drawFrame);
+    };
+
+    recorder.start();
+    drawFrame();
+
+    await new Promise<void>((resolve) => {
+      setTimeout(() => {
+        stopped = true;
+        recorder.stop();
+        recorder.onstop = () => resolve();
+      }, 3000);
+    });
+
+    setGifProgress(null);
+
+    const blob = new Blob(chunks, { type: 'video/webm' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'lattice-clip.webm';
+    a.click();
+    URL.revokeObjectURL(url);
+  }, []);
+
   const showDemo = !videoUrl && status === 'idle' && demoAvailable;
   const showPlaceholder = !videoUrl && !showDemo;
 
@@ -56,20 +137,24 @@ export default function VideoPlayer({
       <div className="aspect-video bg-ctp-crust rounded-lg overflow-hidden flex items-center justify-center border border-ctp-surface1 relative">
         {videoUrl ? (
           <video
+            ref={videoRef}
             src={videoUrl}
             controls
             autoPlay
             loop
+            crossOrigin="anonymous"
             className="w-full h-full object-contain"
           />
         ) : showDemo ? (
           <>
             <video
+              ref={videoRef}
               src="/demo.mp4"
               autoPlay
               loop
               muted
               playsInline
+              crossOrigin="anonymous"
               onError={() => setDemoAvailable(false)}
               className="w-full h-full object-contain"
             />
@@ -108,7 +193,7 @@ export default function VideoPlayer({
       </div>
 
       {videoUrl && (
-        <div className="mt-3 flex gap-2">
+        <div className="mt-3 flex flex-wrap gap-2">
           <a
             href={videoUrl}
             download
@@ -116,6 +201,19 @@ export default function VideoPlayer({
           >
             Download
           </a>
+          <button
+            onClick={captureScreenshot}
+            className="bg-ctp-green hover:bg-ctp-teal text-ctp-crust text-xs font-medium py-1.5 px-3 rounded transition-colors"
+          >
+            Screenshot
+          </button>
+          <button
+            onClick={captureGif}
+            disabled={!!gifProgress}
+            className="bg-ctp-peach hover:bg-ctp-yellow text-ctp-crust text-xs font-medium py-1.5 px-3 rounded transition-colors disabled:opacity-50"
+          >
+            {gifProgress || '3s Clip'}
+          </button>
           <button
             onClick={() => navigator.clipboard.writeText(videoUrl)}
             className="bg-ctp-surface0 hover:bg-ctp-surface1 text-ctp-text text-xs font-medium py-1.5 px-3 rounded border border-ctp-surface1 transition-colors"
