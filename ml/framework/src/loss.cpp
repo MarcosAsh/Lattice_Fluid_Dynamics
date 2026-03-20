@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <cmath>
 #include <numeric>
+#include <cassert>
 
 float softmax_cross_entropy(const std::vector<float>& logits,
                             int target,
@@ -25,4 +26,17 @@ float softmax_cross_entropy(const std::vector<float>& logits,
         grad[i] = p - (i == target ? 1.0f : 0.0f);
     }
     return loss;
+}
+
+std::shared_ptr<ADTensor> mse_loss(const std::shared_ptr<ADTensor>& pred,
+                                   const std::shared_ptr<ADTensor>& target) {
+    assert(pred->val.data.size() == target->val.data.size());
+    // diff = pred - target
+    auto diff = sub(pred, target);
+    // sq = diff * diff  (element-wise)
+    auto sq = mul(diff, diff);
+    // mean = sum(sq) / N
+    int N = static_cast<int>(pred->val.data.size());
+    auto total = sum(sq);
+    return scalar_mul(total, 1.0f / N);
 }

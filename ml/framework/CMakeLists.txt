@@ -14,3 +14,6 @@ file(GLOB_RECURSE LIB_SOURCES "src/*.cpp")
 
 add_library(lattice_ml STATIC ${LIB_SOURCES})
 target_include_directories(lattice_ml PUBLIC include)
+
+add_executable(test_ml test_ml.cpp)
+target_link_libraries(test_ml lattice_ml)
