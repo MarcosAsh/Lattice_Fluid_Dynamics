@@ -70,8 +70,9 @@ const char *vizModeNames[] = {"Depth",
                               "Particle Lifetime",
                               "Turbulence/Pressure",
                               "Flow Progress",
-                              "Vorticity"};
-const int numVizModes = 7;
+                              "Vorticity",
+                              "Streamlines"};
+const int numVizModes = 8;
 
 typedef struct {
     float minX, minY, minZ;
@@ -896,6 +897,59 @@ int main(int argc, char *argv[]) {
     glBindVertexArray(0);
     checkGLError("After creating VAO");
 
+    // Streamline trail buffer and rendering setup
+    #define TRAIL_LEN 32
+    GLuint trailBuffer;
+    {
+        size_t trailSize =
+            GPU_PARTICLES * TRAIL_LEN * 4 * sizeof(float);
+        void *trailZeros = calloc(1, trailSize);
+        glGenBuffers(1, &trailBuffer);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, trailBuffer);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, trailSize,
+                     trailZeros, GL_DYNAMIC_COPY);
+        free(trailZeros);
+        printf("Trail buffer: %.1f MB (%d particles x %d points)\n",
+               trailSize / (1024.0 * 1024.0), GPU_PARTICLES, TRAIL_LEN);
+    }
+
+    // Trail VAO (reads vec4 from trailBuffer)
+    GLuint trailVAO;
+    glGenVertexArrays(1, &trailVAO);
+    glBindVertexArray(trailVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, trailBuffer);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE,
+                          4 * sizeof(float), (void *)0);
+    glBindVertexArray(0);
+
+    // Trail index buffer with primitive restart
+    GLuint trailEBO;
+    {
+        int idxCount = GPU_PARTICLES * (TRAIL_LEN + 1);
+        GLuint *indices =
+            (GLuint *)malloc(idxCount * sizeof(GLuint));
+        int k = 0;
+        for (int i = 0; i < GPU_PARTICLES; i++) {
+            for (int j = 0; j < TRAIL_LEN; j++)
+                indices[k++] = i * TRAIL_LEN + j;
+            indices[k++] = 0xFFFFFFFF; // restart
+        }
+        glGenBuffers(1, &trailEBO);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, trailEBO);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER,
+                     k * sizeof(GLuint), indices, GL_STATIC_DRAW);
+        free(indices);
+    }
+
+    // Trail shaders
+    GLuint trailUpdateShader =
+        createComputeShader("shaders/trail_update.comp");
+    GLuint trailRenderProgram =
+        createShaderProgram("shaders/trail.vert", "shaders/trail.frag");
+
+    checkGLError("After trail setup");
+
     printf("Creating fluid cube...\n");
     FluidCube *fluidCube = NULL;
     if (carModel.vertexCount > 0) {
@@ -1244,20 +1298,65 @@ int main(int argc, char *argv[]) {
             glDispatchCompute((GPU_PARTICLES + 255) / 256, 1, 1);
             glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT |
                             GL_VERTEX_ATTRIB_ARRAY_BARRIER_BIT);
+
+            // Update streamline trails after particle positions are written
+            if (trailUpdateShader && visualizationMode == 7) {
+                glBindBufferBase(
+                    GL_SHADER_STORAGE_BUFFER, 7, trailBuffer);
+                glUseProgram(trailUpdateShader);
+                glUniform1i(
+                    glGetUniformLocation(trailUpdateShader, "trailLen"),
+                    TRAIL_LEN);
+                glUniform1i(
+                    glGetUniformLocation(trailUpdateShader, "numParticles"),
+                    GPU_PARTICLES);
+                glDispatchCompute((GPU_PARTICLES + 255) / 256, 1, 1);
+                glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT |
+                                GL_VERTEX_ATTRIB_ARRAY_BARRIER_BIT);
+            }
         }
 
-        // Render particles
-        glUseProgram(particleShaderProgram);
-        if (viewLoc != -1)
-            glUniformMatrix4fv(viewLoc, 1, GL_FALSE, view);
-        if (vizModeLoc != -1)
-            glUniform1i(vizModeLoc, visualizationMode);
-        if (maxSpeedLoc != -1)
-            glUniform1f(maxSpeedLoc, maxSpeed);
+        if (visualizationMode == 7 && trailRenderProgram) {
+            // Streamline mode: render trails as line strips
+            glUseProgram(trailRenderProgram);
+            glUniformMatrix4fv(
+                glGetUniformLocation(trailRenderProgram, "projection"),
+                1, GL_FALSE, projection);
+            glUniformMatrix4fv(
+                glGetUniformLocation(trailRenderProgram, "view"),
+                1, GL_FALSE, view);
+            glUniform1i(
+                glGetUniformLocation(trailRenderProgram, "trailLen"),
+                TRAIL_LEN);
+            glUniform1f(
+                glGetUniformLocation(trailRenderProgram, "maxSpeed"),
+                maxSpeed);
 
-        glBindVertexArray(particleVAO);
-        glDrawArrays(GL_POINTS, 0, GPU_PARTICLES);
-        checkGLError("After rendering particles");
+            glEnable(GL_PRIMITIVE_RESTART);
+            glPrimitiveRestartIndex(0xFFFFFFFF);
+
+            glBindVertexArray(trailVAO);
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, trailEBO);
+            glDrawElements(GL_LINE_STRIP,
+                           GPU_PARTICLES * (TRAIL_LEN + 1),
+                           GL_UNSIGNED_INT, 0);
+
+            glDisable(GL_PRIMITIVE_RESTART);
+            checkGLError("After rendering streamlines");
+        } else {
+            // Normal particle rendering (modes 0-6)
+            glUseProgram(particleShaderProgram);
+            if (viewLoc != -1)
+                glUniformMatrix4fv(viewLoc, 1, GL_FALSE, view);
+            if (vizModeLoc != -1)
+                glUniform1i(vizModeLoc, visualizationMode);
+            if (maxSpeedLoc != -1)
+                glUniform1f(maxSpeedLoc, maxSpeed);
+
+            glBindVertexArray(particleVAO);
+            glDrawArrays(GL_POINTS, 0, GPU_PARTICLES);
+            checkGLError("After rendering particles");
+        }
 
         // Render car model
         if (carModel.faceCount > 0) {
@@ -1378,6 +1477,13 @@ int main(int argc, char *argv[]) {
         LBM_Free(lbmGrid);
     glDeleteVertexArrays(1, &particleVAO);
     glDeleteBuffers(1, &particleBuffer);
+    glDeleteVertexArrays(1, &trailVAO);
+    glDeleteBuffers(1, &trailBuffer);
+    glDeleteBuffers(1, &trailEBO);
+    if (trailUpdateShader)
+        glDeleteProgram(trailUpdateShader);
+    if (trailRenderProgram)
+        glDeleteProgram(trailRenderProgram);
     if (triangleBuffer)
         glDeleteBuffers(1, &triangleBuffer);
     glDeleteProgram(particleShaderProgram);

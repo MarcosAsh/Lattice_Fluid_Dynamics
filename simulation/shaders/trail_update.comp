@@ -1,0 +1,51 @@
+#version 430 core
+layout(local_size_x = 256) in;
+
+// Particle layout must match particle.comp
+struct Particle {
+    vec3 position;
+    float padding1;
+    vec3 velocity;
+    float life;
+};
+
+layout(std430, binding = 0) buffer ParticleBuffer {
+    Particle particles[];
+};
+
+// Trail: TRAIL_LEN vec4s per particle.
+// Each vec4 = (x, y, z, speed).
+// Index 0 = newest, TRAIL_LEN-1 = oldest.
+layout(std430, binding = 7) buffer TrailBuffer {
+    vec4 trail[];
+};
+
+uniform int trailLen;
+uniform int numParticles;
+
+void main() {
+    uint idx = gl_GlobalInvocationID.x;
+    if (idx >= numParticles)
+        return;
+
+    int base = int(idx) * trailLen;
+    Particle p = particles[idx];
+
+    // Shift trail one slot toward the back
+    for (int i = trailLen - 1; i > 0; i--) {
+        trail[base + i] = trail[base + i - 1];
+    }
+
+    // Insert current position at the front
+    float speed = length(p.velocity);
+    trail[base] = vec4(p.position, speed);
+
+    // When a particle respawns (life was reset to 1.0 and it jumped
+    // to the inlet), wipe the trail so there's no line stretching
+    // across the domain.
+    if (p.life > 0.99) {
+        for (int i = 1; i < trailLen; i++) {
+            trail[base + i] = trail[base];
+        }
+    }
+}
