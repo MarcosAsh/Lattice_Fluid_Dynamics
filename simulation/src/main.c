@@ -18,6 +18,7 @@
 #include "../lib/render_model.h"
 #include "../lib/opengl_utils.h"
 #include "../lib/config.h"
+#include "../lib/ml_predict.h"
 
 #define GPU_PARTICLES MAX_PARTICLES
 
@@ -805,6 +806,31 @@ int main(int argc, char *argv[]) {
         useLBM = 0;
     }
 
+    // Load ML surrogate model for instant Cd prediction.
+    // Fails gracefully if weight files are missing.
+    MLPredictor *mlModel = ML_Load("model.bin", "model_norm.bin");
+    if (!mlModel)
+        mlModel = ML_Load("ml/model.bin", "ml/model_norm.bin");
+    if (mlModel) {
+        // Map model path to model_id (0=car, 1=ahmed25, 2=ahmed35)
+        float modelId = 0.0f;
+        if (strstr(modelPath, "ahmed_25") ||
+            strstr(modelPath, "ahmed25"))
+            modelId = 1.0f;
+        else if (strstr(modelPath, "ahmed_35") ||
+                 strstr(modelPath, "ahmed35"))
+            modelId = 2.0f;
+
+        float mlCd, mlCl;
+        ML_Predict(mlModel, windSpeed, reynoldsNumber,
+                   modelId, &mlCd, &mlCl);
+        printf("ML estimate: Cd=%.3f Cl=%.3f (instant)\n",
+               mlCd, mlCl);
+    } else {
+        printf("ML model not loaded (no weight files), "
+               "skipping instant prediction\n");
+    }
+
     // Get compute shader uniform locations
     glUseProgram(computeShaderProgram);
     GLint dtLoc = glGetUniformLocation(computeShaderProgram, "dt");
@@ -1475,6 +1501,8 @@ int main(int argc, char *argv[]) {
         FluidCubeFree(fluidCube);
     if (lbmGrid)
         LBM_Free(lbmGrid);
+    if (mlModel)
+        ML_Free(mlModel);
     glDeleteVertexArrays(1, &particleVAO);
     glDeleteBuffers(1, &particleBuffer);
     glDeleteVertexArrays(1, &trailVAO);

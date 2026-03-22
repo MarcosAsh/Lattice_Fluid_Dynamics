@@ -11,7 +11,7 @@
 // Normalizer file (model_norm.bin):
 //   float32 mean[3], float32 std_dev[3]
 
-#include "ml_predict.h"
+#include "../lib/ml_predict.h"
 
 #include <math.h>
 #include <stdint.h>
