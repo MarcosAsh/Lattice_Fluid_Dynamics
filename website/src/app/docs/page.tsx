@@ -141,11 +141,8 @@ export default function DocsPage() {
     <div className="min-h-screen flex">
       {/* Sidebar */}
       <nav className="hidden lg:block w-56 shrink-0 sticky top-0 h-screen overflow-y-auto p-6 border-r border-ctp-surface1">
-        <Link
-          href="/"
-          className="text-sm font-bold text-ctp-text block mb-6"
-        >
-          Lattice
+        <Link href="/" className="block mb-6">
+          <img src="/logo.png" alt="Lattice" className="h-8 w-auto" />
         </Link>
         <ul className="space-y-1">
           {sections.map((s) => (
