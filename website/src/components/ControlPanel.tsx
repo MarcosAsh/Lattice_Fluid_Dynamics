@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react';
 import { SimulationParams } from '../app/page';
 import type { Prediction, ModelStatus } from '../lib/surrogate';
+import { validateObj, ObjValidationResult } from '../lib/validateObj';
 
 interface ControlPanelProps {
   params: SimulationParams;
@@ -109,15 +110,40 @@ export default function ControlPanel({
   mlStatus,
 }: ControlPanelProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [objValidation, setObjValidation] = useState<ObjValidationResult | null>(null);
+  const [validating, setValidating] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] ?? null;
-    onObjFileChange(file);
+    setObjValidation(null);
+
+    if (!file) {
+      onObjFileChange(null);
+      return;
+    }
+
+    setValidating(true);
+    try {
+      const text = await file.text();
+      const result = validateObj(text);
+      setObjValidation(result);
+      onObjFileChange(result.valid ? file : null);
+    } catch {
+      setObjValidation({
+        valid: false,
+        errors: ['Could not read file'],
+        warnings: [],
+        stats: { vertices: 0, faces: 0, boundingBox: null },
+      });
+      onObjFileChange(null);
+    } finally {
+      setValidating(false);
+    }
   };
 
   const isCustom = params.model === 'custom';
-  const renderDisabled = disabled || (isCustom && !objFile);
+  const renderDisabled = disabled || (isCustom && !objFile) || validating;
 
   return (
     <div className="flex flex-col gap-4 p-4 border border-ctp-surface1 rounded-lg overflow-y-auto bg-ctp-mantle">
@@ -166,7 +192,10 @@ export default function ControlPanel({
             value={params.model}
             onChange={(e) => {
               setParams({ ...params, model: e.target.value });
-              if (e.target.value !== 'custom') onObjFileChange(null);
+              if (e.target.value !== 'custom') {
+                onObjFileChange(null);
+                setObjValidation(null);
+              }
             }}
             className="bg-ctp-surface0 text-ctp-text text-sm rounded px-2 py-1.5 border border-ctp-surface1 focus:border-ctp-mauve outline-none"
             disabled={disabled}
@@ -195,20 +224,42 @@ export default function ControlPanel({
             />
             <button
               onClick={() => fileInputRef.current?.click()}
-              disabled={disabled}
+              disabled={disabled || validating}
               className="bg-ctp-surface0 hover:bg-ctp-surface1 text-ctp-text text-xs font-medium py-1.5 px-3 rounded border border-ctp-surface1 transition-colors text-left"
             >
-              {objFile ? objFile.name : 'Choose file...'}
+              {validating ? 'Validating...' : objFile ? objFile.name : 'Choose file...'}
             </button>
-            {objFile && (
+            {objFile && objValidation && (
               <p className="text-[10px] text-ctp-overlay0">
                 {(objFile.size / 1024).toFixed(0)} KB
+                {' · '}
+                {objValidation.stats.vertices.toLocaleString()} verts
+                {' · '}
+                {objValidation.stats.faces.toLocaleString()} tris
               </p>
             )}
-            {!objFile && (
+            {!objFile && !objValidation && (
               <p className="text-[10px] text-ctp-overlay0 leading-tight">
                 Upload a Wavefront .obj file (max ~5 MB)
               </p>
+            )}
+            {objValidation && objValidation.errors.length > 0 && (
+              <div className="flex flex-col gap-0.5 mt-0.5">
+                {objValidation.errors.map((err, i) => (
+                  <p key={i} className="text-[10px] text-ctp-red leading-tight">
+                    {err}
+                  </p>
+                ))}
+              </div>
+            )}
+            {objValidation && objValidation.warnings.length > 0 && (
+              <div className="flex flex-col gap-0.5 mt-0.5">
+                {objValidation.warnings.map((warn, i) => (
+                  <p key={i} className="text-[10px] text-ctp-yellow leading-tight">
+                    {warn}
+                  </p>
+                ))}
+              </div>
             )}
           </div>
         )}
