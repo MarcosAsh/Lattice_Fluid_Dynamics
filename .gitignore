@@ -48,8 +48,9 @@ website/build/
 # Notes (local only)
 notes/
 
-# ML datasets (generated, not tracked)
+# ML datasets and eval output (generated, not tracked)
 ml/dataset/
+ml/eval_report/
 
 # Misc
 *.log
