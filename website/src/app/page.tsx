@@ -293,6 +293,32 @@ export default function Home() {
               />
             </svg>
           </Link>
+          <Link
+            href="/comparison"
+            className="border border-ctp-surface1 rounded-lg p-4 bg-ctp-mantle flex items-center justify-between hover:border-ctp-mauve transition-colors"
+          >
+            <div>
+              <h2 className="text-xs font-semibold text-ctp-overlay1 uppercase tracking-wider mb-1">
+                ML vs LBM
+              </h2>
+              <p className="text-xs text-ctp-overlay0">
+                Compare surrogate model predictions against simulation results
+              </p>
+            </div>
+            <svg
+              className="w-4 h-4 text-ctp-overlay1 shrink-0 ml-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M9 5l7 7-7 7"
+              />
+            </svg>
+          </Link>
           <ResultsPanel
             current={currentResult}
             history={results}
