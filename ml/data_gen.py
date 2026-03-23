@@ -16,6 +16,7 @@ import hashlib
 import json
 import struct
 import sys
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import as_completed
@@ -24,6 +25,8 @@ from pathlib import Path
 
 import requests
 import yaml
+
+_csv_lock = threading.Lock()
 
 DATASET_DIR = Path(__file__).parent / "dataset"
 MANIFEST_FILE = DATASET_DIR / "manifest.csv"
@@ -167,15 +170,18 @@ def check_quality(result: RunResult, quality_config: dict) -> RunResult:
         result.error = f"Only {len(result.cd_series)} Cd samples"
         return result
 
-    # Check convergence: std dev of last N values relative to mean
+    # Check convergence: std dev of last N values relative to mean.
+    # For near-zero means, fall back to absolute std dev check.
     window = quality_config["convergence_window"]
     threshold = quality_config["convergence_threshold"]
     if len(result.cd_series) >= window:
         tail = result.cd_series[-window:]
         mean = sum(tail) / len(tail)
-        if mean > 1e-6:
-            std = (sum((x - mean) ** 2 for x in tail) / len(tail)) ** 0.5
-            result.converged = (std / mean) < threshold
+        std = (sum((x - mean) ** 2 for x in tail) / len(tail)) ** 0.5
+        if abs(mean) > 1e-6:
+            result.converged = (std / abs(mean)) < threshold
+        else:
+            result.converged = std < 1e-6
 
     return result
 
@@ -183,73 +189,77 @@ def check_quality(result: RunResult, quality_config: dict) -> RunResult:
 def save_manifest_row(result: RunResult):
     """Append one row to the manifest CSV."""
     DATASET_DIR.mkdir(parents=True, exist_ok=True)
-    write_header = not MANIFEST_FILE.exists()
 
-    with open(MANIFEST_FILE, "a", newline="") as f:
-        writer = csv.writer(f)
-        if write_header:
+    with _csv_lock:
+        write_header = not MANIFEST_FILE.exists()
+
+        with open(MANIFEST_FILE, "a", newline="") as f:
+            writer = csv.writer(f)
+            if write_header:
+                writer.writerow(
+                    [
+                        "run_id",
+                        "model",
+                        "wind_speed",
+                        "reynolds",
+                        "duration",
+                        "status",
+                        "cd_value",
+                        "cl_value",
+                        "converged",
+                        "error",
+                    ]
+                )
             writer.writerow(
                 [
-                    "run_id",
-                    "model",
-                    "wind_speed",
-                    "reynolds",
-                    "duration",
-                    "status",
-                    "cd_value",
-                    "cl_value",
-                    "converged",
-                    "error",
+                    result.config.run_id,
+                    result.config.model,
+                    result.config.wind_speed,
+                    result.config.reynolds,
+                    result.config.duration,
+                    result.status,
+                    f"{result.cd_value:.6f}" if result.cd_value is not None else "",
+                    f"{result.cl_value:.6f}" if result.cl_value is not None else "",
+                    result.converged,
+                    result.error or "",
                 ]
             )
-        writer.writerow(
-            [
-                result.config.run_id,
-                result.config.model,
-                result.config.wind_speed,
-                result.config.reynolds,
-                result.config.duration,
-                result.status,
-                f"{result.cd_value:.6f}" if result.cd_value is not None else "",
-                f"{result.cl_value:.6f}" if result.cl_value is not None else "",
-                result.converged,
-                result.error or "",
-            ]
-        )
 
 
 def save_results_csv(result: RunResult):
     """Append the full time series to the results file."""
     DATASET_DIR.mkdir(parents=True, exist_ok=True)
-    write_header = not RESULTS_FILE.exists()
 
-    with open(RESULTS_FILE, "a", newline="") as f:
-        writer = csv.writer(f)
-        if write_header:
+    with _csv_lock:
+        write_header = not RESULTS_FILE.exists()
+
+        with open(RESULTS_FILE, "a", newline="") as f:
+            writer = csv.writer(f)
+            if write_header:
+                writer.writerow(
+                    [
+                        "run_id",
+                        "model",
+                        "wind_speed",
+                        "reynolds",
+                        "cd_value",
+                        "cl_value",
+                        "cd_series",
+                        "cl_series",
+                    ]
+                )
             writer.writerow(
                 [
-                    "run_id",
-                    "model",
-                    "wind_speed",
-                    "reynolds",
-                    "cd_value",
-                    "cl_value",
-                    "cd_series",
-                    "cl_series",
+                    result.config.run_id,
+                    result.config.model,
+                    result.config.wind_speed,
+                    result.config.reynolds,
+                    f"{result.cd_value:.6f}" if result.cd_value is not None else "",
+                    f"{result.cl_value:.6f}" if result.cl_value is not None else "",
+                    json.dumps(result.cd_series),
+                    json.dumps(result.cl_series),
                 ]
             )
-        writer.writerow(
-            [
-                result.config.run_id,
-                result.config.model,
-                result.config.wind_speed,
-                result.config.reynolds,
-                f"{result.cd_value:.6f}" if result.cd_value is not None else "",
-                f"{result.cl_value:.6f}" if result.cl_value is not None else "",
-                json.dumps(result.cd_series),
-                json.dumps(result.cl_series),
-            ]
-        )
 
 
 def export_binary_dataset():
