@@ -73,7 +73,7 @@ void AdamW::step() {
             vi.data[j] = beta2 * vi.data[j] + (1 - beta2) * g * g;
             double m_hat = mi.data[j] / bias_correction1;
             double v_hat = vi.data[j] / bias_correction2;
-            double update = m_hat / (std::sqrt(v_hat) + eps);
+            double update = m_hat / std::sqrt(v_hat + eps);
             update += weight_decay * val.data[j];
             val.data[j] = (float)(val.data[j] - lr * update);
         }

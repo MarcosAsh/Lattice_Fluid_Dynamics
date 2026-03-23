@@ -84,10 +84,12 @@ export async function POST(request: Request) {
       body.obj_data = params.objData;
     }
 
+    const timeoutMs = ((params.duration ?? 10) * 20 + 120) * 1000;
     const response = await fetch(modalEndpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(timeoutMs),
     });
 
     const text = await response.text();

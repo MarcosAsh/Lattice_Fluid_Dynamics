@@ -287,6 +287,11 @@ int main(int argc, char* argv[]) {
 
             epoch_loss += loss->val.data[0];
             num_batches++;
+
+            if (std::isnan(loss->val.data[0]) || std::isinf(loss->val.data[0])) {
+                fprintf(stderr, "NaN/Inf loss at epoch %d, aborting\n", epoch);
+                return 1;
+            }
         }
 
         epoch_loss /= num_batches;

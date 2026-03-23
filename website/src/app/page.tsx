@@ -6,6 +6,7 @@ import VideoPlayer from '../components/VideoPlayer';
 import StatusDisplay from '../components/StatusDisplay';
 import AboutSection from '../components/AboutSection';
 import ResultsPanel, { SimulationResult } from '../components/ResultsPanel';
+import { useSurrogate } from '../lib/surrogate';
 
 export type JobStatus =
   | 'idle'
@@ -29,18 +30,23 @@ function clamp(v: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, v));
 }
 
+function parseNum(raw: string, fallback: number, radix?: number): number {
+  const v = radix ? parseInt(raw, radix) : parseFloat(raw);
+  return Number.isNaN(v) ? fallback : v;
+}
+
 function parseHash(): Partial<SimulationParams> {
   if (typeof window === 'undefined') return {};
   const hash = window.location.hash.slice(1);
   if (!hash) return {};
   const p = new URLSearchParams(hash);
   const result: Partial<SimulationParams> = {};
-  if (p.has('ws')) result.windSpeed = clamp(parseFloat(p.get('ws')!), 0, 5);
-  if (p.has('vm')) result.vizMode = clamp(parseInt(p.get('vm')!), 0, 6);
-  if (p.has('cm')) result.collisionMode = clamp(parseInt(p.get('cm')!), 0, 2);
-  if (p.has('d')) result.duration = clamp(parseInt(p.get('d')!), 5, 30);
+  if (p.has('ws')) result.windSpeed = clamp(parseNum(p.get('ws')!, 1.0), 0, 5);
+  if (p.has('vm')) result.vizMode = clamp(parseNum(p.get('vm')!, 1, 10), 0, 6);
+  if (p.has('cm')) result.collisionMode = clamp(parseNum(p.get('cm')!, 1, 10), 0, 2);
+  if (p.has('d')) result.duration = clamp(parseNum(p.get('d')!, 10, 10), 5, 30);
   if (p.has('m') && VALID_MODELS.has(p.get('m')!)) result.model = p.get('m')!;
-  if (p.has('re')) result.reynolds = clamp(parseFloat(p.get('re')!), 0, 100000);
+  if (p.has('re')) result.reynolds = clamp(parseNum(p.get('re')!, 0), 0, 100000);
   return result;
 }
 
@@ -80,6 +86,11 @@ export default function Home() {
   >('checking');
   const [objFile, setObjFile] = useState<File | null>(null);
   const renderStartTime = useRef<number | null>(null);
+  const { status: mlStatus, predict: mlPredict } = useSurrogate();
+
+  const mlPrediction = mlStatus === 'ready'
+    ? mlPredict(params.windSpeed, params.reynolds, params.model)
+    : null;
 
   useEffect(() => {
     fetch('/api/render')
@@ -215,6 +226,8 @@ export default function Home() {
             disabled={!backendAvailable || status === 'rendering'}
             objFile={objFile}
             onObjFileChange={setObjFile}
+            mlPrediction={mlPrediction}
+            mlStatus={mlStatus}
           />
           {backendStatus !== 'checking' && (
             <div className="flex items-center gap-2 text-xs px-3 py-2 rounded border border-ctp-surface1 bg-ctp-mantle">

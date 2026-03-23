@@ -252,6 +252,7 @@ void calculateViewMatrix(float *view,
     float forwardLength =
         sqrtf(forward[0] * forward[0] + forward[1] * forward[1] +
               forward[2] * forward[2]);
+    if (forwardLength < 1e-8f) forwardLength = 1e-8f;
     forward[0] /= forwardLength;
     forward[1] /= forwardLength;
     forward[2] /= forwardLength;
@@ -263,6 +264,7 @@ void calculateViewMatrix(float *view,
                      forward[0] * up[1] - forward[1] * up[0]};
     float sideLength =
         sqrtf(side[0] * side[0] + side[1] * side[1] + side[2] * side[2]);
+    if (sideLength < 1e-8f) sideLength = 1e-8f;
     side[0] /= sideLength;
     side[1] /= sideLength;
     side[2] /= sideLength;

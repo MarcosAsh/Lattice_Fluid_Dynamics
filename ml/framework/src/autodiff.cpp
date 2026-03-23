@@ -90,13 +90,15 @@ std::shared_ptr<ADTensor> add(const std::shared_ptr<ADTensor>& a,
 std::shared_ptr<ADTensor> log_ad(const std::shared_ptr<ADTensor>& a) {
     Tensor v(a->val.rows, a->val.cols);
     for (size_t i = 0; i < v.data.size(); ++i) {
-        v.data[i] = std::log(a->val.data[i]);
+        float x = a->val.data[i];
+        v.data[i] = std::log(x > 1e-7f ? x : 1e-7f);
     }
     auto out = std::make_shared<ADTensor>(v);
     out->deps.emplace_back(a, [a, out]() {
         for (size_t i = 0; i < a->grad.data.size(); ++i) {
-            // d/dx log(x) = 1/x
-            a->grad.data[i] += out->grad.data[i] / a->val.data[i];
+            // d/dx log(x) = 1/x, clamped to avoid division by zero
+            float x = a->val.data[i];
+            a->grad.data[i] += out->grad.data[i] / (x > 1e-7f ? x : 1e-7f);
         }
     });
     return out;
@@ -257,7 +259,8 @@ std::shared_ptr<ADTensor> tanh_ad(const std::shared_ptr<ADTensor>& a) {
 std::shared_ptr<ADTensor> exp_ad(const std::shared_ptr<ADTensor>& a) {
     Tensor v(a->val.rows, a->val.cols);
     for (size_t i = 0; i < v.data.size(); ++i) {
-        v.data[i] = std::exp(a->val.data[i]);
+        float x = a->val.data[i];
+        v.data[i] = std::exp(x < 88.0f ? x : 88.0f);
     }
     auto out = std::make_shared<ADTensor>(v);
     // grad_a += exp(x) * grad_out
@@ -278,7 +281,8 @@ std::shared_ptr<ADTensor> sqrt_ad(const std::shared_ptr<ADTensor>& a) {
     out->deps.emplace_back(a, [a, out]() {
         for (size_t i = 0; i < a->grad.data.size(); ++i) {
             float y = out->val.data[i];
-            a->grad.data[i] += (out->grad.data[i] * 0.5f) / y;
+            // Guard against division by zero when sqrt(x) == 0
+            a->grad.data[i] += (out->grad.data[i] * 0.5f) / (y > 1e-7f ? y : 1e-7f);
         }
     });
     return out;
@@ -287,13 +291,16 @@ std::shared_ptr<ADTensor> sqrt_ad(const std::shared_ptr<ADTensor>& a) {
 std::shared_ptr<ADTensor> reciprocal(const std::shared_ptr<ADTensor>& a) {
     Tensor v(a->val.rows, a->val.cols);
     for (size_t i = 0; i < v.data.size(); ++i) {
-        v.data[i] = 1.0f / a->val.data[i];
+        float x = a->val.data[i];
+        float ax = std::fabs(x) > 1e-7f ? x : (x >= 0 ? 1e-7f : -1e-7f);
+        v.data[i] = 1.0f / ax;
     }
     auto out = std::make_shared<ADTensor>(v);
     out->deps.emplace_back(a, [a, out]() {
         for (size_t i = 0; i < a->grad.data.size(); ++i) {
             float ai = a->val.data[i];
-            a->grad.data[i] -= out->grad.data[i] / (ai * ai);
+            float ax = std::fabs(ai) > 1e-7f ? ai : (ai >= 0 ? 1e-7f : -1e-7f);
+            a->grad.data[i] -= out->grad.data[i] / (ax * ax);
         }
     });
     return out;

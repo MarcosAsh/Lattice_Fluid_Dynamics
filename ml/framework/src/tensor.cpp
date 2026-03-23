@@ -9,9 +9,9 @@
 
 int Tensor::compute_numel(const std::vector<int>& shape) {
     if (shape.empty()) return 0;
-    int n = 1;
-    for (int d : shape) n *= d;
-    return n;
+    size_t n = 1;
+    for (int d : shape) n *= (size_t)d;
+    return (int)n;
 }
 
 void Tensor::sync_rows_cols() {

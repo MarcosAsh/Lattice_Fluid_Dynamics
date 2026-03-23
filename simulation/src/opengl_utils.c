@@ -48,6 +48,11 @@ GLuint loadShader(const char *path, GLenum type) {
     }
 
     char *source = (char *)malloc(length + 1);
+    if (!source) {
+        printf("Error: out of memory loading shader: %s\n", path);
+        fclose(file);
+        return 0;
+    }
     fread(source, 1, length, file);
     source[length] = '\0';
     fclose(file);

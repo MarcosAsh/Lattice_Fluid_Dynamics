@@ -153,6 +153,8 @@ Model loadOBJ(const char* filePath) {
 void freeModel(Model* model) {
     free(model->vertices);
     free(model->faces);
+    model->vertices = NULL;
+    model->faces = NULL;
     model->vertexCount = 0;
     model->faceCount = 0;
 }

@@ -77,3 +77,4 @@ frames/
 # Trained model weights
 ml/model.bin
 ml/model_norm.bin
+website/public/models/*.bin

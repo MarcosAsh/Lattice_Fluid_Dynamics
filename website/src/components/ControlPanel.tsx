@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react';
 import { SimulationParams } from '../app/page';
+import type { Prediction, ModelStatus } from '../lib/surrogate';
 
 interface ControlPanelProps {
   params: SimulationParams;
@@ -10,6 +11,8 @@ interface ControlPanelProps {
   disabled: boolean;
   objFile: File | null;
   onObjFileChange: (file: File | null) => void;
+  mlPrediction?: Prediction | null;
+  mlStatus?: ModelStatus;
 }
 
 const vizModes = [
@@ -102,6 +105,8 @@ export default function ControlPanel({
   disabled,
   objFile,
   onObjFileChange,
+  mlPrediction,
+  mlStatus,
 }: ControlPanelProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -243,6 +248,35 @@ export default function ControlPanel({
           hint="Target Re. Auto uses default viscosity."
           disabled={disabled}
         />
+
+        {mlStatus === 'ready' && mlPrediction && (
+          <div className="border border-ctp-surface1 rounded p-3 bg-ctp-surface0/50">
+            <div className="text-[10px] text-ctp-overlay0 uppercase tracking-wider mb-2">
+              ML Estimate
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <div className="text-[10px] text-ctp-overlay0">
+                  C<sub>d</sub>
+                </div>
+                <div className="text-sm font-mono text-ctp-text">
+                  {mlPrediction.cd.toFixed(4)}
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] text-ctp-overlay0">
+                  C<sub>l</sub>
+                </div>
+                <div className="text-sm font-mono text-ctp-text">
+                  {mlPrediction.cl.toFixed(4)}
+                </div>
+              </div>
+            </div>
+            <div className="text-[9px] text-ctp-overlay0 mt-1.5">
+              Surrogate prediction, updates instantly
+            </div>
+          </div>
+        )}
 
         <hr className="border-ctp-surface1" />
 
