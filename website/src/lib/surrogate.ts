@@ -202,13 +202,12 @@ export function useSurrogate(): {
   status: ModelStatus;
   predict: (windSpeed: number, reynolds: number, model: string) => Prediction | null;
 } {
-  const [status, setStatus] = useState<ModelStatus>('idle');
+  const [status, setStatus] = useState<ModelStatus>('loading');
   const weightsRef = useRef<Weights | null>(null);
   const normRef = useRef<Normalizer | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    setStatus('loading');
 
     Promise.all([
       fetch('/models/model.bin').then((r) => {
