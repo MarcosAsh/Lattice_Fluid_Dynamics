@@ -889,14 +889,18 @@ int main(int argc, char *argv[]) {
     }
 
     for (int i = 0; i < GPU_PARTICLES; i++) {
-        particles[i].x = -4.0f + ((float)rand() / RAND_MAX) * 0.5f;
-        particles[i].y = ((float)rand() / RAND_MAX - 0.5f) * 3.0f;
-        particles[i].z = ((float)rand() / RAND_MAX - 0.5f) * 3.0f;
+        // Spread particles across the full domain so the flow looks
+        // continuous from the first frame instead of a single wave.
+        particles[i].x = -4.0f + ((float)rand() / RAND_MAX) * 8.0f;
+        particles[i].y = ((float)rand() / RAND_MAX - 0.5f) * 2.0f;
+        particles[i].z = ((float)rand() / RAND_MAX - 0.5f) * 2.0f;
         particles[i].padding1 = 0.0f;
-        particles[i].vx = 0.5f + ((float)rand() / RAND_MAX) * 0.2f;
-        particles[i].vy = ((float)rand() / RAND_MAX - 0.5f) * 0.05f;
-        particles[i].vz = ((float)rand() / RAND_MAX - 0.5f) * 0.05f;
-        particles[i].life = 1.0f;
+        particles[i].vx = 0.3f + ((float)rand() / RAND_MAX) * 0.1f;
+        particles[i].vy = 0.0f;
+        particles[i].vz = 0.0f;
+        // Stagger lifetimes so particles respawn at different times
+        // instead of all at once.
+        particles[i].life = 0.2f + ((float)rand() / RAND_MAX) * 0.8f;
     }
 
     printf("Creating particle buffer...\n");

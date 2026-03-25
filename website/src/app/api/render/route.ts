@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-export const maxDuration = 600; // 10 min -- renders take 3-6 min
+export const maxDuration = 300; // Vercel hobby max
 
 const RATE_LIMIT = new Map<string, number>();
 const RATE_LIMIT_MAX_ENTRIES = 10_000;

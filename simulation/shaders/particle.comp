@@ -183,22 +183,21 @@ void main() {
 
     vec3 flowVel;
     if (useLBM == 1 && lbmGridSize.x > 0) {
-        vec3 lbmVel = sampleLBMVelocity(p.position) * 15.0;
+        vec3 lbmVel = sampleLBMVelocity(p.position) * 8.0;
         // Blend: mostly wind direction with LBM detail for wake
-        flowVel = mix(wind, lbmVel, 0.4);
+        flowVel = mix(wind, lbmVel, 0.5);
     } else {
         flowVel = wind;
     }
 
     // Gradual velocity update -- particles have inertia
-    p.velocity = mix(p.velocity, flowVel, 0.08);
+    p.velocity = mix(p.velocity, flowVel, 0.05);
 
-    // Force forward except right at the AABB surface to avoid fighting
-    // collision responses. Small margin prevents one-frame re-entry.
+    // Gentle forward bias outside the car region
     bool insideAABB = collisionMode > 0 &&
                       isInsideAABB(p.position, carMin - vec3(0.05), carMax + vec3(0.05));
     if (!insideAABB) {
-        p.velocity.x = max(p.velocity.x, wind.x * 0.6);
+        p.velocity.x = max(p.velocity.x, wind.x * 0.3);
     }
 
     p.position += p.velocity * dt;
@@ -251,7 +250,7 @@ void main() {
         p.life = 0.0; // Force respawn next frame
     }
 
-    p.life -= 0.01 * dt;
+    p.life -= 0.03 * dt;
 
     // Keep particles inside the wind tunnel corridor
     float tunnelY = 1.0;
@@ -268,8 +267,8 @@ void main() {
         float randZ = fract(sin(seed2 * 12345.6789)) - 0.5;
 
         p.position = vec3(-4.0, randY * 2.0 * tunnelY, randZ * 2.0 * tunnelZ);
-        p.velocity = vec3(0.5 + fract(sin(seed1 * 9876.54321)) * 0.2, 0.0, 0.0);
-        p.life = 1.0;
+        p.velocity = vec3(0.2 + fract(sin(seed1 * 9876.54321)) * 0.15, 0.0, 0.0);
+        p.life = 0.5 + fract(sin(seed1 * 3456.789)) * 0.5;
     }
 
     particles[idx] = p;
