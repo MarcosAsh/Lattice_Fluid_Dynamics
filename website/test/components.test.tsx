@@ -13,6 +13,7 @@ const mockResult: SimulationResult = {
   clSeries: [0.04, 0.04, 0.04],
   model: 'ahmed25',
   windSpeed: 1.5,
+  charLength: 0.044,
   timestamp: Date.now(),
 };
 

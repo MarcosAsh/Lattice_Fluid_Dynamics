@@ -825,6 +825,8 @@ int main(int argc, char *argv[]) {
     MLPredictor *mlModel = ML_Load("model.bin", "model_norm.bin");
     if (!mlModel)
         mlModel = ML_Load("ml/model.bin", "ml/model_norm.bin");
+    if (!mlModel)
+        mlModel = ML_Load("../ml/model.bin", "../ml/model_norm.bin");
     if (mlModel) {
         // Map model path to model_id (0=car, 1=ahmed25, 2=ahmed35)
         float modelId = 0.0f;
