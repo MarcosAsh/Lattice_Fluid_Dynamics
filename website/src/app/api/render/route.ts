@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 
 const RATE_LIMIT = new Map<string, number>();
+const RATE_LIMIT_MAX_ENTRIES = 10_000;
+const RATE_LIMIT_WINDOW_MS = 60_000;
 const MAX_OBJ_SIZE = 5 * 1024 * 1024; // 5 MB base64
 
 export async function GET() {
@@ -42,8 +44,8 @@ export async function POST(request: Request) {
   const now = Date.now();
   const lastRequest = RATE_LIMIT.get(ip) || 0;
 
-  if (now - lastRequest < 60000) {
-    const waitSec = Math.ceil((60000 - (now - lastRequest)) / 1000);
+  if (now - lastRequest < RATE_LIMIT_WINDOW_MS) {
+    const waitSec = Math.ceil((RATE_LIMIT_WINDOW_MS - (now - lastRequest)) / 1000);
     return NextResponse.json(
       {
         status: 'error',
@@ -53,6 +55,13 @@ export async function POST(request: Request) {
     );
   }
   RATE_LIMIT.set(ip, now);
+
+  // Evict expired entries to prevent unbounded growth
+  if (RATE_LIMIT.size > RATE_LIMIT_MAX_ENTRIES) {
+    for (const [key, ts] of RATE_LIMIT) {
+      if (now - ts > RATE_LIMIT_WINDOW_MS) RATE_LIMIT.delete(key);
+    }
+  }
 
   const params = await request.json();
 

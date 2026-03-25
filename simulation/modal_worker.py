@@ -6,6 +6,7 @@ Test: modal run modal_worker.py --duration=5 --model=ahmed25
 
 import json
 import logging
+import math
 import os
 import shutil
 import subprocess
@@ -443,37 +444,44 @@ def render_simulation(
         grid_size = None
         char_length = None
 
+        def _parse_float(line: str, prefix: str, suffix: str | None = None) -> float | None:
+            try:
+                raw = line.split(prefix)[1]
+                if suffix:
+                    raw = raw.split(suffix)[0]
+                else:
+                    raw = raw.split()[0]
+                val = float(raw.strip())
+                if not math.isfinite(val):
+                    log.warning("non-finite value", extra={"prefix": prefix, "raw": raw})
+                    return None
+                return val
+            except (IndexError, ValueError) as e:
+                log.warning("parse failed", extra={"prefix": prefix, "line": line.strip(), "error": str(e)})
+                return None
+
         for line in result.stdout.split("\n"):
             if "Cd=" in line:
-                try:
-                    s = line.split("Cd=")[1].split()[0]
-                    cd_values.append(float(s))
-                except Exception:
-                    pass
+                val = _parse_float(line, "Cd=")
+                if val is not None:
+                    cd_values.append(val)
             if "Cl=" in line:
-                try:
-                    s = line.split("Cl=")[1].split()[0]
-                    cl_values.append(float(s))
-                except Exception:
-                    pass
+                val = _parse_float(line, "Cl=")
+                if val is not None:
+                    cl_values.append(val)
             if "Effective Re" in line:
-                try:
-                    s = line.split("Re =")[1].split()[0]
-                    effective_re = float(s)
-                except Exception:
-                    pass
+                val = _parse_float(line, "Re =")
+                if val is not None:
+                    effective_re = val
             if "Char length:" in line:
-                try:
-                    s = line.split("Char length:")[1].split("lattice")[0]
-                    char_length = float(s.strip())
-                except Exception:
-                    pass
+                val = _parse_float(line, "Char length:", "lattice")
+                if val is not None:
+                    char_length = val
             if "LBM Grid:" in line:
                 try:
-                    s = line.split("Grid:")[1].split("(")[0]
-                    grid_size = s.strip()
-                except Exception:
-                    pass
+                    grid_size = line.split("Grid:")[1].split("(")[0].strip()
+                except (IndexError, ValueError) as e:
+                    log.warning("grid parse failed", extra={"line": line.strip(), "error": str(e)})
 
         cd_value = None
         if cd_values:
