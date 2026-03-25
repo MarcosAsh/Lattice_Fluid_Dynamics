@@ -66,7 +66,7 @@ describe('ResultsPanel', () => {
         onSelect={() => {}}
       />,
     );
-    expect(screen.getByText('Ahmed 25')).toBeInTheDocument();
+    expect(screen.getByText('Ahmed 25\u00b0')).toBeInTheDocument();
   });
 });
 

@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 
+export const maxDuration = 600; // 10 min -- renders take 3-6 min
+
 const RATE_LIMIT = new Map<string, number>();
 const RATE_LIMIT_MAX_ENTRIES = 10_000;
 const RATE_LIMIT_WINDOW_MS = 60_000;
@@ -100,7 +102,7 @@ export async function POST(request: Request) {
       body.obj_data = params.objData;
     }
 
-    const timeoutMs = ((params.duration ?? 10) * 20 + 120) * 1000;
+    const timeoutMs = ((params.duration ?? 10) * 40 + 180) * 1000;
     const response = await fetch(modalEndpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
