@@ -61,7 +61,7 @@ export default function Home() {
       windSpeed: 1.0,
       vizMode: 1,
       duration: 10,
-      collisionMode: 1,
+      collisionMode: 2,
       model: 'car',
       reynolds: 0,
     };

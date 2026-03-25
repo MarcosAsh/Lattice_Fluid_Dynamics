@@ -301,7 +301,7 @@ npm ci && npm run dev
   "duration": 10,
   "model": "ahmed25",      // "car" | "ahmed25" | "ahmed35"
   "viz_mode": 1,
-  "collision_mode": 1,
+  "collision_mode": 2,
   "reynolds": 0            // 0 = auto
 }`}</CodeBlock>
           <CodeBlock title="response">{`{

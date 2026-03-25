@@ -1475,16 +1475,16 @@ int main(int argc, char *argv[]) {
                         if (maxFrames > 0) {
                             // Run 2 more seconds for clean video ending
                             int extra = 120;
-                            if (frameCount + extra < maxFrames)
-                                maxFrames = frameCount + extra;
+                            if (outputFrameCount + extra < maxFrames)
+                                maxFrames = outputFrameCount + extra;
                         }
                     }
                 }
             }
         }
 
-        if (maxFrames > 0 && frameCount >= maxFrames) {
-            printf("Render complete: %d frames\n", frameCount);
+        if (maxFrames > 0 && outputFrameCount >= maxFrames) {
+            printf("Render complete: %d frames\n", outputFrameCount);
             running = 0;
         }
 

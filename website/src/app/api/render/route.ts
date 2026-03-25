@@ -90,7 +90,7 @@ export async function POST(request: Request) {
       job_id: `job_${Date.now()}`,
       wind_speed: params.windSpeed ?? 1.0,
       viz_mode: params.vizMode ?? 1,
-      collision_mode: params.collisionMode ?? 1,
+      collision_mode: params.collisionMode ?? 2,
       duration: params.duration ?? 10,
       model: params.model ?? 'car',
       reynolds: params.reynolds ?? 0,
