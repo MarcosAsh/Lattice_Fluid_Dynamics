@@ -630,9 +630,9 @@ int main(int argc, char *argv[]) {
         }
         printf("Auto scale: %.6f (max dim: %.2f)\n", g_modelScale, maxDim);
 
-        // Auto-center then shift upstream. Center model at x=-2.0
-        // to give ~1 body length upstream and ~3 downstream.
-        g_offsetX = -centerX * g_modelScale - 2.0f;
+        // Center model at origin first; the upstream shift is
+        // applied after auto-rotation so it lands on the correct axis.
+        g_offsetX = -centerX * g_modelScale;
         g_offsetY = -centerY * g_modelScale;
         g_offsetZ = -centerZ * g_modelScale;
 
@@ -670,6 +670,16 @@ int main(int argc, char *argv[]) {
             g_carRotationY = 0.0f;
             printf("Auto-rotation: 0 deg (longest axis already x)\n");
         }
+    }
+
+    // Shift model upstream: place center at x=-2 in post-rotation
+    // space.  The transform is rotate(scale*v + offset), so we need
+    // the pre-rotation shift (dx, dz) whose image under the rotation
+    // is (-2, 0).
+    {
+        float radY = g_carRotationY * (float)M_PI / 180.0f;
+        g_offsetX += -2.0f * cosf(radY);
+        g_offsetZ +=  2.0f * sinf(radY);
     }
 
     CarBounds carBounds = computeModelBounds(&carModel,
