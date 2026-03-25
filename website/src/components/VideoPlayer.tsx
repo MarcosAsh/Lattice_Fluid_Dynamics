@@ -55,15 +55,19 @@ export default function VideoPlayer({
     if (!ctx) return;
 
     ctx.drawImage(video, 0, 0);
-    canvas.toBlob((blob) => {
-      if (!blob) return;
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'lattice-screenshot.png';
-      a.click();
-      URL.revokeObjectURL(url);
-    }, 'image/png');
+    try {
+      canvas.toBlob((blob) => {
+        if (!blob) return;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'lattice-screenshot.png';
+        a.click();
+        URL.revokeObjectURL(url);
+      }, 'image/png');
+    } catch {
+      alert('Screenshot blocked by cross-origin policy. Use the Download button instead.');
+    }
   }, []);
 
   // Record ~3 seconds of frames and export as WebM
@@ -113,6 +117,10 @@ export default function VideoPlayer({
 
     setGifProgress(null);
 
+    if (chunks.length === 0) {
+      alert('Clip capture blocked by cross-origin policy. Use the Download button instead.');
+      return;
+    }
     const blob = new Blob(chunks, { type: 'video/webm' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -142,7 +150,6 @@ export default function VideoPlayer({
             controls
             autoPlay
             loop
-            crossOrigin="anonymous"
             className="w-full h-full object-contain"
           />
         ) : showDemo ? (

@@ -43,7 +43,14 @@ export async function POST(request: Request) {
   const lastRequest = RATE_LIMIT.get(ip) || 0;
 
   if (now - lastRequest < 60000) {
-    return NextResponse.json({ error: 'Rate limited' }, { status: 429 });
+    const waitSec = Math.ceil((60000 - (now - lastRequest)) / 1000);
+    return NextResponse.json(
+      {
+        status: 'error',
+        error: `Rate limited -- please wait ${waitSec}s before submitting another render.`,
+      },
+      { status: 429 },
+    );
   }
   RATE_LIMIT.set(ip, now);
 
