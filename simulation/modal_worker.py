@@ -441,6 +441,7 @@ def render_simulation(
         cl_values = []
         effective_re = None
         grid_size = None
+        char_length = None
 
         for line in result.stdout.split("\n"):
             if "Cd=" in line:
@@ -459,6 +460,12 @@ def render_simulation(
                 try:
                     s = line.split("Re =")[1].split()[0]
                     effective_re = float(s)
+                except Exception:
+                    pass
+            if "Char length:" in line:
+                try:
+                    s = line.split("Char length:")[1].split("lattice")[0]
+                    char_length = float(s.strip())
                 except Exception:
                     pass
             if "LBM Grid:" in line:
@@ -588,6 +595,7 @@ def render_simulation(
             "cl_series": cl_values,
             "effective_re": effective_re,
             "grid_size": grid_size,
+            "char_length": char_length,
             "timings": {
                 k: round(v, 2)
                 for k, v in timings.items()
