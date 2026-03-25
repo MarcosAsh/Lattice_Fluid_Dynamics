@@ -1,3 +1,4 @@
+#define _USE_MATH_DEFINES
 #include "../lib/render_model.h"
 #include "../lib/config.h"
 #include <glad/gl.h>
@@ -19,7 +20,7 @@ void renderModel(Model *model, int scale) {
     float offsetY = g_offsetY;
     float offsetZ = g_offsetZ;
 
-    float radY = g_carRotationY * 3.14159265f / 180.0f;
+    float radY = g_carRotationY * (float)M_PI / 180.0f;
     float cosY = cosf(radY);
     float sinY = sinf(radY);
 

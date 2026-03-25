@@ -380,17 +380,19 @@ int main(int argc, char *argv[]) {
                 renderDuration = 0;
             break;
         case 'o':
-            strncpy(outputPath, optarg, 255);
+            strncpy(outputPath, optarg, sizeof(outputPath) - 1);
+            outputPath[sizeof(outputPath) - 1] = '\0';
             break;
         case 'm':
-            strncpy(modelPath, optarg, 511);
+            strncpy(modelPath, optarg, sizeof(modelPath) - 1);
+            modelPath[sizeof(modelPath) - 1] = '\0';
             break;
         case 'a':
             slantAngle = atoi(optarg);
             if (slantAngle == 25) {
-                strncpy(modelPath, "assets/3d-files/ahmed_25deg_m.obj", 511);
+                strncpy(modelPath, "assets/3d-files/ahmed_25deg_m.obj", sizeof(modelPath) - 1);
             } else if (slantAngle == 35) {
-                strncpy(modelPath, "assets/3d-files/ahmed_35deg_m.obj", 511);
+                strncpy(modelPath, "assets/3d-files/ahmed_35deg_m.obj", sizeof(modelPath) - 1);
             }
             break;
         case 's':

@@ -94,7 +94,10 @@ export default function Home() {
 
   useEffect(() => {
     fetch('/api/render')
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`status ${r.status}`);
+        return r.json();
+      })
       .then((data) => {
         setBackendAvailable(data.available);
         setBackendStatus(data.status ?? (data.available ? 'healthy' : 'not_configured'));
@@ -156,6 +159,10 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
+
+      if (!response.ok) {
+        throw new Error(`Server error (${response.status})`);
+      }
 
       const data = await response.json();
 

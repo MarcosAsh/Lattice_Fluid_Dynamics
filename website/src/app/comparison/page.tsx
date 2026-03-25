@@ -4,13 +4,7 @@ import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useSurrogate, type Prediction } from '../../lib/surrogate';
 import type { SimulationResult } from '../../components/ResultsPanel';
-
-const MODELS = ['car', 'ahmed25', 'ahmed35'] as const;
-const MODEL_LABELS: Record<string, string> = {
-  car: 'Car',
-  ahmed25: 'Ahmed 25\u00b0',
-  ahmed35: 'Ahmed 35\u00b0',
-};
+import { MODELS, MODEL_LABELS } from '../../lib/models';
 
 function clamp(v: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, v));

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { JobStatus } from '../app/page';
 
 interface StatusDisplayProps {
@@ -68,11 +68,7 @@ export default function StatusDisplay({
   }, [isRendering]);
 
   // Reset tick when renderStartTime changes (new render starts)
-  const startRef = useMemo(
-    () => ({ value: renderStartTime }),
-    [renderStartTime],
-  );
-  void startRef;
+  useEffect(() => setTick(0), [renderStartTime]);
 
   // elapsed is derived: 0 when not rendering, computed from tick counter otherwise
   const elapsed = isRendering && renderStartTime ? tick * 0.5 : 0;

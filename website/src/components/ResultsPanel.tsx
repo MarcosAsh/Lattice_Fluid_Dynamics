@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import { computeStrouhal, type SpectrumResult } from '../lib/spectral';
+import { MODEL_LABELS } from '../lib/models';
 
 export interface SimulationResult {
   videoUrl: string;
@@ -15,12 +16,6 @@ export interface SimulationResult {
   timestamp: number;
 }
 
-const MODEL_LABELS: Record<string, string> = {
-  car: 'Car',
-  ahmed25: 'Ahmed 25',
-  ahmed35: 'Ahmed 35',
-  custom: 'Custom',
-};
 
 interface ResultsPanelProps {
   current: SimulationResult | null;

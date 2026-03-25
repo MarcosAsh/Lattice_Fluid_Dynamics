@@ -79,13 +79,7 @@ void FluidCubeAddDensity(FluidCube *cube, int x, int y, int z, float amount) {
                z); // Debug print
         return;
     }
-    int index = IX3D(x, y, z, cube->sizeX, cube->sizeY);
     cube->density[IX3D(x, y, z, cube->sizeX, cube->sizeY)] += amount;
-    printf("FluidCubeAddDensity: Added denstiy=%f at (%d, %d, %d)\n",
-           amount,
-           x,
-           y,
-           z); // Debug print
 }
 
 void FluidCubeAddVelocity(
@@ -102,14 +96,6 @@ void FluidCubeAddVelocity(
     cube->Vx[index] += amtX;
     cube->Vy[index] += amtY;
     cube->Vz[index] += amtZ;
-    printf(
-        "FluidCubeAddVelocity: Added velocity=(%f, %f, %f) at (%d, %d, %d)\n",
-        amtX,
-        amtY,
-        amtZ,
-        x,
-        y,
-        z); // Debug print
 }
 
 static void
@@ -239,13 +225,9 @@ static void diffuse(int b,
                     int sizeY,
                     int sizeZ,
                     FluidCube *cube) {
-    printf("Diffuse: Starting diffusion\n"); // Debug print
-
     float a = dt * diff * (sizeX - 2) * (sizeY - 2) * (sizeZ - 2);
     lin_solve(b, x, x0, a, 1 + 6 * a, iter, sizeX, sizeY, sizeZ, cube);
     set_bnd(b, x, sizeX, sizeY, sizeZ, cube);
-
-    printf("Diffuse: Ending diffusion\n"); // Debug print
 }
 
 static void project(float *velocX,
@@ -258,8 +240,6 @@ static void project(float *velocX,
                     int sizeY,
                     int sizeZ,
                     FluidCube *cube) {
-    printf("Project: Starting project\n"); // Debug print
-
     // Calculate divergence
     for (int i = 1; i < sizeX - 1; i++) {
         for (int j = 1; j < sizeY - 1; j++) {
@@ -312,8 +292,6 @@ static void project(float *velocX,
     set_bnd(1, velocX, sizeX, sizeY, sizeZ, cube);
     set_bnd(2, velocY, sizeX, sizeY, sizeZ, cube);
     set_bnd(3, velocZ, sizeX, sizeY, sizeZ, cube);
-
-    printf("Project: Ending project\n"); // Debug print
 }
 
 static void advect(int b,
@@ -327,8 +305,6 @@ static void advect(int b,
                    int sizeY,
                    int sizeZ,
                    FluidCube *cube) {
-    printf("Advect: Staring advection."); // Debug print
-
     float i0, i1, j0, j1, k0, k1;
 
     float dtx = dt * (sizeX - 2);
@@ -390,11 +366,11 @@ static void advect(int b,
                 // Ensure indices are within bounds
                 if (i0i < 0 || i0i >= sizeX || i1i < 0 || i1i >= sizeX ||
                     j0i < 0 || j0i >= sizeY || j1i < 0 || j1i >= sizeY ||
-                    i0i < 0 || k0i >= sizeZ || k1i < 0 || k1i >= sizeZ) {
+                    k0i < 0 || k0i >= sizeZ || k1i < 0 || k1i >= sizeZ) {
                     printf("Error: Invalid indices in advect (%d, %d, %d).\n",
                            i0i,
-                           k0i,
-                           k0i); // Debug print
+                           j0i,
+                           k0i);
                     continue;
                 }
 
@@ -412,7 +388,6 @@ static void advect(int b,
     }
 
     set_bnd(b, d, sizeX, sizeY, sizeZ, cube);
-    printf("Advect: Advection completed.\n");
 }
 
 void FluidCubeStep(FluidCube *cube) {

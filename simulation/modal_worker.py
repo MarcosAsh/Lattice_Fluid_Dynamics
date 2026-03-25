@@ -36,6 +36,22 @@ log.addHandler(_handler)
 app = modal.App("fluid-sim")
 
 GRID = "256x128x128"
+S3_BUCKET = "fluid-sim-renders"
+S3_REGION = "eu-west-2"
+
+
+def _s3_client():
+    """Create a boto3 S3 client from env credentials."""
+    import boto3
+
+    return boto3.client(
+        "s3",
+        region_name=os.environ.get("S3_REGION", S3_REGION),
+        aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
+        aws_secret_access_key=os.environ.get(
+            "AWS_SECRET_ACCESS_KEY"
+        ),
+    )
 
 image = (
     modal.Image.from_registry(
@@ -84,12 +100,21 @@ def build_simulation() -> str:
 
     if repo_dir.exists():
         log.info("pulling latest source")
-        subprocess.run(
+        pull = subprocess.run(
             ["git", "pull"],
             cwd=repo_dir,
             capture_output=True,
+            text=True,
         )
-    else:
+        if pull.returncode != 0:
+            log.warning(
+                "git pull failed, re-cloning",
+                extra={"stderr": pull.stderr[:300]},
+            )
+            shutil.rmtree(repo_dir)
+            # Fall through to clone below
+
+    if not repo_dir.exists():
         log.info("cloning repo", extra={"url": REPO_URL})
         result = subprocess.run(
             [
@@ -192,22 +217,8 @@ def _cache_key(
 def _check_cache(cache_id: str) -> dict | None:
     """Check S3 for a cached render result."""
     try:
-        import boto3
-
-        bucket = os.environ.get(
-            "S3_BUCKET", "fluid-sim-renders"
-        )
-        region = os.environ.get("S3_REGION", "eu-west-2")
-        s3 = boto3.client(
-            "s3",
-            region_name=region,
-            aws_access_key_id=os.environ.get(
-                "AWS_ACCESS_KEY_ID"
-            ),
-            aws_secret_access_key=os.environ.get(
-                "AWS_SECRET_ACCESS_KEY"
-            ),
-        )
+        bucket = os.environ.get("S3_BUCKET", S3_BUCKET)
+        s3 = _s3_client()
         meta_key = f"cache/{cache_id}.json"
         resp = s3.get_object(Bucket=bucket, Key=meta_key)
         return json.loads(resp["Body"].read())
@@ -218,22 +229,8 @@ def _check_cache(cache_id: str) -> dict | None:
 def _save_cache(cache_id: str, result: dict):
     """Save render result metadata to S3 for caching."""
     try:
-        import boto3
-
-        bucket = os.environ.get(
-            "S3_BUCKET", "fluid-sim-renders"
-        )
-        region = os.environ.get("S3_REGION", "eu-west-2")
-        s3 = boto3.client(
-            "s3",
-            region_name=region,
-            aws_access_key_id=os.environ.get(
-                "AWS_ACCESS_KEY_ID"
-            ),
-            aws_secret_access_key=os.environ.get(
-                "AWS_SECRET_ACCESS_KEY"
-            ),
-        )
+        bucket = os.environ.get("S3_BUCKET", S3_BUCKET)
+        s3 = _s3_client()
         meta_key = f"cache/{cache_id}.json"
         s3.put_object(
             Bucket=bucket,
@@ -327,16 +324,6 @@ def render_simulation(
                 "error_type": "build",
             }
 
-        help_check = subprocess.run(
-            [str(executable), "--help"],
-            capture_output=True,
-            text=True,
-        )
-        help_text = (help_check.stdout or "") + (
-            help_check.stderr or ""
-        )
-        supports_model = "--model" in help_text
-
         # Xvfb for software GL rendering
         t_xvfb = time.monotonic()
         log.info("starting xvfb", extra=ctx)
@@ -388,8 +375,7 @@ def render_simulation(
             f"--output={frames_dir}",
             f"--grid={GRID}",
         ]
-        if supports_model:
-            cmd.append(f"--model={model_path}")
+        cmd.append(f"--model={model_path}")
         if reynolds > 0:
             cmd.append(f"--reynolds={reynolds}")
 
@@ -428,13 +414,7 @@ def render_simulation(
                 "error_type": "timeout",
             }
 
-        class _Result:
-            pass
-
-        result = _Result()
-        result.stdout = stdout
-        result.stderr = stderr
-        result.returncode = proc.returncode
+        sim_rc = proc.returncode
         timings["simulation"] = time.monotonic() - t_sim
 
         # Parse Cd/Cl
@@ -460,7 +440,7 @@ def render_simulation(
                 log.warning("parse failed", extra={"prefix": prefix, "line": line.strip(), "error": str(e)})
                 return None
 
-        for line in result.stdout.split("\n"):
+        for line in stdout.split("\n"):
             if "Cd=" in line:
                 val = _parse_float(line, "Cd=")
                 if val is not None:
@@ -494,17 +474,17 @@ def render_simulation(
                 cl_values[-5:]
             )
 
-        if result.returncode != 0:
+        if sim_rc != 0:
             log.error(
                 "simulation crashed",
                 extra={
                     **ctx,
-                    "stderr": result.stderr[-300:],
+                    "stderr": stderr[-300:],
                 },
             )
             return {
                 "status": "error",
-                "error": f"Crashed: {result.stderr[-300:]}",
+                "error": f"Crashed: {stderr[-300:]}",
                 "error_type": "simulation",
             }
 
@@ -648,21 +628,9 @@ def render_simulation(
 
 
 def upload_video(video_path: Path, job_id: str) -> str:
-    import boto3
-
-    bucket = os.environ.get("S3_BUCKET", "fluid-sim-renders")
-    region = os.environ.get("S3_REGION", "eu-west-2")
-
-    s3 = boto3.client(
-        "s3",
-        region_name=region,
-        aws_access_key_id=os.environ.get(
-            "AWS_ACCESS_KEY_ID"
-        ),
-        aws_secret_access_key=os.environ.get(
-            "AWS_SECRET_ACCESS_KEY"
-        ),
-    )
+    bucket = os.environ.get("S3_BUCKET", S3_BUCKET)
+    region = os.environ.get("S3_REGION", S3_REGION)
+    s3 = _s3_client()
 
     key = f"renders/{job_id}.mp4"
     log.info(
