@@ -261,7 +261,11 @@ npm ci && npm run dev
             The LBM solver uses a D3Q19 lattice (19 velocity directions in 3D).
             Solid geometry is voxelized from OBJ meshes using ray casting.
             Boundary conditions are Zou-He velocity inlet, Zou-He pressure outlet,
-            and simple bounce-back on solid walls.
+            and Bouzidi interpolated bounce-back on solid walls. The Bouzidi scheme
+            stores the fractional distance from each fluid cell to the actual mesh
+            surface along every lattice link, then applies quadratic or linear
+            interpolation during streaming. This gives second-order wall accuracy
+            without refining the grid.
           </P>
         </Section>
 
@@ -510,19 +514,21 @@ void main() {
             Drag Computation
           </h3>
           <P>
-            Surface forces use Ladd{"'"}s (1994) momentum exchange method for
-            stationary bounce-back boundaries:
+            Surface forces use the Mei-Luo-Shyy momentum exchange method,
+            which pairs with the Bouzidi boundary to account for the actual
+            wall position rather than assuming it sits on the grid midpoint:
           </P>
           <div className="bg-ctp-surface0 rounded-lg p-4 mb-3">
             <div className="text-center text-sm font-mono text-ctp-text">
-              <strong>F</strong> = &#x2211;<sub>i</sub> 2<strong>e</strong>
-              <sub>i</sub> f<sub>i</sub>*(<strong>x</strong><sub>f</sub>)
+              <strong>F</strong> = &#x2211;<sub>i</sub> <strong>e</strong>
+              <sub>i</sub> (f<sub>i</sub>*(<strong>x</strong><sub>f</sub>) +
+              f<sub>i&#x0304;</sub>(<strong>x</strong><sub>f</sub>))
             </div>
           </div>
           <P>
-            where f* is the post-collision distribution at the fluid cell
-            adjacent to the solid surface. The drag and lift coefficients are
-            then:
+            where f<sub>i</sub>* is the post-collision distribution heading
+            toward the wall and f<sub>i&#x0304;</sub> is the Bouzidi-reflected
+            distribution coming back. The drag and lift coefficients are then:
           </P>
           <div className="bg-ctp-surface0 rounded-lg p-4 mb-3">
             <div className="text-center text-sm font-mono text-ctp-text">

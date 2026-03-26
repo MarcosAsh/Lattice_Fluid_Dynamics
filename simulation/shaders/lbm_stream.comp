@@ -1,7 +1,9 @@
 #version 430 core
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
 
-// Stream distributions from neighbors to current cell
+// Stream distributions from neighbors to current cell.
+// Boundary links use Bouzidi interpolated bounce-back for
+// second-order wall accuracy on curved surfaces.
 
 layout(std430, binding = 2) buffer LBMBuffer {
     float f[];
@@ -9,6 +11,10 @@ layout(std430, binding = 2) buffer LBMBuffer {
 
 layout(std430, binding = 3) buffer LBMBufferNew {
     float f_new[];
+};
+
+layout(std430, binding = 7) buffer BouzidiQ {
+    float q_val[];
 };
 
 uniform ivec3 gridSize;
@@ -35,6 +41,10 @@ const ivec3 e[19] = ivec3[19](ivec3(0, 0, 0),
                               ivec3(0, 1, -1),
                               ivec3(0, -1, -1));
 
+// Opposite direction: bounce i -> opposite[i]
+const int opposite[19] = int[19](
+    0, 2, 1, 4, 3, 6, 5, 10, 9, 8, 7, 14, 13, 12, 11, 18, 17, 16, 15);
+
 int idx3D(int x, int y, int z) {
     return x + y * gridSize.x + z * gridSize.x * gridSize.y;
 }
@@ -43,40 +53,68 @@ int idxF(int x, int y, int z, int i) {
     return i + 19 * idx3D(x, y, z);
 }
 
+// Wrap or clamp Y/Z
+ivec3 handleYZ(ivec3 p) {
+    if (periodicYZ == 1) {
+        if (p.y < 0) p.y += gridSize.y;
+        if (p.y >= gridSize.y) p.y -= gridSize.y;
+        if (p.z < 0) p.z += gridSize.z;
+        if (p.z >= gridSize.z) p.z -= gridSize.z;
+    } else {
+        p.y = clamp(p.y, 0, gridSize.y - 1);
+        p.z = clamp(p.z, 0, gridSize.z - 1);
+    }
+    return p;
+}
+
 void main() {
     ivec3 pos = ivec3(gl_GlobalInvocationID.xyz);
 
     if (pos.x >= gridSize.x || pos.y >= gridSize.y || pos.z >= gridSize.z)
         return;
 
-    // Stream: pull from neighbors
     for (int i = 0; i < 19; i++) {
-        // Source position
-        ivec3 src = pos - e[i];
+        int iopp = opposite[i];
 
-        // Y and Z boundaries
-        if (periodicYZ == 1) {
-            // Periodic wrap
-            if (src.y < 0) src.y += gridSize.y;
-            if (src.y >= gridSize.y) src.y -= gridSize.y;
-            if (src.z < 0) src.z += gridSize.z;
-            if (src.z >= gridSize.z) src.z -= gridSize.z;
-        } else {
-            // Clamp (approx free-slip)
-            if (src.y < 0) src.y = 0;
-            if (src.y >= gridSize.y) src.y = gridSize.y - 1;
-            if (src.z < 0) src.z = 0;
-            if (src.z >= gridSize.z) src.z = gridSize.z - 1;
-        }
+        // Check if direction iopp has a boundary link (solid neighbor)
+        // meaning the source for direction i is blocked by a wall.
+        float q = q_val[idxF(pos.x, pos.y, pos.z, iopp)];
 
-        // Handle x boundaries
-        if (src.x < 0 || src.x >= gridSize.x) {
-            // Keep current value (handled by collision boundary conditions)
-            f[idxF(pos.x, pos.y, pos.z, i)] =
-                f_new[idxF(pos.x, pos.y, pos.z, i)];
+        if (q >= 0.0) {
+            // Bouzidi interpolated bounce-back.
+            // f*_iopp heading toward the wall bounces back as f_i.
+            float f_iopp_star = f_new[idxF(pos.x, pos.y, pos.z, iopp)];
+
+            if (q >= 0.5) {
+                // Linear: use this cell only
+                float f_i_star = f_new[idxF(pos.x, pos.y, pos.z, i)];
+                float inv2q = 1.0 / (2.0 * q);
+                f[idxF(pos.x, pos.y, pos.z, i)] =
+                    inv2q * f_iopp_star + (1.0 - inv2q) * f_i_star;
+            } else {
+                // Quadratic: also use next fluid neighbor in direction i
+                ivec3 xff = handleYZ(pos + e[i]);
+                float f_iopp_star_ff;
+                if (xff.x >= 0 && xff.x < gridSize.x) {
+                    f_iopp_star_ff = f_new[idxF(xff.x, xff.y, xff.z, iopp)];
+                } else {
+                    f_iopp_star_ff = f_iopp_star; // fallback
+                }
+                float twoq = 2.0 * q;
+                f[idxF(pos.x, pos.y, pos.z, i)] =
+                    twoq * f_iopp_star + (1.0 - twoq) * f_iopp_star_ff;
+            }
         } else {
-            f[idxF(pos.x, pos.y, pos.z, i)] =
-                f_new[idxF(src.x, src.y, src.z, i)];
+            // Normal streaming: pull from upstream neighbor
+            ivec3 src = handleYZ(pos - e[i]);
+
+            if (src.x < 0 || src.x >= gridSize.x) {
+                f[idxF(pos.x, pos.y, pos.z, i)] =
+                    f_new[idxF(pos.x, pos.y, pos.z, i)];
+            } else {
+                f[idxF(pos.x, pos.y, pos.z, i)] =
+                    f_new[idxF(src.x, src.y, src.z, i)];
+            }
         }
     }
 }

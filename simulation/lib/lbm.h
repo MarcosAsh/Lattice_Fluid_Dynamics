@@ -15,6 +15,7 @@ typedef struct {
     GLuint velocityBuffer;
     GLuint solidBuffer;
     GLuint forceBuffer; // For drag calculation
+    GLuint qBuffer;     // Bouzidi fractional wall distances
 
     // Shaders
     GLuint collideShader;

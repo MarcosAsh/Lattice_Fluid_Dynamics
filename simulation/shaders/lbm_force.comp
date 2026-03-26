@@ -1,9 +1,13 @@
 #version 430 core
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
 
-// Post-collision distributions (f_new from collision step).
-// After LBM_Step, this buffer still holds the collision output at
-// each cell's OWN position, before streaming moved them.
+// Mei-Luo-Shyy momentum exchange with Bouzidi q values for
+// accurate force computation on curved boundaries.
+
+layout(std430, binding = 2) buffer LBMBuffer {
+    float f[];
+};
+
 layout(std430, binding = 3) buffer LBMBufferNew {
     float f_new[];
 };
@@ -17,6 +21,10 @@ layout(std430, binding = 6) buffer ForceBuffer {
     int forceYInt;
     int forceZInt;
     int solidCount;
+};
+
+layout(std430, binding = 7) buffer BouzidiQ {
+    float q_val[];
 };
 
 uniform ivec3 gridSize;
@@ -41,6 +49,9 @@ const ivec3 e[19] = ivec3[19](ivec3(0, 0, 0),
                               ivec3(0, 1, -1),
                               ivec3(0, -1, -1));
 
+const int opposite[19] = int[19](
+    0, 2, 1, 4, 3, 6, 5, 10, 9, 8, 7, 14, 13, 12, 11, 18, 17, 16, 15);
+
 int idx3D(int x, int y, int z) {
     return x + y * gridSize.x + z * gridSize.x * gridSize.y;
 }
@@ -57,7 +68,6 @@ void main() {
 
     int cellIdx = idx3D(pos.x, pos.y, pos.z);
 
-    // Only process fluid cells adjacent to solid
     if (solid[cellIdx] != 0)
         return;
 
@@ -65,37 +75,27 @@ void main() {
     bool hasSolidNeighbor = false;
 
     for (int i = 1; i < 19; i++) {
-        ivec3 neighbor = pos + e[i];
+        float q = q_val[idxF(pos.x, pos.y, pos.z, i)];
 
-        if (neighbor.x < 0 || neighbor.x >= gridSize.x || neighbor.y < 0 ||
-            neighbor.y >= gridSize.y || neighbor.z < 0 ||
-            neighbor.z >= gridSize.z)
-            continue;
-
-        int neighborIdx = idx3D(neighbor.x, neighbor.y, neighbor.z);
-
-        // If neighbor is solid, compute momentum exchange
-        if (solid[neighborIdx] == 1) {
+        if (q >= 0.0) {
             hasSolidNeighbor = true;
 
-            // Ladd (1994) momentum exchange for stationary bounce-back:
-            // F = 2 * e_i * f_i*(x_b)
-            // where f_i* is the POST-COLLISION distribution at the
-            // boundary fluid cell going toward the wall. The factor of
-            // 2 accounts for the bounce-back reversing the momentum.
-            // We read from f_new (post-collision buffer) which holds
-            // distributions at their ORIGINAL positions before streaming.
-            float fi = f_new[idxF(pos.x, pos.y, pos.z, i)];
+            int iopp = opposite[i];
 
-            localForce.x += 2.0 * fi * float(e[i].x);
-            localForce.y += 2.0 * fi * float(e[i].y);
-            localForce.z += 2.0 * fi * float(e[i].z);
+            // Mei-Luo-Shyy: F_i = e_i * (f*_i + f_iopp)
+            // f*_i = post-collision heading toward wall
+            // f_iopp = the Bouzidi-reflected distribution (from f buffer,
+            // which holds post-streaming values from the previous step)
+            float fi_star = f_new[idxF(pos.x, pos.y, pos.z, i)];
+            float f_iopp = f[idxF(pos.x, pos.y, pos.z, iopp)];
+
+            localForce.x += (fi_star + f_iopp) * float(e[i].x);
+            localForce.y += (fi_star + f_iopp) * float(e[i].y);
+            localForce.z += (fi_star + f_iopp) * float(e[i].z);
         }
     }
 
     if (hasSolidNeighbor) {
-        // Use atomicAdd with integer scaling (multiply by 10000 for precision).
-        // round() avoids the systematic truncation bias from int().
         atomicAdd(forceXInt, int(round(localForce.x * 10000.0)));
         atomicAdd(forceYInt, int(round(localForce.y * 10000.0)));
         atomicAdd(forceZInt, int(round(localForce.z * 10000.0)));
