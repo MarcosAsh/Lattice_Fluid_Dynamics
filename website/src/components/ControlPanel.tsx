@@ -33,6 +33,7 @@ const vizModes = [
 const collisionModes = [
   { value: 0, label: 'Off', description: 'No collision detection' },
   { value: 1, label: 'AABB', description: 'Fast bounding box' },
+  { value: 3, label: 'Voxel', description: 'LBM grid solid cells' },
   { value: 2, label: 'Per-Triangle', description: 'Accurate mesh collision' },
 ];
 

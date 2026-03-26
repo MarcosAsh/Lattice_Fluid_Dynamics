@@ -480,8 +480,8 @@ int main(int argc, char *argv[]) {
             collisionMode = atoi(optarg);
             if (collisionMode < 0)
                 collisionMode = 0;
-            if (collisionMode > 2)
-                collisionMode = 2;
+            if (collisionMode > 3)
+                collisionMode = 3;
             break;
         case 'd':
             renderDuration = atoi(optarg);
@@ -539,7 +539,7 @@ int main(int argc, char *argv[]) {
             printf("  -w, --wind=SPEED      Wind speed 0-5 (default: 1.0)\n");
             printf("  -v, --viz=MODE        Visualization mode 0-6 (default: "
                    "1)\n");
-            printf("  -c, --collision=MODE  Collision 0=off, 1=AABB, 2=mesh "
+            printf("  -c, --collision=MODE  Collision 0=off, 1=AABB, 2=mesh, 3=voxel "
                    "(default: 1)\n");
             printf("  -d, --duration=SECS   Render duration (0=interactive, "
                    "default: 0)\n");
@@ -569,6 +569,12 @@ int main(int argc, char *argv[]) {
     printf("  Collision: %d\n", collisionMode);
     if (reynoldsNumber > 0)
         printf("  Reynolds: %.0f\n", reynoldsNumber);
+
+    if (collisionMode == 3 && !useLBM) {
+        printf("  Voxel collision (mode 3) requires LBM; falling back to AABB "
+               "(mode 1)\n");
+        collisionMode = 1;
+    }
 
     if (renderDuration > 0) {
         printf("  Render Mode: %d seconds to %s\n", renderDuration, outputPath);
@@ -1464,10 +1470,12 @@ int main(int argc, char *argv[]) {
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, particleBuffer);
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, triangleBuffer);
 
-        // Bind LBM velocity buffer if using LBM
+        // Bind LBM velocity and solid buffers if using LBM
         if (lbmGrid && useLBM) {
             glBindBufferBase(
                 GL_SHADER_STORAGE_BUFFER, 4, LBM_GetVelocityBuffer(lbmGrid));
+            glBindBufferBase(
+                GL_SHADER_STORAGE_BUFFER, 5, lbmGrid->solidBuffer);
         }
 
         // Set uniforms

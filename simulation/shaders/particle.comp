@@ -29,6 +29,11 @@ layout(std430, binding = 4) buffer VelocityField {
     vec4 lbmVelocity[];
 };
 
+// LBM solid mask for voxel collision (mode 3)
+layout(std430, binding = 5) buffer SolidMask {
+    int solid[];
+};
+
 // Collision grid: spatial acceleration for per-triangle tests
 layout(std430, binding = 8) buffer GridCellStart {
     int cellStart[];
@@ -287,6 +292,62 @@ void main() {
                 }
             }
         }
+    } else if (collisionMode == 3 && lbmGridSize.x > 0) {
+        // Voxel collision: check if particle is inside a solid LBM cell
+        vec3 gp;
+        gp.x = (p.position.x + 4.0) / 8.0 * float(lbmGridSize.x);
+        gp.y = (p.position.y + 2.0) / 4.0 * float(lbmGridSize.y);
+        gp.z = (p.position.z + 2.0) / 4.0 * float(lbmGridSize.z);
+
+        ivec3 ci = ivec3(floor(gp));
+        if (ci.x >= 0 && ci.x < lbmGridSize.x &&
+            ci.y >= 0 && ci.y < lbmGridSize.y &&
+            ci.z >= 0 && ci.z < lbmGridSize.z) {
+
+            int si = ci.x + ci.y * lbmGridSize.x
+                     + ci.z * lbmGridSize.x * lbmGridSize.y;
+
+            if (solid[si] == 1) {
+                vec3 cellCenter = (vec3(ci) + 0.5) / vec3(lbmGridSize)
+                                  * vec3(8.0, 4.0, 4.0)
+                                  - vec3(4.0, 2.0, 2.0);
+                vec3 cellSize = vec3(8.0, 4.0, 4.0) / vec3(lbmGridSize);
+                vec3 toP = p.position - cellCenter;
+                vec3 absP = abs(toP) / (cellSize * 0.5);
+
+                // Rank axes by penetration depth (largest absP = shallowest)
+                int axes[3] = int[3](0, 1, 2);
+                if (absP[axes[0]] < absP[axes[1]]) { int t = axes[0]; axes[0] = axes[1]; axes[1] = t; }
+                if (absP[axes[1]] < absP[axes[2]]) { int t = axes[1]; axes[1] = axes[2]; axes[2] = t; }
+                if (absP[axes[0]] < absP[axes[1]]) { int t = axes[0]; axes[0] = axes[1]; axes[1] = t; }
+
+                bool pushed = false;
+                for (int a = 0; a < 3 && !pushed; a++) {
+                    vec3 normal = vec3(0.0);
+                    normal[axes[a]] = sign(toP[axes[a]]);
+
+                    // Check that the neighbor cell in this direction is not solid
+                    ivec3 ni = ci + ivec3(normal);
+                    if (ni[axes[a]] >= 0 && ni[axes[a]] < lbmGridSize[axes[a]]) {
+                        int nsi = ni.x + ni.y * lbmGridSize.x
+                                  + ni.z * lbmGridSize.x * lbmGridSize.y;
+                        if (solid[nsi] == 1)
+                            continue; // neighbor is solid, try next axis
+                    }
+
+                    p.position = cellCenter + normal * cellSize * 0.52;
+                    float vdn = dot(p.velocity, normal);
+                    if (vdn < 0.0)
+                        p.velocity -= 1.05 * vdn * normal;
+                    pushed = true;
+                }
+
+                // All neighbors solid -- kill the particle
+                if (!pushed) {
+                    p.life = -1.0;
+                }
+            }
+        }
     }
     // Kill box: recycle particles that pass well downstream of the car,
     // leave the tunnel corridor, or get stuck near the model.
@@ -301,7 +362,7 @@ void main() {
                  && p.position.x < carMax.x + 0.5;
     bool pastKillBox = p.position.x > killX;
 
-    if (pastKillBox || stuck) {
+    if (pastKillBox || stuck || p.life < 0.0) {
         float seed1 = float(idx) + time * 1000.0;
         float seed2 = float(idx) * 1.5 + time * 1234.0;
 

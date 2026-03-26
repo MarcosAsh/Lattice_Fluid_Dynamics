@@ -43,7 +43,7 @@ function parseHash(): Partial<SimulationParams> {
   const result: Partial<SimulationParams> = {};
   if (p.has('ws')) result.windSpeed = clamp(parseNum(p.get('ws')!, 1.0), 0, 5);
   if (p.has('vm')) result.vizMode = clamp(parseNum(p.get('vm')!, 1, 10), 0, 6);
-  if (p.has('cm')) result.collisionMode = clamp(parseNum(p.get('cm')!, 1, 10), 0, 2);
+  if (p.has('cm')) result.collisionMode = clamp(parseNum(p.get('cm')!, 1, 10), 0, 3);
   if (p.has('d')) result.duration = clamp(parseNum(p.get('d')!, 10, 10), 5, 30);
   if (p.has('m') && VALID_MODELS.has(p.get('m')!)) result.model = p.get('m')!;
   if (p.has('re')) result.reynolds = clamp(parseNum(p.get('re')!, 0), 0, 100000);
