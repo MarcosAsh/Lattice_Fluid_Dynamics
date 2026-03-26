@@ -29,6 +29,17 @@ layout(std430, binding = 4) buffer VelocityField {
     vec4 lbmVelocity[];
 };
 
+// Collision grid: spatial acceleration for per-triangle tests
+layout(std430, binding = 8) buffer GridCellStart {
+    int cellStart[];
+};
+layout(std430, binding = 9) buffer GridCellCount {
+    int cellCnt[];
+};
+layout(std430, binding = 10) buffer GridTriIndices {
+    int triIndices[];
+};
+
 uniform float dt;
 uniform vec3 wind;
 uniform vec3 carMin;
@@ -40,6 +51,11 @@ uniform int collisionMode;
 uniform int useLBM;
 uniform ivec3 lbmGridSize;
 uniform float time;
+
+// Collision grid parameters
+uniform vec3 gridMin;
+uniform vec3 gridCellSize;
+uniform ivec3 gridRes;
 
 vec3 sampleLBMVelocity(vec3 worldPos) {
     vec3 gridPos;
@@ -221,25 +237,49 @@ void main() {
                 }
             }
         }
-    } else if (collisionMode == 2 && numTriangles > 0) {
+    } else if (collisionMode == 2 && numTriangles > 0 && gridRes.x > 0) {
         float collisionRadius = 0.03;
 
-        for (int i = 0; i < numTriangles; i++) {
-            Triangle tri = triangles[i];
-            vec3 closestPoint, normal;
-            float dist = pointTriangleDistance(
-                p.position, tri.v0, tri.v1, tri.v2, closestPoint, normal);
+        // Map particle into collision grid cell
+        vec3 rel = (p.position - gridMin) / gridCellSize;
+        ivec3 cell = ivec3(floor(rel));
 
-            if (dist < collisionRadius) {
-                // Gently slide along surface instead of bouncing
-                p.position = closestPoint + normal * (collisionRadius + 0.001);
+        // Only check if particle is near the model AABB
+        if (cell.x >= -1 && cell.x <= gridRes.x &&
+            cell.y >= -1 && cell.y <= gridRes.y &&
+            cell.z >= -1 && cell.z <= gridRes.z) {
 
-                float velDotNormal = dot(p.velocity, normal);
-                if (velDotNormal < 0.0) {
-                    // Remove only the normal component (slide, don't bounce)
-                    p.velocity = p.velocity - 1.05 * velDotNormal * normal;
+            ivec3 lo = max(cell - ivec3(1), ivec3(0));
+            ivec3 hi = min(cell + ivec3(1), gridRes - ivec3(1));
+            bool hit = false;
+
+            for (int cz = lo.z; cz <= hi.z && !hit; cz++) {
+                for (int cy = lo.y; cy <= hi.y && !hit; cy++) {
+                    for (int cx = lo.x; cx <= hi.x && !hit; cx++) {
+                        int ci = cx + cy * gridRes.x
+                                 + cz * gridRes.x * gridRes.y;
+                        int start = cellStart[ci];
+                        int count = cellCnt[ci];
+
+                        for (int j = 0; j < count && !hit; j++) {
+                            Triangle tri = triangles[triIndices[start + j]];
+                            vec3 closestPoint, normal;
+                            float dist = pointTriangleDistance(
+                                p.position, tri.v0, tri.v1, tri.v2,
+                                closestPoint, normal);
+
+                            if (dist < collisionRadius) {
+                                p.position = closestPoint
+                                    + normal * (collisionRadius + 0.001);
+                                float vdn = dot(p.velocity, normal);
+                                if (vdn < 0.0) {
+                                    p.velocity -= 1.05 * vdn * normal;
+                                }
+                                hit = true;
+                            }
+                        }
+                    }
                 }
-                break;
             }
         }
     }

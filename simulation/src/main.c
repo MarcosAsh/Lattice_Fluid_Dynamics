@@ -87,6 +87,115 @@ typedef struct {
     float v2x, v2y, v2z, pad2;
 } GPUTriangle;
 
+// Uniform grid for spatial acceleration of per-triangle collision.
+// Triangles are binned into grid cells so particles only test nearby ones.
+#define COLL_GRID_RES 8
+
+typedef struct {
+    int *cellStart;   // offset into triIndices per cell
+    int *cellCount;   // triangle count per cell
+    int *triIndices;  // packed triangle indices
+    int totalIndices;
+    int totalCells;
+    float minX, minY, minZ;
+    float cellSizeX, cellSizeY, cellSizeZ;
+} CollisionGrid;
+
+static CollisionGrid buildCollisionGrid(
+        GPUTriangle *tris, int numTris,
+        float bminX, float bminY, float bminZ,
+        float bmaxX, float bmaxY, float bmaxZ) {
+    CollisionGrid g = {0};
+    int R = COLL_GRID_RES;
+    g.totalCells = R * R * R;
+
+    // Expand AABB slightly so particles near the surface still map
+    // into a valid cell.
+    float pad = 0.05f;
+    g.minX = bminX - pad;
+    g.minY = bminY - pad;
+    g.minZ = bminZ - pad;
+    float gMaxX = bmaxX + pad;
+    float gMaxY = bmaxY + pad;
+    float gMaxZ = bmaxZ + pad;
+    g.cellSizeX = (gMaxX - g.minX) / R;
+    g.cellSizeY = (gMaxY - g.minY) / R;
+    g.cellSizeZ = (gMaxZ - g.minZ) / R;
+
+    // First pass: count how many cells each triangle overlaps
+    g.cellCount = (int *)calloc(g.totalCells, sizeof(int));
+    int *tmpCount = (int *)calloc(g.totalCells, sizeof(int));
+
+    for (int t = 0; t < numTris; t++) {
+        float txMin = fminf(tris[t].v0x, fminf(tris[t].v1x, tris[t].v2x));
+        float txMax = fmaxf(tris[t].v0x, fmaxf(tris[t].v1x, tris[t].v2x));
+        float tyMin = fminf(tris[t].v0y, fminf(tris[t].v1y, tris[t].v2y));
+        float tyMax = fmaxf(tris[t].v0y, fmaxf(tris[t].v1y, tris[t].v2y));
+        float tzMin = fminf(tris[t].v0z, fminf(tris[t].v1z, tris[t].v2z));
+        float tzMax = fmaxf(tris[t].v0z, fmaxf(tris[t].v1z, tris[t].v2z));
+
+        int x0 = (int)floorf((txMin - g.minX) / g.cellSizeX);
+        int x1 = (int)floorf((txMax - g.minX) / g.cellSizeX);
+        int y0 = (int)floorf((tyMin - g.minY) / g.cellSizeY);
+        int y1 = (int)floorf((tyMax - g.minY) / g.cellSizeY);
+        int z0 = (int)floorf((tzMin - g.minZ) / g.cellSizeZ);
+        int z1 = (int)floorf((tzMax - g.minZ) / g.cellSizeZ);
+
+        if (x0 < 0) x0 = 0; if (x1 >= R) x1 = R - 1;
+        if (y0 < 0) y0 = 0; if (y1 >= R) y1 = R - 1;
+        if (z0 < 0) z0 = 0; if (z1 >= R) z1 = R - 1;
+
+        for (int cz = z0; cz <= z1; cz++)
+            for (int cy = y0; cy <= y1; cy++)
+                for (int cx = x0; cx <= x1; cx++) {
+                    int idx = cx + cy * R + cz * R * R;
+                    g.cellCount[idx]++;
+                    g.totalIndices++;
+                }
+    }
+
+    // Prefix sum to get cellStart
+    g.cellStart = (int *)malloc(g.totalCells * sizeof(int));
+    g.cellStart[0] = 0;
+    for (int i = 1; i < g.totalCells; i++)
+        g.cellStart[i] = g.cellStart[i - 1] + g.cellCount[i - 1];
+
+    // Second pass: fill triIndices
+    g.triIndices = (int *)malloc(g.totalIndices * sizeof(int));
+
+    for (int t = 0; t < numTris; t++) {
+        float txMin = fminf(tris[t].v0x, fminf(tris[t].v1x, tris[t].v2x));
+        float txMax = fmaxf(tris[t].v0x, fmaxf(tris[t].v1x, tris[t].v2x));
+        float tyMin = fminf(tris[t].v0y, fminf(tris[t].v1y, tris[t].v2y));
+        float tyMax = fmaxf(tris[t].v0y, fmaxf(tris[t].v1y, tris[t].v2y));
+        float tzMin = fminf(tris[t].v0z, fminf(tris[t].v1z, tris[t].v2z));
+        float tzMax = fmaxf(tris[t].v0z, fmaxf(tris[t].v1z, tris[t].v2z));
+
+        int x0 = (int)floorf((txMin - g.minX) / g.cellSizeX);
+        int x1 = (int)floorf((txMax - g.minX) / g.cellSizeX);
+        int y0 = (int)floorf((tyMin - g.minY) / g.cellSizeY);
+        int y1 = (int)floorf((tyMax - g.minY) / g.cellSizeY);
+        int z0 = (int)floorf((tzMin - g.minZ) / g.cellSizeZ);
+        int z1 = (int)floorf((tzMax - g.minZ) / g.cellSizeZ);
+
+        if (x0 < 0) x0 = 0; if (x1 >= R) x1 = R - 1;
+        if (y0 < 0) y0 = 0; if (y1 >= R) y1 = R - 1;
+        if (z0 < 0) z0 = 0; if (z1 >= R) z1 = R - 1;
+
+        for (int cz = z0; cz <= z1; cz++)
+            for (int cy = y0; cy <= y1; cy++)
+                for (int cx = x0; cx <= x1; cx++) {
+                    int idx = cx + cy * R + cz * R * R;
+                    int pos = g.cellStart[idx] + tmpCount[idx];
+                    g.triIndices[pos] = t;
+                    tmpCount[idx]++;
+                }
+    }
+
+    free(tmpCount);
+    return g;
+}
+
 CarBounds computeModelBounds(Model *model,
                              float scale,
                              float offsetX,
@@ -713,6 +822,43 @@ int main(int argc, char *argv[]) {
         printf("Uploaded %d triangles to GPU\n", numTriangles);
     }
 
+    // Build spatial acceleration grid for per-triangle collision
+    GLuint gridCellStartBuf = 0, gridCellCountBuf = 0, gridTriIdxBuf = 0;
+    CollisionGrid collGrid = {0};
+
+    if (triangleData && numTriangles > 0) {
+        collGrid = buildCollisionGrid(
+            triangleData, numTriangles,
+            carBounds.minX, carBounds.minY, carBounds.minZ,
+            carBounds.maxX, carBounds.maxY, carBounds.maxZ);
+
+        glGenBuffers(1, &gridCellStartBuf);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, gridCellStartBuf);
+        glBufferData(GL_SHADER_STORAGE_BUFFER,
+                     collGrid.totalCells * sizeof(int),
+                     collGrid.cellStart, GL_STATIC_DRAW);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 8, gridCellStartBuf);
+
+        glGenBuffers(1, &gridCellCountBuf);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, gridCellCountBuf);
+        glBufferData(GL_SHADER_STORAGE_BUFFER,
+                     collGrid.totalCells * sizeof(int),
+                     collGrid.cellCount, GL_STATIC_DRAW);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 9, gridCellCountBuf);
+
+        glGenBuffers(1, &gridTriIdxBuf);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, gridTriIdxBuf);
+        glBufferData(GL_SHADER_STORAGE_BUFFER,
+                     collGrid.totalIndices * sizeof(int),
+                     collGrid.triIndices, GL_STATIC_DRAW);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 10, gridTriIdxBuf);
+
+        printf("Collision grid: %dx%dx%d, %d index entries (%.1f KB)\n",
+               COLL_GRID_RES, COLL_GRID_RES, COLL_GRID_RES,
+               collGrid.totalIndices,
+               collGrid.totalIndices * sizeof(int) / 1024.0f);
+    }
+
     // Initialize LBM grid
     int lbmSizeX = gridX;
     int lbmSizeY = gridY;
@@ -863,6 +1009,12 @@ int main(int argc, char *argv[]) {
     GLint lbmGridSizeLoc =
         glGetUniformLocation(computeShaderProgram, "lbmGridSize");
     GLint timeLoc = glGetUniformLocation(computeShaderProgram, "time");
+    GLint gridMinLoc =
+        glGetUniformLocation(computeShaderProgram, "gridMin");
+    GLint gridCellSizeLoc =
+        glGetUniformLocation(computeShaderProgram, "gridCellSize");
+    GLint gridResLoc =
+        glGetUniformLocation(computeShaderProgram, "gridRes");
 
     printf("Compute shader uniform locations:\n");
     printf("  dt=%d, wind=%d, carMin=%d, carMax=%d, carCenter=%d\n",
@@ -1334,6 +1486,26 @@ int main(int argc, char *argv[]) {
             glUniform3i(
                 lbmGridSizeLoc, lbmGrid->sizeX, lbmGrid->sizeY, lbmGrid->sizeZ);
         }
+
+        // Collision grid uniforms
+        if (gridMinLoc != -1)
+            glUniform3f(gridMinLoc,
+                        collGrid.minX, collGrid.minY, collGrid.minZ);
+        if (gridCellSizeLoc != -1)
+            glUniform3f(gridCellSizeLoc,
+                        collGrid.cellSizeX, collGrid.cellSizeY,
+                        collGrid.cellSizeZ);
+        if (gridResLoc != -1)
+            glUniform3i(gridResLoc,
+                        COLL_GRID_RES, COLL_GRID_RES, COLL_GRID_RES);
+
+        // Bind grid SSBOs
+        if (gridCellStartBuf)
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 8, gridCellStartBuf);
+        if (gridCellCountBuf)
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 9, gridCellCountBuf);
+        if (gridTriIdxBuf)
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 10, gridTriIdxBuf);
 
         // Time uniform for randomness
         if (timeLoc != -1)
