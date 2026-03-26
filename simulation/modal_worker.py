@@ -246,7 +246,7 @@ def _save_cache(cache_id: str, result: dict):
 
 @app.function(
     image=image,
-    gpu="T4",
+    gpu="A10G",
     volumes={"/cache": build_cache},
     secrets=[modal.Secret.from_name("aws-secret")],
     timeout=1800,
@@ -657,13 +657,13 @@ def health() -> dict:
     return {
         "status": "ok",
         "grid": GRID,
-        "gpu": "T4",
+        "gpu": "A10G",
     }
 
 
 @app.function(
     image=image,
-    gpu="T4",
+    gpu="A10G",
     volumes={"/cache": build_cache},
     secrets=[modal.Secret.from_name("aws-secret")],
     timeout=1800,
