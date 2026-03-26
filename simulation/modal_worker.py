@@ -54,10 +54,7 @@ def _s3_client():
     )
 
 image = (
-    modal.Image.from_registry(
-        "nvidia/opengl:1.2-glvnd-devel-ubuntu22.04",
-        add_python="3.11",
-    )
+    modal.Image.debian_slim("3.11")
     .apt_install(
         "build-essential",
         "cmake",
@@ -66,6 +63,9 @@ image = (
         "libsdl2-dev",
         "libsdl2-ttf-dev",
         "libegl1-mesa-dev",
+        "libegl-dev",
+        "libgles2-mesa-dev",
+        "libglvnd-dev",
         "xvfb",
         "ffmpeg",
     )
@@ -480,13 +480,13 @@ def render_simulation(
                 extra={
                     **ctx,
                     "rc": sim_rc,
-                    "stdout_tail": stdout[-500:],
-                    "stderr": stderr[-300:],
+                    "stdout_tail": stdout[-2000:],
+                    "stderr": stderr[-500:],
                 },
             )
             return {
                 "status": "error",
-                "error": f"Crashed (rc={sim_rc}): {stdout[-300:]}\n{stderr[-300:]}",
+                "error": f"Crashed (rc={sim_rc}): {stdout[-2000:]}\n{stderr[-300:]}",
                 "error_type": "simulation",
             }
 
