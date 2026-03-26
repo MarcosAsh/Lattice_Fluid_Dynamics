@@ -206,6 +206,11 @@ void main() {
         flowVel = wind;
     }
 
+    // Smooth LBM flow speed for coloring (exponential moving average
+    // prevents pulsating from vortex shedding oscillations)
+    float rawSpeed = length(flowVel);
+    p.padding1 = mix(p.padding1, rawSpeed, 0.02);
+
     // Gradual velocity update -- particles have inertia
     p.velocity = mix(p.velocity, flowVel, 0.05);
 
@@ -283,23 +288,20 @@ void main() {
             }
         }
     }
-    // Reset stuck particles
-    float speed = length(p.velocity);
-    if (speed < 0.05 && p.position.x > carMin.x - 0.5 &&
-        p.position.x < carMax.x + 0.5) {
-        p.life = 0.0; // Force respawn next frame
-    }
-
-    p.life -= 0.03 * dt;
-
-    // Keep particles inside the wind tunnel corridor
-    float tunnelY = 1.0;
-    float tunnelZ = 1.0;
+    // Kill box: recycle particles that pass well downstream of the car,
+    // leave the tunnel corridor, or get stuck near the model.
+    float killX = carMax.x + 2.0; // ~2 units downstream of the car
+    float tunnelY = 1.3;
+    float tunnelZ = 1.3;
     p.position.y = clamp(p.position.y, -tunnelY, tunnelY);
     p.position.z = clamp(p.position.z, -tunnelZ, tunnelZ);
 
-    if (p.life <= 0.0 || p.position.x > 4.0 || abs(p.position.y) >= tunnelY ||
-        abs(p.position.z) >= tunnelZ) {
+    float speed = length(p.velocity);
+    bool stuck = speed < 0.05 && p.position.x > carMin.x - 0.5
+                 && p.position.x < carMax.x + 0.5;
+    bool pastKillBox = p.position.x > killX;
+
+    if (pastKillBox || stuck) {
         float seed1 = float(idx) + time * 1000.0;
         float seed2 = float(idx) * 1.5 + time * 1234.0;
 
@@ -308,7 +310,7 @@ void main() {
 
         p.position = vec3(-4.0, randY * 2.0 * tunnelY, randZ * 2.0 * tunnelZ);
         p.velocity = vec3(0.2 + fract(sin(seed1 * 9876.54321)) * 0.15, 0.0, 0.0);
-        p.life = 0.5 + fract(sin(seed1 * 3456.789)) * 0.5;
+        p.life = 1.0;
     }
 
     particles[idx] = p;

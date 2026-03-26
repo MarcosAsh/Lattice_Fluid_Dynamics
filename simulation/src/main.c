@@ -43,7 +43,7 @@ float windSpeed = 1.0f;
 float cameraAngleY = 0.0f;
 float cameraAngleX = 0.3f;
 float cameraDistance = 6.0f;
-float cameraTargetX = 0.0f;
+float cameraTargetX = -1.5f; // between car center and wake
 float cameraTargetY = 0.0f;
 float cameraTargetZ = 0.0f;
 
@@ -54,7 +54,7 @@ int lastMouseY = 0;
 
 // Visualization mode
 int visualizationMode = 1;
-float maxSpeed = 2.0f;
+float maxSpeed = 0.5f;
 
 // LBM settings
 int useLBM = 1;
@@ -737,7 +737,7 @@ int main(int argc, char *argv[]) {
             // Scale so largest dimension fits in ~2 world units. On a
             // 256x128x128 grid this gives ~24 cells across the body
             // height with ~3% blockage.
-            g_modelScale = 2.0f / maxDim;
+            g_modelScale = 2.4f / maxDim;
         }
         printf("Auto scale: %.6f (max dim: %.2f)\n", g_modelScale, maxDim);
 
@@ -1044,8 +1044,8 @@ int main(int argc, char *argv[]) {
         // Spread particles across the full domain so the flow looks
         // continuous from the first frame instead of a single wave.
         particles[i].x = -4.0f + ((float)rand() / RAND_MAX) * 8.0f;
-        particles[i].y = ((float)rand() / RAND_MAX - 0.5f) * 2.0f;
-        particles[i].z = ((float)rand() / RAND_MAX - 0.5f) * 2.0f;
+        particles[i].y = ((float)rand() / RAND_MAX - 0.5f) * 2.6f;
+        particles[i].z = ((float)rand() / RAND_MAX - 0.5f) * 2.6f;
         particles[i].padding1 = 0.0f;
         particles[i].vx = 0.3f + ((float)rand() / RAND_MAX) * 0.1f;
         particles[i].vy = 0.0f;
@@ -1072,20 +1072,32 @@ int main(int argc, char *argv[]) {
 
     glBindBuffer(GL_ARRAY_BUFFER, particleBuffer);
 
+    // Attr 0: position (vec3 at offset 0)
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(
         0, 3, GL_FLOAT, GL_FALSE, sizeof(Particle), (void *)0);
 
+    // Attr 1: flowSpeed (float at offset 12 -- stored in padding1)
     glEnableVertexAttribArray(1);
     glVertexAttribPointer(1,
+                          1,
+                          GL_FLOAT,
+                          GL_FALSE,
+                          sizeof(Particle),
+                          (void *)(3 * sizeof(float)));
+
+    // Attr 2: velocity (vec3 at offset 16)
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2,
                           3,
                           GL_FLOAT,
                           GL_FALSE,
                           sizeof(Particle),
                           (void *)(4 * sizeof(float)));
 
-    glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2,
+    // Attr 3: life (float at offset 28)
+    glEnableVertexAttribArray(3);
+    glVertexAttribPointer(3,
                           1,
                           GL_FLOAT,
                           GL_FALSE,
