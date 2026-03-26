@@ -75,7 +75,8 @@ frames/
 # Claude Code
 .claude/
 
-# Trained model weights
+# Trained model weights (source, not deployed)
 ml/model.bin
 ml/model_norm.bin
-website/public/models/*.bin
+# NOTE: website/public/models/*.bin is tracked so the surrogate model
+# loads on the deployed site (~2 MB).
