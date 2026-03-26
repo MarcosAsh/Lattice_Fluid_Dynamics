@@ -366,6 +366,44 @@ void LBM_SetSolidAABB(LBMGrid *grid,
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->solidBuffer);
     glBufferSubData(
         GL_SHADER_STORAGE_BUFFER, 0, grid->totalCells * sizeof(int), solidData);
+
+    // Set Bouzidi q = 0.5 (midpoint) for all boundary links.
+    // This is equivalent to standard bounce-back but lets the force
+    // shader find the links via q_val >= 0.
+    size_t qCount = (size_t)19 * grid->totalCells;
+    float *qData = (float *)malloc(qCount * sizeof(float));
+    for (size_t qi = 0; qi < qCount; qi++)
+        qData[qi] = -1.0f;
+
+    int qLinks = 0;
+    for (int gz = 0; gz < grid->sizeZ; gz++) {
+        for (int gy = 0; gy < grid->sizeY; gy++) {
+            for (int gx = 0; gx < grid->sizeX; gx++) {
+                int ci = gx + gy * grid->sizeX
+                         + gz * grid->sizeX * grid->sizeY;
+                if (solidData[ci] == 1)
+                    continue;
+                for (int i = 1; i < 19; i++) {
+                    int nx = gx + ex[i], ny = gy + ey[i], nz = gz + ez[i];
+                    if (nx < 0 || nx >= grid->sizeX ||
+                        ny < 0 || ny >= grid->sizeY ||
+                        nz < 0 || nz >= grid->sizeZ)
+                        continue;
+                    int ni = nx + ny * grid->sizeX
+                             + nz * grid->sizeX * grid->sizeY;
+                    if (solidData[ni] == 1) {
+                        qData[ci * 19 + i] = 0.5f;
+                        qLinks++;
+                    }
+                }
+            }
+        }
+    }
+
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->qBuffer);
+    glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0,
+                    qCount * sizeof(float), qData);
+    free(qData);
     free(solidData);
 }
 

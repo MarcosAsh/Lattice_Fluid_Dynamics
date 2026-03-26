@@ -99,6 +99,55 @@ function Slider({
   );
 }
 
+const rePresets = [
+  { value: 0, label: 'Auto', tag: '' },
+  { value: 100, label: '100', tag: 'laminar' },
+  { value: 500, label: '500', tag: 'transitional' },
+  { value: 1000, label: '1k', tag: 'turbulent' },
+  { value: 5000, label: '5k', tag: 'high Re' },
+  { value: 10000, label: '10k', tag: 'very high' },
+] as const;
+
+function ReynoldsPresets({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  disabled?: boolean;
+}) {
+  const activeIdx = rePresets.findIndex((p) => p.value === value);
+  const display = value === 0 ? 'Auto' : value.toFixed(0);
+
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex justify-between text-xs">
+        <span className="text-ctp-subtext0">Reynolds Number</span>
+        <span className="text-ctp-text font-mono">{display}</span>
+      </div>
+      <p className="text-[10px] text-ctp-overlay0 leading-tight">
+        Target Re. Auto derives from wind speed.
+      </p>
+      <input
+        type="range"
+        min={0}
+        max={rePresets.length - 1}
+        step={1}
+        value={activeIdx >= 0 ? activeIdx : 0}
+        onChange={(e) => onChange(rePresets[parseInt(e.target.value)].value)}
+        className="w-full accent-ctp-mauve"
+        disabled={disabled}
+      />
+      {activeIdx >= 0 && rePresets[activeIdx].tag && (
+        <div className="text-[10px] text-ctp-overlay1 -mt-0.5">
+          {rePresets[activeIdx].tag}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ControlPanel({
   params,
   setParams,
@@ -288,15 +337,9 @@ export default function ControlPanel({
           disabled={disabled}
         />
 
-        <Slider
-          label="Reynolds Number"
+        <ReynoldsPresets
           value={params.reynolds}
-          min={0}
-          max={100000}
-          step={500}
           onChange={(v) => setParams({ ...params, reynolds: v })}
-          display={params.reynolds === 0 ? 'Auto' : params.reynolds.toFixed(0)}
-          hint="Target Re. Auto uses default viscosity."
           disabled={disabled}
         />
 
