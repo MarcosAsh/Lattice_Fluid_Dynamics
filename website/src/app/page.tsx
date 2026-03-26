@@ -154,41 +154,67 @@ export default function Home() {
         body.objData = b64;
       }
 
-      const response = await fetch('/api/render', {
+      // Step 1: Submit render job
+      const submitRes = await fetch('/api/render', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
 
-      if (!response.ok) {
-        throw new Error(`Server error (${response.status})`);
+      if (!submitRes.ok) {
+        throw new Error(`Server error (${submitRes.status})`);
       }
 
-      const data = await response.json();
+      const submitData = await submitRes.json();
 
-      if (data.status === 'complete' && data.video_url) {
-        setVideoUrl(data.video_url);
-        setStatus('complete');
-
-        const result: SimulationResult = {
-          videoUrl: data.video_url,
-          cdValue: data.cd_value ?? null,
-          clValue: data.cl_value ?? null,
-          cdSeries: data.cd_series ?? [],
-          clSeries: data.cl_series ?? [],
-          charLength: data.char_length ?? null,
-          model: params.model,
-          windSpeed: params.windSpeed,
-          timestamp: Date.now(),
-        };
-        setResults((prev) => [...prev, result]);
-      } else if (data.status === 'error') {
-        setError(data.error || 'Render failed');
-        setStatus('error');
-      } else {
-        setError('Unexpected response');
-        setStatus('error');
+      if (submitData.status === 'error') {
+        throw new Error(submitData.error || 'Failed to start render');
       }
+
+      const jobId = submitData.jobId;
+      if (!jobId) {
+        throw new Error('No job ID returned');
+      }
+
+      // Step 2: Poll for completion
+      const maxPollTime = (params.duration ?? 5) * 60 * 1000; // generous limit
+      const pollStart = Date.now();
+
+      while (Date.now() - pollStart < maxPollTime) {
+        await new Promise((r) => setTimeout(r, 3000));
+
+        const pollRes = await fetch(`/api/render?jobId=${encodeURIComponent(jobId)}`);
+        if (!pollRes.ok) continue; // retry on transient errors
+
+        const data = await pollRes.json();
+
+        if (data.status === 'rendering') continue;
+
+        if (data.status === 'complete' && data.video_url) {
+          setVideoUrl(data.video_url);
+          setStatus('complete');
+
+          const result: SimulationResult = {
+            videoUrl: data.video_url,
+            cdValue: data.cd_value ?? null,
+            clValue: data.cl_value ?? null,
+            cdSeries: data.cd_series ?? [],
+            clSeries: data.cl_series ?? [],
+            charLength: data.char_length ?? null,
+            model: params.model,
+            windSpeed: params.windSpeed,
+            timestamp: Date.now(),
+          };
+          setResults((prev) => [...prev, result]);
+          return;
+        }
+
+        if (data.status === 'error') {
+          throw new Error(data.error || 'Render failed');
+        }
+      }
+
+      throw new Error('Render timed out');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
       setStatus('error');

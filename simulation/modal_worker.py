@@ -35,7 +35,7 @@ log.addHandler(_handler)
 
 app = modal.App("fluid-sim")
 
-GRID = "256x128x128"
+GRID = "128x96x96"
 S3_BUCKET = "fluid-sim-renders"
 S3_REGION = "eu-west-2"
 
@@ -381,7 +381,7 @@ def render_simulation(
 
         log.info("simulation starting", extra=ctx)
         t_sim = time.monotonic()
-        sim_timeout = duration * 20 + 120
+        sim_timeout = duration * 120 + 300
         proc = subprocess.Popen(
             cmd,
             cwd=str(source_dir),
@@ -652,6 +652,32 @@ def upload_video(video_path: Path, job_id: str) -> str:
     return url
 
 
+def _save_job_result(job_id: str, result: dict):
+    """Write render result to S3 so the status endpoint can find it."""
+    try:
+        bucket = os.environ.get("S3_BUCKET", S3_BUCKET)
+        s3 = _s3_client()
+        s3.put_object(
+            Bucket=bucket,
+            Key=f"jobs/{job_id}.json",
+            Body=json.dumps(result),
+            ContentType="application/json",
+        )
+    except Exception as e:
+        log.warning("job result save failed", extra={"error": str(e)})
+
+
+def _get_job_result(job_id: str) -> dict | None:
+    """Check S3 for a completed job result."""
+    try:
+        bucket = os.environ.get("S3_BUCKET", S3_BUCKET)
+        s3 = _s3_client()
+        resp = s3.get_object(Bucket=bucket, Key=f"jobs/{job_id}.json")
+        return json.loads(resp["Body"].read())
+    except Exception:
+        return None
+
+
 @app.function(image=image, timeout=30)
 @modal.fastapi_endpoint(method="GET")
 def health() -> dict:
@@ -670,20 +696,21 @@ def health() -> dict:
     secrets=[modal.Secret.from_name("aws-secret")],
     timeout=1800,
 )
-@modal.fastapi_endpoint(method="POST")
-def render_endpoint(data: dict) -> dict:
+def _run_render(data: dict):
+    """Background render: runs simulation, saves result to S3."""
     import uuid
 
-    import requests
-
     job_id = data.get("job_id", str(uuid.uuid4()))
+
+    # Mark job as started
+    _save_job_result(job_id, {"status": "rendering"})
 
     result = render_simulation.local(
         job_id=job_id,
         wind_speed=float(data.get("wind_speed", 1.0)),
         viz_mode=int(data.get("viz_mode", 1)),
         collision_mode=int(
-            data.get("collision_mode", 1)
+            data.get("collision_mode", 2)
         ),
         duration=int(data.get("duration", 10)),
         model=data.get("model", "car"),
@@ -691,19 +718,35 @@ def render_endpoint(data: dict) -> dict:
         reynolds=float(data.get("reynolds", 0)),
     )
 
-    callback_url = data.get("callback_url")
-    if callback_url:
-        try:
-            requests.post(
-                callback_url,
-                json={"job_id": job_id, **result},
-                timeout=10,
-            )
-        except Exception as e:
-            log.warning(
-                "callback failed",
-                extra={"job_id": job_id, "error": str(e)},
-            )
+    _save_job_result(job_id, result)
+    return result
+
+
+@app.function(image=image, timeout=30, secrets=[modal.Secret.from_name("aws-secret")])
+@modal.fastapi_endpoint(method="POST")
+def render_endpoint(data: dict) -> dict:
+    """Accept a render request and spawn it in the background."""
+    import uuid
+
+    job_id = data.get("job_id", f"job_{uuid.uuid4().hex[:12]}")
+    data["job_id"] = job_id
+
+    # Spawn the render asynchronously -- returns immediately
+    _run_render.spawn(data)
+
+    return {"status": "accepted", "job_id": job_id}
+
+
+@app.function(image=image, timeout=30, secrets=[modal.Secret.from_name("aws-secret")])
+@modal.fastapi_endpoint(method="GET")
+def job_status(job_id: str) -> dict:
+    """Poll for render job completion."""
+    if not job_id:
+        return {"status": "error", "error": "Missing job_id"}
+
+    result = _get_job_result(job_id)
+    if result is None:
+        return {"status": "rendering"}
 
     return result
 
