@@ -4,7 +4,6 @@ import Link from 'next/link';
 import ControlPanel from '../components/ControlPanel';
 import VideoPlayer from '../components/VideoPlayer';
 import StatusDisplay from '../components/StatusDisplay';
-import AboutSection from '../components/AboutSection';
 import ResultsPanel, { SimulationResult } from '../components/ResultsPanel';
 import { useSurrogate } from '../lib/surrogate';
 import { DEMOS, type DemoEntry } from '../lib/demos';
@@ -305,89 +304,56 @@ export default function Home() {
             duration={params.duration}
             renderStartTime={renderStartTime.current}
           />
-          <AboutSection />
         </div>
         <div className="flex-1 flex flex-col gap-4">
-          {!videoUrl && status !== 'rendering' && (
-            <div className="border border-ctp-surface1 rounded-lg p-4 bg-ctp-mantle">
-              <h2 className="text-xs font-semibold text-ctp-overlay1 uppercase tracking-wider mb-3">
-                Examples
-              </h2>
-              <div className="grid grid-cols-3 gap-2">
-                {DEMOS.map((demo) => (
-                  <button
-                    key={demo.params.model}
-                    onClick={() => loadDemo(demo)}
-                    className="border border-ctp-surface1 rounded p-3 text-left hover:border-ctp-blue transition-colors bg-ctp-base"
-                  >
-                    <div className="text-sm font-medium text-ctp-text">{demo.label}</div>
-                    <div className="text-xs text-ctp-overlay0 mt-0.5">{demo.description}</div>
-                  </button>
-                ))}
-              </div>
-              <p className="text-[10px] text-ctp-overlay0 mt-2">
-                Click an example to load a pre-rendered result instantly.
-              </p>
-            </div>
-          )}
           <VideoPlayer
             videoUrl={videoUrl}
             status={status}
             backendAvailable={backendAvailable}
           />
-          <Link
-            href="/docs"
-            className="border border-ctp-surface1 rounded-lg p-4 bg-ctp-mantle flex items-center justify-between hover:border-ctp-mauve transition-colors"
-          >
-            <div>
-              <h2 className="text-xs font-semibold text-ctp-overlay1 uppercase tracking-wider mb-1">
-                White Paper
-              </h2>
-              <p className="text-xs text-ctp-overlay0">
-                LBM theory, compute shader implementation, and drag coefficient
-                validation
-              </p>
+
+          <div className="border border-ctp-surface1 rounded-lg p-4 bg-ctp-mantle">
+            {!videoUrl && status !== 'rendering' && (
+              <>
+                <h2 className="text-xs font-semibold text-ctp-overlay1 uppercase tracking-wider mb-2">
+                  Examples
+                </h2>
+                <div className="grid grid-cols-3 gap-2 mb-4">
+                  {DEMOS.map((demo) => (
+                    <button
+                      key={demo.params.model}
+                      onClick={() => loadDemo(demo)}
+                      className="rounded p-2 text-left hover:bg-ctp-surface0 transition-colors"
+                    >
+                      <div className="text-sm font-medium text-ctp-text">{demo.label}</div>
+                      <div className="text-xs text-ctp-overlay0 mt-0.5">{demo.description}</div>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+
+            <h2 className="text-xs font-semibold text-ctp-overlay1 uppercase tracking-wider mb-2">
+              Learn More
+            </h2>
+            <div className="flex gap-3">
+              <Link
+                href="/docs"
+                className="flex-1 rounded p-2 hover:bg-ctp-surface0 transition-colors"
+              >
+                <div className="text-sm font-medium text-ctp-text">White Paper</div>
+                <div className="text-xs text-ctp-overlay0 mt-0.5">LBM theory, compute shaders, drag validation</div>
+              </Link>
+              <Link
+                href="/comparison"
+                className="flex-1 rounded p-2 hover:bg-ctp-surface0 transition-colors"
+              >
+                <div className="text-sm font-medium text-ctp-text">ML vs LBM</div>
+                <div className="text-xs text-ctp-overlay0 mt-0.5">Surrogate model predictions vs simulation</div>
+              </Link>
             </div>
-            <svg
-              className="w-4 h-4 text-ctp-overlay1 shrink-0 ml-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M9 5l7 7-7 7"
-              />
-            </svg>
-          </Link>
-          <Link
-            href="/comparison"
-            className="border border-ctp-surface1 rounded-lg p-4 bg-ctp-mantle flex items-center justify-between hover:border-ctp-mauve transition-colors"
-          >
-            <div>
-              <h2 className="text-xs font-semibold text-ctp-overlay1 uppercase tracking-wider mb-1">
-                ML vs LBM
-              </h2>
-              <p className="text-xs text-ctp-overlay0">
-                Compare surrogate model predictions against simulation results
-              </p>
-            </div>
-            <svg
-              className="w-4 h-4 text-ctp-overlay1 shrink-0 ml-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M9 5l7 7-7 7"
-              />
-            </svg>
-          </Link>
+          </div>
+
           <ResultsPanel
             current={currentResult}
             history={results}
@@ -395,6 +361,18 @@ export default function Home() {
           />
         </div>
       </div>
+
+      <footer className="mt-8 py-4 border-t border-ctp-surface1 flex items-center justify-between text-xs text-ctp-overlay0">
+        <span>Built by Marcos Ashton, CS at University of Exeter</span>
+        <a
+          href="https://github.com/MarcosAsh/3dFluidDynamicsInC"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-ctp-blue hover:text-ctp-lavender transition-colors"
+        >
+          Source Code
+        </a>
+      </footer>
     </main>
   );
 }
