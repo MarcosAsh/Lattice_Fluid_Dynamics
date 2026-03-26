@@ -60,7 +60,7 @@ export default function Home() {
     const defaults: SimulationParams = {
       windSpeed: 1.0,
       vizMode: 1,
-      duration: 10,
+      duration: 5,
       collisionMode: 2,
       model: 'car',
       reynolds: 0,
