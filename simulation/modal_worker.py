@@ -479,12 +479,14 @@ def render_simulation(
                 "simulation crashed",
                 extra={
                     **ctx,
+                    "rc": sim_rc,
+                    "stdout_tail": stdout[-500:],
                     "stderr": stderr[-300:],
                 },
             )
             return {
                 "status": "error",
-                "error": f"Crashed: {stderr[-300:]}",
+                "error": f"Crashed (rc={sim_rc}): {stdout[-300:]}\n{stderr[-300:]}",
                 "error_type": "simulation",
             }
 

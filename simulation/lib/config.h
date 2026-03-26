@@ -27,7 +27,7 @@ extern float g_carRotationY;
 
 // Particle count used for both CPU and GPU particle systems
 #ifndef MAX_PARTICLES
-#define MAX_PARTICLES 50000
+#define MAX_PARTICLES 30000
 #endif
 
 #endif // CONFIG_H

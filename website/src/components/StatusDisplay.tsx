@@ -61,14 +61,12 @@ export default function StatusDisplay({
   const isRendering = status === 'rendering' && renderStartTime != null;
 
   useEffect(() => {
+    setTick(0);
     if (!isRendering) return;
 
     const id = setInterval(() => setTick((t) => t + 1), 500);
     return () => clearInterval(id);
-  }, [isRendering]);
-
-  // Reset tick when renderStartTime changes (new render starts)
-  useEffect(() => setTick(0), [renderStartTime]);
+  }, [isRendering, renderStartTime]);
 
   // elapsed is derived: 0 when not rendering, computed from tick counter otherwise
   const elapsed = isRendering && renderStartTime ? tick * 0.5 : 0;
