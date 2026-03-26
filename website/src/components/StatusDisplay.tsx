@@ -3,6 +3,21 @@
 import { useState, useEffect } from 'react';
 import { JobStatus } from '../app/page';
 
+/* eslint-disable react-hooks/set-state-in-effect */
+function useTickElapsed(active: boolean, key: number | null): number {
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    setTick(0);
+    if (!active) return;
+    const id = setInterval(() => setTick((t) => t + 1), 500);
+    return () => clearInterval(id);
+  }, [active, key]);
+
+  return active ? tick * 0.5 : 0;
+}
+/* eslint-enable react-hooks/set-state-in-effect */
+
 interface StatusDisplayProps {
   status: JobStatus;
   error: string | null;
@@ -56,20 +71,8 @@ export default function StatusDisplay({
   duration,
   renderStartTime,
 }: StatusDisplayProps) {
-  const [tick, setTick] = useState(0);
-
   const isRendering = status === 'rendering' && renderStartTime != null;
-
-  useEffect(() => {
-    setTick(0);
-    if (!isRendering) return;
-
-    const id = setInterval(() => setTick((t) => t + 1), 500);
-    return () => clearInterval(id);
-  }, [isRendering, renderStartTime]);
-
-  // elapsed is derived: 0 when not rendering, computed from tick counter otherwise
-  const elapsed = isRendering && renderStartTime ? tick * 0.5 : 0;
+  const elapsed = useTickElapsed(isRendering, renderStartTime);
 
   const { phase, progress } = getPhase(elapsed, duration);
 

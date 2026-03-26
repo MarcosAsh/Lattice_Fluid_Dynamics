@@ -353,36 +353,75 @@ npm ci && npm run dev
         {/* ML Surrogate */}
         <Section id="ml" title="ML Surrogate Model">
           <P>
-            A trained MLP predicts Cd and Cl in microseconds, giving instant
-            estimates before the LBM converges. The model runs inside the
-            simulation loop with zero external dependencies.
+            A small MLP predicts Cd and Cl in under a millisecond, giving
+            instant estimates before the LBM has time to converge. The entire
+            training framework is written from scratch in C++ with reverse-mode
+            autodiff, so there are no Python ML dependencies at inference time.
+            The same model runs in the C simulation binary, in the browser via
+            TypeScript, and in the evaluation pipeline.
           </P>
-          <h3 className="text-sm font-semibold mb-2">Architecture</h3>
-          <CodeBlock>{`Input: [wind_speed, reynolds, model_id]  (3 features, z-score normalized)
-  -> Linear(3, 256) -> SwiGLU(256, 512)
-  -> Linear(256, 128) -> SwiGLU(128, 256)
-  -> Linear(128, 2)
-Output: [Cd, Cl]
 
-Parameters: 525,698
-Training: AdamW, MSE loss, 285 samples, early stopping
-Validation MAE: Cd = 0.005, Cl = 0.002`}</CodeBlock>
+          <h3 className="text-sm font-semibold mb-2">Architecture</h3>
+          <P>
+            The network takes three z-score normalized inputs (wind speed,
+            Reynolds number, model ID) and outputs two values (Cd, Cl). SwiGLU
+            activations replace standard ReLU for smoother gradient flow.
+          </P>
+          <CodeBlock>{`Linear(3, 256) -> SwiGLU(256, 512) -> Linear(256, 128) -> SwiGLU(128, 256) -> Linear(128, 2)
+
+525,400 parameters total
+  fc1:  3 x 256  + bias     =   1,024
+  act1: SwiGLU(256, 512)    = 393,216  (gate + up + down projections)
+  fc2:  256 x 128 + bias    =  32,896
+  act2: SwiGLU(128, 256)    =  98,304
+  fc3:  128 x 2 + bias      =     258`}</CodeBlock>
 
           <h3 className="text-sm font-semibold mb-2 mt-4">Training</h3>
-          <CodeBlock title="terminal">{`cd ml
-cmake -B build && cmake --build build
-python data_gen.py --config sweep_config.yaml --endpoint $MODAL_URL
-./build/train dataset/training_data.bin`}</CodeBlock>
+          <P>
+            Training data comes from the LBM simulation itself. A parameter
+            sweep over wind speeds, Reynolds numbers, and model geometries
+            generates (input, Cd, Cl) pairs. The data generator
+            (<Code>data_gen.py</Code>) submits render jobs to Modal, validates
+            convergence, and writes a binary dataset.
+          </P>
+          <CodeBlock>{`Optimizer:    AdamW (lr=1e-3, weight_decay=1e-4, clip_norm=1.0)
+Loss:         MSE on [Cd, Cl]
+Batch size:   64
+Epochs:       500 (early stopping, patience=50)
+Train/val:    80/20 split
+Data format:  binary -- 16-byte header + N records of 5 float32s
+              [wind_speed, reynolds, model_id, cd, cl]`}</CodeBlock>
+
+          <h3 className="text-sm font-semibold mb-2 mt-4">Weight Format</h3>
+          <P>
+            Weights are stored in a custom binary format (LTWS) shared across
+            all three inference targets. The normalizer file stores 3 means and
+            3 standard deviations as raw float32s.
+          </P>
+          <CodeBlock>{`model.bin:      LTWS header (magic + version + count) + 12 parameter tensors
+model_norm.bin: 6 x float32 (mean[3], std[3])`}</CodeBlock>
 
           <h3 className="text-sm font-semibold mb-2 mt-4">Inference</h3>
           <P>
-            Place <Code>model.bin</Code> and <Code>model_norm.bin</Code> in the
-            simulation working directory. The sim loads them automatically and
-            prints an instant estimate at startup.
+            The C simulation loads the weights at startup and prints an instant
+            Cd/Cl estimate before the LBM loop begins. The browser loads the
+            same files from <Code>/models/</Code> and runs a pure TypeScript
+            forward pass with no dependencies. Both paths take under 1ms.
           </P>
-          <div className="flex gap-3 mt-2 text-xs">
+          <CodeBlock title="terminal">{`# Generate training data
+cd ml && python data_gen.py --config sweep_config.yaml --endpoint $MODAL_URL
+
+# Train the model
+cmake -B build && cmake --build build && ./build/train dataset/training_data.bin
+
+# Evaluate
+python evaluate.py --weights model.bin --norm model_norm.bin --data dataset/training_data.bin`}</CodeBlock>
+          <div className="flex gap-3 mt-2 text-xs flex-wrap">
             <SrcLink path="ml/train.cpp" label="train.cpp" />
+            <SrcLink path="ml/framework/src/autodiff.cpp" label="autodiff.cpp" />
+            <SrcLink path="ml/framework/src/layers/ad_swiglu.cpp" label="ad_swiglu.cpp" />
             <SrcLink path="simulation/src/ml_predict.c" label="ml_predict.c" />
+            <SrcLink path="website/src/lib/surrogate.ts" label="surrogate.ts" />
             <SrcLink path="ml/data_gen.py" label="data_gen.py" />
           </div>
         </Section>
