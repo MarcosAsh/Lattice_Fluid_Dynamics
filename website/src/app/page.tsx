@@ -7,6 +7,7 @@ import StatusDisplay from '../components/StatusDisplay';
 import AboutSection from '../components/AboutSection';
 import ResultsPanel, { SimulationResult } from '../components/ResultsPanel';
 import { useSurrogate } from '../lib/surrogate';
+import { DEMOS, type DemoEntry } from '../lib/demos';
 
 export type JobStatus =
   | 'idle'
@@ -228,6 +229,18 @@ export default function Home() {
     setStatus('complete');
   }, []);
 
+  const loadDemo = useCallback((demo: DemoEntry) => {
+    setVideoUrl(demo.result.videoUrl);
+    setStatus('complete');
+    setError(null);
+    const result: SimulationResult = {
+      ...demo.result,
+      timestamp: Date.now(),
+    };
+    setResults((prev) => [...prev, result]);
+    setParams((prev) => ({ ...prev, ...demo.params }));
+  }, []);
+
   return (
     <main className="min-h-screen p-4 md:p-6 lg:p-10 max-w-7xl mx-auto">
       <div className="mb-4 lg:mb-8 flex items-center gap-3 lg:gap-4">
@@ -295,6 +308,28 @@ export default function Home() {
           <AboutSection />
         </div>
         <div className="flex-1 flex flex-col gap-4">
+          {!videoUrl && status !== 'rendering' && (
+            <div className="border border-ctp-surface1 rounded-lg p-4 bg-ctp-mantle">
+              <h2 className="text-xs font-semibold text-ctp-overlay1 uppercase tracking-wider mb-3">
+                Examples
+              </h2>
+              <div className="grid grid-cols-3 gap-2">
+                {DEMOS.map((demo) => (
+                  <button
+                    key={demo.params.model}
+                    onClick={() => loadDemo(demo)}
+                    className="border border-ctp-surface1 rounded p-3 text-left hover:border-ctp-blue transition-colors bg-ctp-base"
+                  >
+                    <div className="text-sm font-medium text-ctp-text">{demo.label}</div>
+                    <div className="text-xs text-ctp-overlay0 mt-0.5">{demo.description}</div>
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-ctp-overlay0 mt-2">
+                Click an example to load a pre-rendered result instantly.
+              </p>
+            </div>
+          )}
           <VideoPlayer
             videoUrl={videoUrl}
             status={status}
