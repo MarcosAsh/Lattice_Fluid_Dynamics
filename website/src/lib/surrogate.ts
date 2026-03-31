@@ -119,13 +119,16 @@ function parseWeights(buf: ArrayBuffer): Weights {
   if (count !== NUM_PARAMS) throw new Error(`Expected ${NUM_PARAMS} params, got ${count}`);
 
   function readParam(): Float32Array {
+    if (off + 4 > buf.byteLength) throw new Error('Truncated weights file');
     const ndim = view.getUint32(off, true);
     off += 4;
     let numel = 1;
     for (let d = 0; d < ndim; d++) {
+      if (off + 4 > buf.byteLength) throw new Error('Truncated weights file');
       numel *= view.getUint32(off, true);
       off += 4;
     }
+    if (off + numel * 4 > buf.byteLength) throw new Error('Truncated weights file');
     const data = new Float32Array(buf, off, numel);
     off += numel * 4;
     return new Float32Array(data); // copy so we own the buffer

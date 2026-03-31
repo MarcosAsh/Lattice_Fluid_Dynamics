@@ -1772,6 +1772,9 @@ int main(int argc, char *argv[]) {
     free(particles);
     if (triangleData)
         free(triangleData);
+    free(collGrid.cellStart);
+    free(collGrid.cellCount);
+    free(collGrid.triIndices);
     freeModel(&carModel);
     if (fluidCube)
         FluidCubeFree(fluidCube);

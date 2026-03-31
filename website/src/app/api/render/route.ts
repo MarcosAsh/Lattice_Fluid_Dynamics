@@ -97,6 +97,16 @@ export async function POST(request: Request) {
     for (const [key, ts] of RATE_LIMIT) {
       if (now - ts > RATE_LIMIT_WINDOW_MS) RATE_LIMIT.delete(key);
     }
+    // Hard cap: if cleanup didn't shrink enough, drop oldest entries
+    if (RATE_LIMIT.size > RATE_LIMIT_MAX_ENTRIES) {
+      const excess = RATE_LIMIT.size - RATE_LIMIT_MAX_ENTRIES;
+      let dropped = 0;
+      for (const key of RATE_LIMIT.keys()) {
+        if (dropped >= excess) break;
+        RATE_LIMIT.delete(key);
+        dropped++;
+      }
+    }
   }
 
   const params = await request.json();
