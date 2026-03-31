@@ -9,7 +9,7 @@
  */
 
 const LATTICE_VELOCITY = 0.05;
-const SAMPLE_INTERVAL = 20; // lattice timesteps between Cl samples
+const DEFAULT_SAMPLE_INTERVAL = 10; // lattice timesteps between Cl samples
 
 export interface SpectrumResult {
   /** Strouhal number (dimensionless) */
@@ -32,6 +32,7 @@ export interface SpectrumResult {
 export function computeStrouhal(
   clSeries: number[],
   charLength: number,
+  sampleInterval: number = DEFAULT_SAMPLE_INTERVAL,
 ): SpectrumResult | null {
   if (clSeries.length < 8 || charLength <= 0) return null;
 
@@ -62,7 +63,7 @@ export function computeStrouhal(
 
   // Build one-sided power spectrum (skip DC at index 0)
   const nFreqs = Math.floor(nfft / 2);
-  const fs = 1 / SAMPLE_INTERVAL;
+  const fs = 1 / sampleInterval;
   const frequencies: number[] = [];
   const power: number[] = [];
 

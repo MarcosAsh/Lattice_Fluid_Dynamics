@@ -423,6 +423,8 @@ def render_simulation(
         effective_re = None
         grid_size = None
         char_length = None
+        strouhal = None
+        sample_interval = None
 
         def _parse_float(line: str, prefix: str, suffix: str | None = None) -> float | None:
             try:
@@ -462,6 +464,14 @@ def render_simulation(
                     grid_size = line.split("Grid:")[1].split("(")[0].strip()
                 except (IndexError, ValueError) as e:
                     log.warning("grid parse failed", extra={"line": line.strip(), "error": str(e)})
+            if "St=" in line and "f=" in line:
+                val = _parse_float(line, "St=")
+                if val is not None:
+                    strouhal = val
+            if "Sample interval:" in line:
+                val = _parse_float(line, "Sample interval:", "lattice")
+                if val is not None:
+                    sample_interval = int(val)
 
         cd_value = None
         if cd_values:
@@ -586,6 +596,8 @@ def render_simulation(
             "effective_re": effective_re,
             "grid_size": grid_size,
             "char_length": char_length,
+            "strouhal": strouhal,
+            "sample_interval": sample_interval,
             "timings": {
                 k: round(v, 2)
                 for k, v in timings.items()

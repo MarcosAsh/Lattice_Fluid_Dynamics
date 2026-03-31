@@ -202,6 +202,7 @@ export default function Home() {
             cdSeries: data.cd_series ?? [],
             clSeries: data.cl_series ?? [],
             charLength: data.char_length ?? null,
+            sampleInterval: data.sample_interval ?? null,
             model: params.model,
             windSpeed: params.windSpeed,
             timestamp: Date.now(),

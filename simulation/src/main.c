@@ -1016,6 +1016,7 @@ int main(int argc, char *argv[]) {
                    charL,
                    nu);
         }
+        printf("  Sample interval: %d lattice steps\n", lbmSubsteps);
         printf("LBM initialized successfully\n");
     } else {
         printf("Warning: LBM initialization failed, using simple wind\n");
@@ -1288,6 +1289,11 @@ int main(int argc, char *argv[]) {
     int cdHistoryCount = 0;
     int converged = 0;
     float cdEma = 0.0f;
+
+    // Cl time series for Strouhal extraction (dynamically grown)
+    int clCapacity = 256;
+    int clCount = 0;
+    float *clSeries = (float *)malloc(clCapacity * sizeof(float));
 
     while (running) {
         if (!paused || stepOnce)
@@ -1710,6 +1716,17 @@ int main(int argc, char *argv[]) {
                    Cl,
                    cdEma);
 
+            // Store Cl for Strouhal extraction
+            if (clSeries) {
+                if (clCount >= clCapacity) {
+                    clCapacity *= 2;
+                    clSeries =
+                        (float *)realloc(clSeries, clCapacity * sizeof(float));
+                }
+                if (clSeries)
+                    clSeries[clCount++] = Cl;
+            }
+
             // Track Cd for convergence detection
             if (Cd > 0 && Cd < 1000) {
                 cdHistory[cdHistoryCount % CD_HISTORY_SIZE] = Cd;
@@ -1768,10 +1785,64 @@ int main(int argc, char *argv[]) {
             GLContext_SwapBuffers(glCtx);
     }
 
+    // Strouhal number extraction from Cl time series.
+    // St = f_peak * L / U, where f_peak is the dominant shedding
+    // frequency found via DFT of the Cl signal.
+    if (clSeries && clCount >= 12 && useLBM) {
+        // Discard first 35% as transient
+        int start = clCount * 35 / 100;
+        int n = clCount - start;
+        float *sig = clSeries + start;
+
+        // Remove mean
+        float mean = 0;
+        for (int i = 0; i < n; i++)
+            mean += sig[i];
+        mean /= n;
+
+        // Hann window + mean removal
+        float *win = (float *)malloc(n * sizeof(float));
+        for (int i = 0; i < n; i++) {
+            float w = 0.5f * (1.0f - cosf(2.0f * (float)M_PI * i / (n - 1)));
+            win[i] = (sig[i] - mean) * w;
+        }
+
+        // DFT over one-sided spectrum (skip DC).
+        // Each Cl sample corresponds to lbmSubsteps lattice timesteps.
+        float fs = 1.0f / lbmSubsteps;
+        int nfreqs = n / 2;
+        float peakPow = 0;
+        float peakFreq = 0;
+        for (int k = 1; k < nfreqs; k++) {
+            float re = 0, im = 0;
+            for (int i = 0; i < n; i++) {
+                float angle = 2.0f * (float)M_PI * k * i / n;
+                re += win[i] * cosf(angle);
+                im -= win[i] * sinf(angle);
+            }
+            float pw = re * re + im * im;
+            if (pw > peakPow) {
+                peakPow = pw;
+                peakFreq = (float)k * fs / n;
+            }
+        }
+
+        float charL = charLength; // lattice units, set during LBM init
+        float st =
+            (latticeVelocity > 1e-10f) ? peakFreq * charL / latticeVelocity : 0;
+        printf("St=%.4f (f=%.6f, L=%.1f, U=%.3f)\n",
+               st,
+               peakFreq,
+               charL,
+               latticeVelocity);
+        free(win);
+    }
+
     printf("Cleaning up...\n");
     free(particles);
     if (triangleData)
         free(triangleData);
+    free(clSeries);
     free(collGrid.cellStart);
     free(collGrid.cellCount);
     free(collGrid.triIndices);

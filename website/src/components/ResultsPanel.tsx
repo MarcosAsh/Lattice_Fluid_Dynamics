@@ -11,6 +11,7 @@ export interface SimulationResult {
   cdSeries: number[];
   clSeries: number[];
   charLength: number | null;
+  sampleInterval: number | null;
   model: string;
   windSpeed: number;
   timestamp: number;
@@ -296,7 +297,7 @@ function SpectrumChart({ spectrum }: { spectrum: SpectrumResult }) {
 function useStrouhal(result: SimulationResult | null): SpectrumResult | null {
   return useMemo(() => {
     if (!result || result.clSeries.length < 8 || !result.charLength) return null;
-    return computeStrouhal(result.clSeries, result.charLength);
+    return computeStrouhal(result.clSeries, result.charLength, result.sampleInterval ?? undefined);
   }, [result]);
 }
 
@@ -405,7 +406,7 @@ export default function ResultsPanel({
                 {[...history].reverse().map((result) => {
                   const isCurrent = result === current;
                   const rowSt = result.charLength && result.clSeries.length >= 8
-                    ? computeStrouhal(result.clSeries, result.charLength)
+                    ? computeStrouhal(result.clSeries, result.charLength, result.sampleInterval ?? undefined)
                     : null;
                   return (
                     <tr
