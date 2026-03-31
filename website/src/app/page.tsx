@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import ControlPanel from '../components/ControlPanel';
 import VideoPlayer from '../components/VideoPlayer';
 import StatusDisplay from '../components/StatusDisplay';
@@ -243,7 +244,7 @@ export default function Home() {
   return (
     <main className="min-h-screen p-4 md:p-6 lg:p-10 max-w-7xl mx-auto">
       <div className="mb-4 lg:mb-8 flex items-center gap-3 lg:gap-4">
-        <img src="/logo.png" alt="Lattice" className="h-12 lg:h-16" />
+        <Image src="/logo.png" alt="Lattice" width={64} height={64} className="h-12 lg:h-16 w-auto" />
         <p className="text-xs lg:text-sm text-ctp-subtext0">
           GPU-accelerated wind tunnel simulation{' '}
           <a

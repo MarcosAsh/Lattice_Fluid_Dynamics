@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { type DocGroup } from '../../lib/docs-sections';
 
 function ChevronIcon({ open }: { open: boolean }) {
@@ -27,27 +28,30 @@ function SidebarContent({
   activeSection: string;
   onLinkClick?: () => void;
 }) {
-  // Track which groups are expanded
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  // Track manually toggled groups; the active group is always auto-expanded
+  const [toggled, setToggled] = useState<Record<string, boolean>>({});
 
-  // Auto-expand the group containing the active section
-  useEffect(() => {
+  const activeGroupLabel = useMemo(() => {
     for (const g of groups) {
-      if (g.sections.some((s) => s.id === activeSection)) {
-        setExpanded((prev) => ({ ...prev, [g.label]: true }));
-        break;
-      }
+      if (g.sections.some((s) => s.id === activeSection)) return g.label;
     }
+    return null;
   }, [activeSection, groups]);
 
+  const expanded = useMemo(() => {
+    const result: Record<string, boolean> = { ...toggled };
+    if (activeGroupLabel) result[activeGroupLabel] = true;
+    return result;
+  }, [toggled, activeGroupLabel]);
+
   const toggle = (label: string) => {
-    setExpanded((prev) => ({ ...prev, [label]: !prev[label] }));
+    setToggled((prev) => ({ ...prev, [label]: !expanded[label] }));
   };
 
   return (
     <>
       <Link href="/" className="block mb-8" onClick={onLinkClick}>
-        <img src="/logo.png" alt="Lattice" className="h-8 w-auto" />
+        <Image src="/logo.png" alt="Lattice" width={32} height={32} className="h-8 w-auto" />
       </Link>
 
       <nav className="space-y-4">
