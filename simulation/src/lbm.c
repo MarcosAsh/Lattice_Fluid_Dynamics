@@ -192,7 +192,8 @@ LBMGrid *LBM_Create(int sizeX, int sizeY, int sizeZ, float viscosity) {
 
     glGenBuffers(1, &grid->solidBuffer);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->solidBuffer);
-    glBufferData(GL_SHADER_STORAGE_BUFFER, solidSize, solidZeros, GL_STATIC_DRAW);
+    glBufferData(
+        GL_SHADER_STORAGE_BUFFER, solidSize, solidZeros, GL_STATIC_DRAW);
     if (glGetError() != GL_NO_ERROR) {
         printf("ERROR: GPU alloc failed for solidBuffer (%.1f MB)\n",
                solidSize / (1024.0 * 1024.0));
@@ -253,6 +254,7 @@ LBMGrid *LBM_Create(int sizeX, int sizeY, int sizeZ, float viscosity) {
     }
 
     grid->useRegularized = 0;
+    grid->useMRT = 0;
     grid->useSmagorinsky = 0;
     grid->smagorinskyCs = 0.1f;
     grid->periodicYZ = 0;
@@ -270,6 +272,8 @@ LBMGrid *LBM_Create(int sizeX, int sizeY, int sizeZ, float viscosity) {
         glGetUniformLocation(grid->collideShader, "useSmagorinsky");
     grid->collide_smaCsLoc =
         glGetUniformLocation(grid->collideShader, "smagorinskyCs");
+    grid->collide_useMRTLoc =
+        glGetUniformLocation(grid->collideShader, "useMRT");
 
     glUseProgram(grid->streamShader);
     grid->stream_gridSizeLoc =
@@ -379,18 +383,16 @@ void LBM_SetSolidAABB(LBMGrid *grid,
     for (int gz = 0; gz < grid->sizeZ; gz++) {
         for (int gy = 0; gy < grid->sizeY; gy++) {
             for (int gx = 0; gx < grid->sizeX; gx++) {
-                int ci = gx + gy * grid->sizeX
-                         + gz * grid->sizeX * grid->sizeY;
+                int ci = gx + gy * grid->sizeX + gz * grid->sizeX * grid->sizeY;
                 if (solidData[ci] == 1)
                     continue;
                 for (int i = 1; i < 19; i++) {
                     int nx = gx + ex[i], ny = gy + ey[i], nz = gz + ez[i];
-                    if (nx < 0 || nx >= grid->sizeX ||
-                        ny < 0 || ny >= grid->sizeY ||
-                        nz < 0 || nz >= grid->sizeZ)
+                    if (nx < 0 || nx >= grid->sizeX || ny < 0 ||
+                        ny >= grid->sizeY || nz < 0 || nz >= grid->sizeZ)
                         continue;
-                    int ni = nx + ny * grid->sizeX
-                             + nz * grid->sizeX * grid->sizeY;
+                    int ni =
+                        nx + ny * grid->sizeX + nz * grid->sizeX * grid->sizeY;
                     if (solidData[ni] == 1) {
                         qData[ci * 19 + i] = 0.5f;
                         qLinks++;
@@ -401,8 +403,7 @@ void LBM_SetSolidAABB(LBMGrid *grid,
     }
 
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->qBuffer);
-    glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0,
-                    qCount * sizeof(float), qData);
+    glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, qCount * sizeof(float), qData);
     free(qData);
     free(solidData);
 }
@@ -476,6 +477,7 @@ void LBM_Step(LBMGrid *grid,
     glUniform1i(grid->collide_useRegularizedLoc, grid->useRegularized);
     glUniform1i(grid->collide_useSmagorinskyLoc, grid->useSmagorinsky);
     glUniform1f(grid->collide_smaCsLoc, grid->smagorinskyCs);
+    glUniform1i(grid->collide_useMRTLoc, grid->useMRT);
 
     glDispatchCompute(
         (grid->sizeX + 7) / 8, (grid->sizeY + 7) / 8, (grid->sizeZ + 7) / 8);
@@ -515,9 +517,9 @@ void LBM_ComputeDragForce(LBMGrid *grid,
     glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(zeros), zeros);
 
     // Bind buffers for Mei-Luo-Shyy momentum exchange:
-    // f (binding 2) = post-streaming from previous step (reflected distributions)
-    // f_new (binding 3) = post-collision (outgoing distributions)
-    // q_val (binding 7) = Bouzidi wall distances
+    // f (binding 2) = post-streaming from previous step (reflected
+    // distributions) f_new (binding 3) = post-collision (outgoing
+    // distributions) q_val (binding 7) = Bouzidi wall distances
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, grid->fBuffer);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, grid->fNewBuffer);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, grid->solidBuffer);
@@ -740,8 +742,8 @@ void LBM_SetSolidMesh(LBMGrid *grid,
     for (int gz = 0; gz < grid->sizeZ; gz++) {
         for (int gy = 0; gy < grid->sizeY; gy++) {
             for (int gx = 0; gx < grid->sizeX; gx++) {
-                int cellIdx = gx + gy * grid->sizeX
-                              + gz * grid->sizeX * grid->sizeY;
+                int cellIdx =
+                    gx + gy * grid->sizeX + gz * grid->sizeX * grid->sizeY;
                 if (solidData[cellIdx] == 1)
                     continue; // only fluid cells
 
@@ -755,11 +757,10 @@ void LBM_SetSolidMesh(LBMGrid *grid,
                     int nz = gz + ez[i];
 
                     // Skip if neighbor is in bounds and fluid
-                    if (nx >= 0 && nx < grid->sizeX &&
-                        ny >= 0 && ny < grid->sizeY &&
-                        nz >= 0 && nz < grid->sizeZ) {
-                        int ni = nx + ny * grid->sizeX
-                                 + nz * grid->sizeX * grid->sizeY;
+                    if (nx >= 0 && nx < grid->sizeX && ny >= 0 &&
+                        ny < grid->sizeY && nz >= 0 && nz < grid->sizeZ) {
+                        int ni = nx + ny * grid->sizeX +
+                                 nz * grid->sizeX * grid->sizeY;
                         if (solidData[ni] == 0)
                             continue;
                     } else {
@@ -784,7 +785,8 @@ void LBM_SetSolidMesh(LBMGrid *grid,
                             float ryMax = fmaxf(wy, wy + dy);
                             float rzMin = fminf(wz, wz + dz);
                             float rzMax = fmaxf(wz, wz + dz);
-                            if (rxMax < tb.minY || ryMax < tb.maxY) {} // wrong fields
+                            if (rxMax < tb.minY || ryMax < tb.maxY) {
+                            } // wrong fields
                             // Use simple distance check instead
                         }
 
@@ -830,8 +832,10 @@ void LBM_SetSolidMesh(LBMGrid *grid,
                         q = 0.5f; // fallback: midpoint
 
                     // Clamp to avoid degeneracy
-                    if (q < 0.01f) q = 0.01f;
-                    if (q > 0.99f) q = 0.99f;
+                    if (q < 0.01f)
+                        q = 0.01f;
+                    if (q > 0.99f)
+                        q = 0.99f;
 
                     int qIdx = cellIdx * 19 + i;
                     qData[qIdx] = q;
@@ -844,8 +848,7 @@ void LBM_SetSolidMesh(LBMGrid *grid,
     printf("Bouzidi: %d boundary links computed\n", qLinks);
 
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->qBuffer);
-    glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0,
-                    qCount * sizeof(float), qData);
+    glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, qCount * sizeof(float), qData);
     free(qData);
 
     free(solidData);

@@ -24,6 +24,7 @@ uniform ivec3 gridSize;
 uniform float tau; // Relaxation time (viscosity related)
 uniform vec3 inletVelocity;
 uniform int useRegularized; // 0 = BGK, 1 = regularized
+uniform int useMRT; // 0 = off, 1 = MRT collision
 uniform int useSmagorinsky; // 0 = off, 1 = Smagorinsky SGS
 uniform float smagorinskyCs; // Smagorinsky constant (typically 0.1)
 
@@ -90,6 +91,216 @@ float feq(int i, float rho, vec3 u) {
 
     return w[i] * rho *
            (1.0 + eu / cs2 + (eu * eu) / (2.0 * cs2 * cs2) - u2 / (2.0 * cs2));
+}
+
+// MRT (Multiple Relaxation Time)
+// d'Humieres et al. (2002) orthogonal moment basis for D3Q19.
+// Moments: rho, e, eps, jx, qx, jy, qy, jz, qz,
+//          3pxx, 3pixx, pww, piww, pxy, pyz, pxz, mx, my, mz
+
+// Forward transform: distribution -> moment space
+// Exploits M-matrix sparsity (no 19x19 matmul needed).
+void forwardMRT(float fi[19], out float m[19]) {
+    // Face sums used in multiple rows
+    float sf  = fi[1]+fi[2]+fi[3]+fi[4]+fi[5]+fi[6];           // sum face
+    float se  = fi[7]+fi[8]+fi[9]+fi[10]+fi[11]+fi[12]
+               +fi[13]+fi[14]+fi[15]+fi[16]+fi[17]+fi[18];     // sum edge
+
+    // Row 0: rho
+    m[0] = fi[0] + sf + se;
+
+    // Row 1: energy
+    m[1] = -30.0*fi[0] - 11.0*sf + 8.0*se;
+
+    // Row 2: energy square
+    m[2] = 12.0*fi[0] - 4.0*sf + se;
+
+    // Row 3: jx
+    m[3] = fi[1]-fi[2] + fi[7]-fi[8]+fi[9]-fi[10]
+          +fi[11]-fi[12]+fi[13]-fi[14];
+
+    // Row 4: qx
+    m[4] = -4.0*(fi[1]-fi[2]) + fi[7]-fi[8]+fi[9]-fi[10]
+          +fi[11]-fi[12]+fi[13]-fi[14];
+
+    // Row 5: jy
+    m[5] = fi[3]-fi[4] + fi[7]+fi[8]-fi[9]-fi[10]
+          +fi[15]-fi[16]+fi[17]-fi[18];
+
+    // Row 6: qy
+    m[6] = -4.0*(fi[3]-fi[4]) + fi[7]+fi[8]-fi[9]-fi[10]
+          +fi[15]-fi[16]+fi[17]-fi[18];
+
+    // Row 7: jz
+    m[7] = fi[5]-fi[6] + fi[11]+fi[12]-fi[13]-fi[14]
+          +fi[15]+fi[16]-fi[17]-fi[18];
+
+    // Row 8: qz
+    m[8] = -4.0*(fi[5]-fi[6]) + fi[11]+fi[12]-fi[13]-fi[14]
+          +fi[15]+fi[16]-fi[17]-fi[18];
+
+    // Reusable sub-expressions for stress rows
+    float sXY = fi[7]+fi[8]+fi[9]+fi[10];   // edge subset: ex!=0,ey!=0
+    float sXZ = fi[11]+fi[12]+fi[13]+fi[14]; // edge subset: ex!=0,ez!=0
+    float sYZ = fi[15]+fi[16]+fi[17]+fi[18]; // edge subset: ey!=0,ez!=0
+
+    // Row 9: 3pxx = 2*ex^2 - ey^2 - ez^2
+    m[9] = 2.0*(fi[1]+fi[2]) - (fi[3]+fi[4]) - (fi[5]+fi[6])
+          + sXY + sXZ - 2.0*sYZ;
+
+    // Row 10: 3pixx (ghost partner of pxx)
+    m[10] = -4.0*(fi[1]+fi[2]) + 2.0*(fi[3]+fi[4]) + 2.0*(fi[5]+fi[6])
+           + sXY + sXZ - 2.0*sYZ;
+
+    // Row 11: pww = ey^2 - ez^2
+    m[11] = (fi[3]+fi[4]) - (fi[5]+fi[6]) + sXY - sXZ;
+
+    // Row 12: piww (ghost partner of pww)
+    m[12] = -2.0*(fi[3]+fi[4]) + 2.0*(fi[5]+fi[6]) + sXY - sXZ;
+
+    // Row 13: pxy
+    m[13] = fi[7]-fi[8]-fi[9]+fi[10];
+
+    // Row 14: pyz
+    m[14] = fi[15]-fi[16]-fi[17]+fi[18];
+
+    // Row 15: pxz
+    m[15] = fi[11]-fi[12]-fi[13]+fi[14];
+
+    // Row 16-18: ghost antisymmetric modes
+    m[16] = fi[7]-fi[8]+fi[9]-fi[10] - fi[11]+fi[12]-fi[13]+fi[14];
+    m[17] = -fi[7]-fi[8]+fi[9]+fi[10] + fi[15]-fi[16]+fi[17]-fi[18];
+    m[18] = fi[11]+fi[12]-fi[13]-fi[14] - fi[15]-fi[16]+fi[17]+fi[18];
+}
+
+// Inverse transform: moment space -> distribution
+// Uses M^{-1}_{ij} = M_{ji} / ||row_j||^2
+void inverseMRT(float m[19], out float fi[19]) {
+    // Pre-scale moments by 1/||row||^2
+    float ms[19];
+    ms[0]  = m[0]  / 19.0;
+    ms[1]  = m[1]  / 2394.0;
+    ms[2]  = m[2]  / 252.0;
+    ms[3]  = m[3]  / 10.0;
+    ms[4]  = m[4]  / 40.0;
+    ms[5]  = m[5]  / 10.0;
+    ms[6]  = m[6]  / 40.0;
+    ms[7]  = m[7]  / 10.0;
+    ms[8]  = m[8]  / 40.0;
+    ms[9]  = m[9]  / 36.0;
+    ms[10] = m[10] / 72.0;
+    ms[11] = m[11] / 12.0;
+    ms[12] = m[12] / 24.0;
+    ms[13] = m[13] / 4.0;
+    ms[14] = m[14] / 4.0;
+    ms[15] = m[15] / 4.0;
+    ms[16] = m[16] / 8.0;
+    ms[17] = m[17] / 8.0;
+    ms[18] = m[18] / 8.0;
+
+    // fi[k] = sum_j M[j][k] * ms[j]
+    // Direction 0: rest (0,0,0)
+    fi[0] = ms[0] - 30.0*ms[1] + 12.0*ms[2];
+
+    // Direction 1: (1,0,0)
+    fi[1] = ms[0] - 11.0*ms[1] - 4.0*ms[2]
+          + ms[3] - 4.0*ms[4] + 2.0*ms[9] - 4.0*ms[10];
+
+    // Direction 2: (-1,0,0)
+    fi[2] = ms[0] - 11.0*ms[1] - 4.0*ms[2]
+          - ms[3] + 4.0*ms[4] + 2.0*ms[9] - 4.0*ms[10];
+
+    // Direction 3: (0,1,0)
+    fi[3] = ms[0] - 11.0*ms[1] - 4.0*ms[2]
+          + ms[5] - 4.0*ms[6] - ms[9] + 2.0*ms[10]
+          + ms[11] - 2.0*ms[12];
+
+    // Direction 4: (0,-1,0)
+    fi[4] = ms[0] - 11.0*ms[1] - 4.0*ms[2]
+          - ms[5] + 4.0*ms[6] - ms[9] + 2.0*ms[10]
+          + ms[11] - 2.0*ms[12];
+
+    // Direction 5: (0,0,1)
+    fi[5] = ms[0] - 11.0*ms[1] - 4.0*ms[2]
+          + ms[7] - 4.0*ms[8] - ms[9] + 2.0*ms[10]
+          - ms[11] + 2.0*ms[12];
+
+    // Direction 6: (0,0,-1)
+    fi[6] = ms[0] - 11.0*ms[1] - 4.0*ms[2]
+          - ms[7] + 4.0*ms[8] - ms[9] + 2.0*ms[10]
+          - ms[11] + 2.0*ms[12];
+
+    // Direction 7: (1,1,0)
+    fi[7] = ms[0] + 8.0*ms[1] + ms[2]
+          + ms[3] + ms[4] + ms[5] + ms[6]
+          + ms[9] + ms[10] + ms[11] + ms[12]
+          + ms[13] + ms[16] - ms[17];
+
+    // Direction 8: (-1,1,0)
+    fi[8] = ms[0] + 8.0*ms[1] + ms[2]
+          - ms[3] - ms[4] + ms[5] + ms[6]
+          + ms[9] + ms[10] + ms[11] + ms[12]
+          - ms[13] - ms[16] - ms[17];
+
+    // Direction 9: (1,-1,0)
+    fi[9] = ms[0] + 8.0*ms[1] + ms[2]
+          + ms[3] + ms[4] - ms[5] - ms[6]
+          + ms[9] + ms[10] + ms[11] + ms[12]
+          - ms[13] + ms[16] + ms[17];
+
+    // Direction 10: (-1,-1,0)
+    fi[10] = ms[0] + 8.0*ms[1] + ms[2]
+           - ms[3] - ms[4] - ms[5] - ms[6]
+           + ms[9] + ms[10] + ms[11] + ms[12]
+           + ms[13] - ms[16] + ms[17];
+
+    // Direction 11: (1,0,1)
+    fi[11] = ms[0] + 8.0*ms[1] + ms[2]
+           + ms[3] + ms[4] + ms[7] + ms[8]
+           + ms[9] + ms[10] - ms[11] - ms[12]
+           + ms[15] - ms[16] + ms[18];
+
+    // Direction 12: (-1,0,1)
+    fi[12] = ms[0] + 8.0*ms[1] + ms[2]
+           - ms[3] - ms[4] + ms[7] + ms[8]
+           + ms[9] + ms[10] - ms[11] - ms[12]
+           - ms[15] + ms[16] + ms[18];
+
+    // Direction 13: (1,0,-1)
+    fi[13] = ms[0] + 8.0*ms[1] + ms[2]
+           + ms[3] + ms[4] - ms[7] - ms[8]
+           + ms[9] + ms[10] - ms[11] - ms[12]
+           - ms[15] - ms[16] - ms[18];
+
+    // Direction 14: (-1,0,-1)
+    fi[14] = ms[0] + 8.0*ms[1] + ms[2]
+           - ms[3] - ms[4] - ms[7] - ms[8]
+           + ms[9] + ms[10] - ms[11] - ms[12]
+           + ms[15] + ms[16] - ms[18];
+
+    // Direction 15: (0,1,1)
+    fi[15] = ms[0] + 8.0*ms[1] + ms[2]
+           + ms[5] + ms[6] + ms[7] + ms[8]
+           - 2.0*ms[9] - 2.0*ms[10]
+           + ms[14] + ms[17] - ms[18];
+
+    // Direction 16: (0,-1,1)
+    fi[16] = ms[0] + 8.0*ms[1] + ms[2]
+           - ms[5] - ms[6] + ms[7] + ms[8]
+           - 2.0*ms[9] - 2.0*ms[10]
+           - ms[14] - ms[17] - ms[18];
+
+    // Direction 17: (0,1,-1)
+    fi[17] = ms[0] + 8.0*ms[1] + ms[2]
+           + ms[5] + ms[6] - ms[7] - ms[8]
+           - 2.0*ms[9] - 2.0*ms[10]
+           - ms[14] + ms[17] + ms[18];
+
+    // Direction 18: (0,-1,-1)
+    fi[18] = ms[0] + 8.0*ms[1] + ms[2]
+           - ms[5] - ms[6] - ms[7] - ms[8]
+           - 2.0*ms[9] - 2.0*ms[10]
+           + ms[14] - ms[17] + ms[18];
 }
 
 void main() {
@@ -323,6 +534,80 @@ void main() {
             f_new[idxF(pos.x, pos.y, pos.z, i)] =
                 fi_eq + (1.0 - omega) * f_neq_reg;
         }
+    } else if (useMRT == 1) {
+        // MRT collision in moment space (d'Humieres 2002).
+        // Each moment relaxes at its own rate: conserved quantities
+        // are preserved, stress modes set physical viscosity, and
+        // ghost modes are aggressively damped for stability.
+
+        // 1. Load distributions
+        float fi[19];
+        for (int i = 0; i < 19; i++)
+            fi[i] = f[idxF(pos.x, pos.y, pos.z, i)];
+
+        // 2. Forward transform to moment space
+        float m[19];
+        forwardMRT(fi, m);
+
+        // 3. Equilibrium moments (from rho, u)
+        float u2 = dot(u, u);
+        float meq[19];
+        meq[0]  = rho;
+        meq[1]  = -11.0*rho + 19.0*rho*u2;
+        meq[2]  = 3.0*rho - 5.5*rho*u2;
+        meq[3]  = rho*u.x;
+        meq[4]  = -2.0/3.0 * rho*u.x;
+        meq[5]  = rho*u.y;
+        meq[6]  = -2.0/3.0 * rho*u.y;
+        meq[7]  = rho*u.z;
+        meq[8]  = -2.0/3.0 * rho*u.z;
+        meq[9]  = rho*(2.0*u.x*u.x - u.y*u.y - u.z*u.z);
+        meq[10] = -0.5*rho*(2.0*u.x*u.x - u.y*u.y - u.z*u.z);
+        meq[11] = rho*(u.y*u.y - u.z*u.z);
+        meq[12] = -0.5*rho*(u.y*u.y - u.z*u.z);
+        meq[13] = rho*u.x*u.y;
+        meq[14] = rho*u.y*u.z;
+        meq[15] = rho*u.x*u.z;
+        meq[16] = 0.0;
+        meq[17] = 0.0;
+        meq[18] = 0.0;
+
+        // 4. Relaxation rates
+        float s_nu = omega; // stress modes: controls shear viscosity
+
+        float s[19];
+        s[0]  = 0.0;    // rho  (conserved)
+        s[1]  = 1.19;   // energy
+        s[2]  = 1.4;    // energy square
+        s[3]  = 0.0;    // jx   (conserved)
+        s[4]  = 1.2;    // qx   (energy flux)
+        s[5]  = 0.0;    // jy   (conserved)
+        s[6]  = 1.2;    // qy
+        s[7]  = 0.0;    // jz   (conserved)
+        s[8]  = 1.2;    // qz
+        s[9]  = s_nu;   // pxx  (shear viscosity)
+        s[10] = 1.4;    // pixx (ghost)
+        s[11] = s_nu;   // pww  (shear viscosity)
+        s[12] = 1.4;    // piww (ghost)
+        s[13] = s_nu;   // pxy  (shear viscosity)
+        s[14] = s_nu;   // pyz
+        s[15] = s_nu;   // pxz
+        s[16] = 1.98;   // mx   (ghost)
+        s[17] = 1.98;   // my   (ghost)
+        s[18] = 1.98;   // mz   (ghost)
+
+        // 5. Relax in moment space: m* = m - S*(m - meq)
+        for (int k = 0; k < 19; k++)
+            m[k] = m[k] - s[k] * (m[k] - meq[k]);
+
+        // 6. Inverse transform back to distribution space
+        float fi_out[19];
+        inverseMRT(m, fi_out);
+
+        // 7. Write result
+        for (int i = 0; i < 19; i++)
+            f_new[idxF(pos.x, pos.y, pos.z, i)] = fi_out[i];
+
     } else {
         // Standard BGK (SRT) collision
         for (int i = 0; i < 19; i++) {

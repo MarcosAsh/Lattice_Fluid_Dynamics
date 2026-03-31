@@ -34,10 +34,13 @@ typedef struct {
     GLint collide_useSmagorinskyLoc;
     GLint collide_smaCsLoc;
 
-    int useRegularized; // 0 = BGK, 1 = regularized
-    int useSmagorinsky; // 0 = off, 1 = Smagorinsky SGS
+    int useRegularized;  // 0 = BGK, 1 = regularized
+    int useMRT;          // 0 = off, 1 = MRT collision operator
+    int useSmagorinsky;  // 0 = off, 1 = Smagorinsky SGS
     float smagorinskyCs; // Smagorinsky constant
-    int periodicYZ;     // 0 = clamp, 1 = periodic y/z
+    int periodicYZ;      // 0 = clamp, 1 = periodic y/z
+
+    GLint collide_useMRTLoc;
 } LBMGrid;
 
 // Initialize LBM grid

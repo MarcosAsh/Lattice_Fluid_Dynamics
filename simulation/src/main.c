@@ -92,19 +92,23 @@ typedef struct {
 #define COLL_GRID_RES 8
 
 typedef struct {
-    int *cellStart;   // offset into triIndices per cell
-    int *cellCount;   // triangle count per cell
-    int *triIndices;  // packed triangle indices
+    int *cellStart;  // offset into triIndices per cell
+    int *cellCount;  // triangle count per cell
+    int *triIndices; // packed triangle indices
     int totalIndices;
     int totalCells;
     float minX, minY, minZ;
     float cellSizeX, cellSizeY, cellSizeZ;
 } CollisionGrid;
 
-static CollisionGrid buildCollisionGrid(
-        GPUTriangle *tris, int numTris,
-        float bminX, float bminY, float bminZ,
-        float bmaxX, float bmaxY, float bmaxZ) {
+static CollisionGrid buildCollisionGrid(GPUTriangle *tris,
+                                        int numTris,
+                                        float bminX,
+                                        float bminY,
+                                        float bminZ,
+                                        float bmaxX,
+                                        float bmaxY,
+                                        float bmaxZ) {
     CollisionGrid g = {0};
     int R = COLL_GRID_RES;
     g.totalCells = R * R * R;
@@ -141,9 +145,18 @@ static CollisionGrid buildCollisionGrid(
         int z0 = (int)floorf((tzMin - g.minZ) / g.cellSizeZ);
         int z1 = (int)floorf((tzMax - g.minZ) / g.cellSizeZ);
 
-        if (x0 < 0) x0 = 0; if (x1 >= R) x1 = R - 1;
-        if (y0 < 0) y0 = 0; if (y1 >= R) y1 = R - 1;
-        if (z0 < 0) z0 = 0; if (z1 >= R) z1 = R - 1;
+        if (x0 < 0)
+            x0 = 0;
+        if (x1 >= R)
+            x1 = R - 1;
+        if (y0 < 0)
+            y0 = 0;
+        if (y1 >= R)
+            y1 = R - 1;
+        if (z0 < 0)
+            z0 = 0;
+        if (z1 >= R)
+            z1 = R - 1;
 
         for (int cz = z0; cz <= z1; cz++)
             for (int cy = y0; cy <= y1; cy++)
@@ -178,9 +191,18 @@ static CollisionGrid buildCollisionGrid(
         int z0 = (int)floorf((tzMin - g.minZ) / g.cellSizeZ);
         int z1 = (int)floorf((tzMax - g.minZ) / g.cellSizeZ);
 
-        if (x0 < 0) x0 = 0; if (x1 >= R) x1 = R - 1;
-        if (y0 < 0) y0 = 0; if (y1 >= R) y1 = R - 1;
-        if (z0 < 0) z0 = 0; if (z1 >= R) z1 = R - 1;
+        if (x0 < 0)
+            x0 = 0;
+        if (x1 >= R)
+            x1 = R - 1;
+        if (y0 < 0)
+            y0 = 0;
+        if (y1 >= R)
+            y1 = R - 1;
+        if (z0 < 0)
+            z0 = 0;
+        if (z1 >= R)
+            z1 = R - 1;
 
         for (int cz = z0; cz <= z1; cz++)
             for (int cy = y0; cy <= y1; cy++)
@@ -361,7 +383,8 @@ void calculateViewMatrix(float *view,
     float forwardLength =
         sqrtf(forward[0] * forward[0] + forward[1] * forward[1] +
               forward[2] * forward[2]);
-    if (forwardLength < 1e-8f) forwardLength = 1e-8f;
+    if (forwardLength < 1e-8f)
+        forwardLength = 1e-8f;
     forward[0] /= forwardLength;
     forward[1] /= forwardLength;
     forward[2] /= forwardLength;
@@ -373,7 +396,8 @@ void calculateViewMatrix(float *view,
                      forward[0] * up[1] - forward[1] * up[0]};
     float sideLength =
         sqrtf(side[0] * side[0] + side[1] * side[1] + side[2] * side[2]);
-    if (sideLength < 1e-8f) sideLength = 1e-8f;
+    if (sideLength < 1e-8f)
+        sideLength = 1e-8f;
     side[0] /= sideLength;
     side[1] /= sideLength;
     side[2] /= sideLength;
@@ -440,6 +464,7 @@ int main(int argc, char *argv[]) {
     int scaleFromCLI = 0;
     int gridX = 128, gridY = 64, gridZ = 64;
     float smagorinskyCs = 0.1f;
+    int useMRT = 0;
 
     static struct option long_options[] = {
         {"wind", required_argument, 0, 'w'},
@@ -453,6 +478,7 @@ int main(int argc, char *argv[]) {
         {"reynolds", required_argument, 0, 'r'},
         {"grid", required_argument, 0, 'g'},
         {"smagorinsky", required_argument, 0, 'S'},
+        {"mrt", no_argument, 0, 'M'},
         {"help", no_argument, 0, 'h'},
         {0, 0, 0, 0}
 
@@ -460,7 +486,8 @@ int main(int argc, char *argv[]) {
 
     int opt;
     while ((opt = getopt_long(
-                argc, argv, "w:v:c:d:o:m:a:r:s:g:S:h", long_options, NULL)) != -1) {
+                argc, argv, "w:v:c:d:o:m:a:r:s:g:S:Mh", long_options, NULL)) !=
+           -1) {
         switch (opt) {
         case 'w':
             windSpeed = atof(optarg);
@@ -499,9 +526,13 @@ int main(int argc, char *argv[]) {
         case 'a':
             slantAngle = atoi(optarg);
             if (slantAngle == 25) {
-                strncpy(modelPath, "assets/3d-files/ahmed_25deg_m.obj", sizeof(modelPath) - 1);
+                strncpy(modelPath,
+                        "assets/3d-files/ahmed_25deg_m.obj",
+                        sizeof(modelPath) - 1);
             } else if (slantAngle == 35) {
-                strncpy(modelPath, "assets/3d-files/ahmed_35deg_m.obj", sizeof(modelPath) - 1);
+                strncpy(modelPath,
+                        "assets/3d-files/ahmed_35deg_m.obj",
+                        sizeof(modelPath) - 1);
             }
             break;
         case 's':
@@ -521,8 +552,7 @@ int main(int argc, char *argv[]) {
                 smagorinskyCs = 0.5f;
             break;
         case 'g':
-            if (sscanf(optarg, "%dx%dx%d",
-                        &gridX, &gridY, &gridZ) != 3) {
+            if (sscanf(optarg, "%dx%dx%d", &gridX, &gridY, &gridZ) != 3) {
                 /* Try single number: NxN/2xN/2 */
                 int n = atoi(optarg);
                 if (n > 0) {
@@ -532,6 +562,9 @@ int main(int argc, char *argv[]) {
                 }
             }
             break;
+        case 'M':
+            useMRT = 1;
+            break;
         case 'h':
         default:
             printf("Usage: %s [options]\n", argv[0]);
@@ -539,7 +572,8 @@ int main(int argc, char *argv[]) {
             printf("  -w, --wind=SPEED      Wind speed 0-5 (default: 1.0)\n");
             printf("  -v, --viz=MODE        Visualization mode 0-6 (default: "
                    "1)\n");
-            printf("  -c, --collision=MODE  Collision 0=off, 1=AABB, 2=mesh, 3=voxel "
+            printf("  -c, --collision=MODE  Collision 0=off, 1=AABB, 2=mesh, "
+                   "3=voxel "
                    "(default: 1)\n");
             printf("  -d, --duration=SECS   Render duration (0=interactive, "
                    "default: 0)\n");
@@ -554,6 +588,7 @@ int main(int argc, char *argv[]) {
             printf("  -g, --grid=XxYxZ      Grid size (default: 128x64x64)\n");
             printf("  -S, --smagorinsky=CS  Smagorinsky constant 0-0.5 "
                    "(default: 0.1)\n");
+            printf("  -M, --mrt             Enable MRT collision operator\n");
             printf("  -h, --help            Show this help\n");
             return 0;
         }
@@ -768,14 +803,16 @@ int main(int argc, char *argv[]) {
             float mnX = FLT_MAX, mxX = -FLT_MAX;
             float mnZ = FLT_MAX, mxZ = -FLT_MAX;
             for (int i = 0; i < carModel.vertexCount; i++) {
-                float x = carModel.vertices[i].x * g_modelScale
-                          + g_offsetX;
-                float z = carModel.vertices[i].z * g_modelScale
-                          + g_offsetZ;
-                if (x < mnX) mnX = x;
-                if (x > mxX) mxX = x;
-                if (z < mnZ) mnZ = z;
-                if (z > mxZ) mxZ = z;
+                float x = carModel.vertices[i].x * g_modelScale + g_offsetX;
+                float z = carModel.vertices[i].z * g_modelScale + g_offsetZ;
+                if (x < mnX)
+                    mnX = x;
+                if (x > mxX)
+                    mxX = x;
+                if (z < mnZ)
+                    mnZ = z;
+                if (z > mxZ)
+                    mxZ = z;
             }
             sizeX = mxX - mnX;
             sizeZ = mxZ - mnZ;
@@ -796,7 +833,7 @@ int main(int argc, char *argv[]) {
     {
         float radY = g_carRotationY * (float)M_PI / 180.0f;
         g_offsetX += -2.0f * cosf(radY);
-        g_offsetZ +=  2.0f * sinf(radY);
+        g_offsetZ += 2.0f * sinf(radY);
     }
 
     CarBounds carBounds = computeModelBounds(&carModel,
@@ -833,34 +870,43 @@ int main(int argc, char *argv[]) {
     CollisionGrid collGrid = {0};
 
     if (triangleData && numTriangles > 0) {
-        collGrid = buildCollisionGrid(
-            triangleData, numTriangles,
-            carBounds.minX, carBounds.minY, carBounds.minZ,
-            carBounds.maxX, carBounds.maxY, carBounds.maxZ);
+        collGrid = buildCollisionGrid(triangleData,
+                                      numTriangles,
+                                      carBounds.minX,
+                                      carBounds.minY,
+                                      carBounds.minZ,
+                                      carBounds.maxX,
+                                      carBounds.maxY,
+                                      carBounds.maxZ);
 
         glGenBuffers(1, &gridCellStartBuf);
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, gridCellStartBuf);
         glBufferData(GL_SHADER_STORAGE_BUFFER,
                      collGrid.totalCells * sizeof(int),
-                     collGrid.cellStart, GL_STATIC_DRAW);
+                     collGrid.cellStart,
+                     GL_STATIC_DRAW);
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 8, gridCellStartBuf);
 
         glGenBuffers(1, &gridCellCountBuf);
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, gridCellCountBuf);
         glBufferData(GL_SHADER_STORAGE_BUFFER,
                      collGrid.totalCells * sizeof(int),
-                     collGrid.cellCount, GL_STATIC_DRAW);
+                     collGrid.cellCount,
+                     GL_STATIC_DRAW);
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 9, gridCellCountBuf);
 
         glGenBuffers(1, &gridTriIdxBuf);
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, gridTriIdxBuf);
         glBufferData(GL_SHADER_STORAGE_BUFFER,
                      collGrid.totalIndices * sizeof(int),
-                     collGrid.triIndices, GL_STATIC_DRAW);
+                     collGrid.triIndices,
+                     GL_STATIC_DRAW);
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 10, gridTriIdxBuf);
 
         printf("Collision grid: %dx%dx%d, %d index entries (%.1f KB)\n",
-               COLL_GRID_RES, COLL_GRID_RES, COLL_GRID_RES,
+               COLL_GRID_RES,
+               COLL_GRID_RES,
+               COLL_GRID_RES,
                collGrid.totalIndices,
                collGrid.totalIndices * sizeof(int) / 1024.0f);
     }
@@ -880,8 +926,7 @@ int main(int argc, char *argv[]) {
     // Scale: 200 * windSpeed, so wind=1 -> Re=200, wind=5 -> Re=1000.
     // The tau clamp caps the effective Re on coarse grids.
     float scaleX = lbmSizeX / 8.0f;
-    float charLength =
-        (carBounds.maxX - carBounds.minX) * scaleX;
+    float charLength = (carBounds.maxX - carBounds.minX) * scaleX;
 
     if (reynoldsNumber <= 0) {
         reynoldsNumber = 200.0f * windSpeed;
@@ -889,17 +934,16 @@ int main(int argc, char *argv[]) {
             reynoldsNumber = 50.0f;
     }
 
-    float lbmViscosity =
-        (latticeVelocity * charLength) / reynoldsNumber;
+    float lbmViscosity = (latticeVelocity * charLength) / reynoldsNumber;
     float tau = 3.0f * lbmViscosity + 0.5f;
     if (tau < 0.52f) {
         lbmViscosity = (0.52f - 0.5f) / 3.0f;
         tau = 0.52f;
-        float actualRe =
-            (latticeVelocity * charLength) / lbmViscosity;
+        float actualRe = (latticeVelocity * charLength) / lbmViscosity;
         printf("  Re capped at %.0f (tau would be too low for "
                "Re=%.0f)\n",
-               actualRe, reynoldsNumber);
+               actualRe,
+               reynoldsNumber);
         reynoldsNumber = actualRe;
     }
     printf("Reynolds number: %.0f\n", reynoldsNumber);
@@ -944,8 +988,12 @@ int main(int argc, char *argv[]) {
         printf("Smagorinsky SGS enabled (Cs=%.2f), periodic YZ\n",
                lbmGrid->smagorinskyCs);
 
-        // Auto-enable regularized when tau is low.
-        if (lbmGrid->tau < 0.6f) {
+        if (useMRT) {
+            lbmGrid->useMRT = 1;
+            lbmGrid->useRegularized = 0;
+            printf("MRT collision enabled\n");
+        } else if (lbmGrid->tau < 0.6f) {
+            // Auto-enable regularized when tau is low.
             lbmGrid->useRegularized = 1;
             printf("Regularized collision enabled "
                    "(tau=%.3f)\n",
@@ -957,14 +1005,16 @@ int main(int argc, char *argv[]) {
         // Print effective Reynolds number
         {
             float sX = lbmGrid->sizeX / 8.0f;
-            float charL =
-                (carBounds.maxX - carBounds.minX) * sX;
+            float charL = (carBounds.maxX - carBounds.minX) * sX;
             float latU = latticeVelocity;
             float nu = (lbmGrid->tau - 0.5f) / 3.0f;
             float re = (nu > 1e-10f) ? latU * charL / nu : 0;
             printf("Effective Re = %.0f "
                    "(U=%.3f, L=%.1f, nu=%.4f)\n",
-                   re, latU, charL, nu);
+                   re,
+                   latU,
+                   charL,
+                   nu);
         }
         printf("LBM initialized successfully\n");
     } else {
@@ -982,18 +1032,14 @@ int main(int argc, char *argv[]) {
     if (mlModel) {
         // Map model path to model_id (0=car, 1=ahmed25, 2=ahmed35)
         float modelId = 0.0f;
-        if (strstr(modelPath, "ahmed_25") ||
-            strstr(modelPath, "ahmed25"))
+        if (strstr(modelPath, "ahmed_25") || strstr(modelPath, "ahmed25"))
             modelId = 1.0f;
-        else if (strstr(modelPath, "ahmed_35") ||
-                 strstr(modelPath, "ahmed35"))
+        else if (strstr(modelPath, "ahmed_35") || strstr(modelPath, "ahmed35"))
             modelId = 2.0f;
 
         float mlCd, mlCl;
-        ML_Predict(mlModel, windSpeed, reynoldsNumber,
-                   modelId, &mlCd, &mlCl);
-        printf("ML estimate: Cd=%.3f Cl=%.3f (instant)\n",
-               mlCd, mlCl);
+        ML_Predict(mlModel, windSpeed, reynoldsNumber, modelId, &mlCd, &mlCl);
+        printf("ML estimate: Cd=%.3f Cl=%.3f (instant)\n", mlCd, mlCl);
     } else {
         printf("ML model not loaded (no weight files), "
                "skipping instant prediction\n");
@@ -1015,12 +1061,10 @@ int main(int argc, char *argv[]) {
     GLint lbmGridSizeLoc =
         glGetUniformLocation(computeShaderProgram, "lbmGridSize");
     GLint timeLoc = glGetUniformLocation(computeShaderProgram, "time");
-    GLint gridMinLoc =
-        glGetUniformLocation(computeShaderProgram, "gridMin");
+    GLint gridMinLoc = glGetUniformLocation(computeShaderProgram, "gridMin");
     GLint gridCellSizeLoc =
         glGetUniformLocation(computeShaderProgram, "gridCellSize");
-    GLint gridResLoc =
-        glGetUniformLocation(computeShaderProgram, "gridRes");
+    GLint gridResLoc = glGetUniformLocation(computeShaderProgram, "gridRes");
 
     printf("Compute shader uniform locations:\n");
     printf("  dt=%d, wind=%d, carMin=%d, carMax=%d, carCenter=%d\n",
@@ -1113,20 +1157,21 @@ int main(int argc, char *argv[]) {
     glBindVertexArray(0);
     checkGLError("After creating VAO");
 
-    // Streamline trail buffer and rendering setup
-    #define TRAIL_LEN 32
+// Streamline trail buffer and rendering setup
+#define TRAIL_LEN 32
     GLuint trailBuffer;
     {
-        size_t trailSize =
-            GPU_PARTICLES * TRAIL_LEN * 4 * sizeof(float);
+        size_t trailSize = GPU_PARTICLES * TRAIL_LEN * 4 * sizeof(float);
         void *trailZeros = calloc(1, trailSize);
         glGenBuffers(1, &trailBuffer);
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, trailBuffer);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, trailSize,
-                     trailZeros, GL_DYNAMIC_COPY);
+        glBufferData(
+            GL_SHADER_STORAGE_BUFFER, trailSize, trailZeros, GL_DYNAMIC_COPY);
         free(trailZeros);
         printf("Trail buffer: %.1f MB (%d particles x %d points)\n",
-               trailSize / (1024.0 * 1024.0), GPU_PARTICLES, TRAIL_LEN);
+               trailSize / (1024.0 * 1024.0),
+               GPU_PARTICLES,
+               TRAIL_LEN);
     }
 
     // Trail VAO (reads vec4 from trailBuffer)
@@ -1135,16 +1180,15 @@ int main(int argc, char *argv[]) {
     glBindVertexArray(trailVAO);
     glBindBuffer(GL_ARRAY_BUFFER, trailBuffer);
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE,
-                          4 * sizeof(float), (void *)0);
+    glVertexAttribPointer(
+        0, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)0);
     glBindVertexArray(0);
 
     // Trail index buffer with primitive restart
     GLuint trailEBO;
     {
         int idxCount = GPU_PARTICLES * (TRAIL_LEN + 1);
-        GLuint *indices =
-            (GLuint *)malloc(idxCount * sizeof(GLuint));
+        GLuint *indices = (GLuint *)malloc(idxCount * sizeof(GLuint));
         int k = 0;
         for (int i = 0; i < GPU_PARTICLES; i++) {
             for (int j = 0; j < TRAIL_LEN; j++)
@@ -1154,13 +1198,14 @@ int main(int argc, char *argv[]) {
         glGenBuffers(1, &trailEBO);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, trailEBO);
         glBufferData(GL_ELEMENT_ARRAY_BUFFER,
-                     k * sizeof(GLuint), indices, GL_STATIC_DRAW);
+                     k * sizeof(GLuint),
+                     indices,
+                     GL_STATIC_DRAW);
         free(indices);
     }
 
     // Trail shaders
-    GLuint trailUpdateShader =
-        createComputeShader("shaders/trail_update.comp");
+    GLuint trailUpdateShader = createComputeShader("shaders/trail_update.comp");
     GLuint trailRenderProgram =
         createShaderProgram("shaders/trail.vert", "shaders/trail.frag");
 
@@ -1237,8 +1282,8 @@ int main(int argc, char *argv[]) {
     int outputFrameCount = 0;
     int maxFrames = (renderDuration > 0) ? renderDuration * 60 : 0;
 
-    // Convergence detection for auto-stop
-    #define CD_HISTORY_SIZE 100
+// Convergence detection for auto-stop
+#define CD_HISTORY_SIZE 100
     float cdHistory[CD_HISTORY_SIZE];
     int cdHistoryCount = 0;
     int converged = 0;
@@ -1449,8 +1494,10 @@ int main(int argc, char *argv[]) {
         // until the flow is developed enough for Cd measurement.
         // This is ~5x faster than rendering every frame.
         int rampEnd = 300;
-        int flowThroughFrames = lbmGrid
-            ? (int)(lbmGrid->sizeX / (latticeVelocity * lbmSubsteps * 2)) : 150;
+        int flowThroughFrames =
+            lbmGrid
+                ? (int)(lbmGrid->sizeX / (latticeVelocity * lbmSubsteps * 2))
+                : 150;
         int cdStartFrame = rampEnd + 3 * flowThroughFrames;
 
         // For short headless runs, cap the skip so we still produce
@@ -1463,165 +1510,175 @@ int main(int argc, char *argv[]) {
         int skipRendering = (renderDuration > 0 && frameCount < cdStartFrame);
 
         if (!skipRendering) {
-        // Now set up particle compute shader
-        glUseProgram(computeShaderProgram);
+            // Now set up particle compute shader
+            glUseProgram(computeShaderProgram);
 
-        // Bind buffers
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, particleBuffer);
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, triangleBuffer);
+            // Bind buffers
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, particleBuffer);
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, triangleBuffer);
 
-        // Bind LBM velocity and solid buffers if using LBM
-        if (lbmGrid && useLBM) {
-            glBindBufferBase(
-                GL_SHADER_STORAGE_BUFFER, 4, LBM_GetVelocityBuffer(lbmGrid));
-            glBindBufferBase(
-                GL_SHADER_STORAGE_BUFFER, 5, lbmGrid->solidBuffer);
-        }
-
-        // Set uniforms
-        if (dtLoc != -1)
-            glUniform1f(dtLoc, deltaTime);
-        if (windLoc != -1)
-            glUniform3f(windLoc, windSpeed * 0.5f, 0.0f, 0.0f);
-        if (carMinLoc != -1)
-            glUniform3f(
-                carMinLoc, carBounds.minX, carBounds.minY, carBounds.minZ);
-        if (carMaxLoc != -1)
-            glUniform3f(
-                carMaxLoc, carBounds.maxX, carBounds.maxY, carBounds.maxZ);
-        if (carCenterLoc != -1)
-            glUniform3f(carCenterLoc,
-                        carBounds.centerX,
-                        carBounds.centerY,
-                        carBounds.centerZ);
-        if (collisionModeLoc != -1)
-            glUniform1i(collisionModeLoc, collisionMode);
-        if (numTrianglesLoc != -1)
-            glUniform1i(numTrianglesLoc, numTriangles);
-
-        // LBM uniforms
-        if (useLBMLoc != -1)
-            glUniform1i(useLBMLoc, (useLBM && lbmGrid) ? 1 : 0);
-        if (lbmGridSizeLoc != -1 && lbmGrid) {
-            glUniform3i(
-                lbmGridSizeLoc, lbmGrid->sizeX, lbmGrid->sizeY, lbmGrid->sizeZ);
-        }
-
-        // Collision grid uniforms
-        if (gridMinLoc != -1)
-            glUniform3f(gridMinLoc,
-                        collGrid.minX, collGrid.minY, collGrid.minZ);
-        if (gridCellSizeLoc != -1)
-            glUniform3f(gridCellSizeLoc,
-                        collGrid.cellSizeX, collGrid.cellSizeY,
-                        collGrid.cellSizeZ);
-        if (gridResLoc != -1)
-            glUniform3i(gridResLoc,
-                        COLL_GRID_RES, COLL_GRID_RES, COLL_GRID_RES);
-
-        // Bind grid SSBOs
-        if (gridCellStartBuf)
-            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 8, gridCellStartBuf);
-        if (gridCellCountBuf)
-            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 9, gridCellCountBuf);
-        if (gridTriIdxBuf)
-            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 10, gridTriIdxBuf);
-
-        // Time uniform for randomness
-        if (timeLoc != -1)
-            glUniform1f(timeLoc, (float)SDL_GetTicks() / 1000.0f);
-
-        // Dispatch particle compute (skip when paused unless single-stepping)
-        if (!paused || stepOnce) {
-            glDispatchCompute((GPU_PARTICLES + 255) / 256, 1, 1);
-            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT |
-                            GL_VERTEX_ATTRIB_ARRAY_BARRIER_BIT);
-
-            // Update streamline trails after particle positions are written
-            if (trailUpdateShader && visualizationMode == 7) {
+            // Bind LBM velocity and solid buffers if using LBM
+            if (lbmGrid && useLBM) {
+                glBindBufferBase(GL_SHADER_STORAGE_BUFFER,
+                                 4,
+                                 LBM_GetVelocityBuffer(lbmGrid));
                 glBindBufferBase(
-                    GL_SHADER_STORAGE_BUFFER, 7, trailBuffer);
-                glUseProgram(trailUpdateShader);
-                glUniform1i(
-                    glGetUniformLocation(trailUpdateShader, "trailLen"),
-                    TRAIL_LEN);
-                glUniform1i(
-                    glGetUniformLocation(trailUpdateShader, "numParticles"),
-                    GPU_PARTICLES);
+                    GL_SHADER_STORAGE_BUFFER, 5, lbmGrid->solidBuffer);
+            }
+
+            // Set uniforms
+            if (dtLoc != -1)
+                glUniform1f(dtLoc, deltaTime);
+            if (windLoc != -1)
+                glUniform3f(windLoc, windSpeed * 0.5f, 0.0f, 0.0f);
+            if (carMinLoc != -1)
+                glUniform3f(
+                    carMinLoc, carBounds.minX, carBounds.minY, carBounds.minZ);
+            if (carMaxLoc != -1)
+                glUniform3f(
+                    carMaxLoc, carBounds.maxX, carBounds.maxY, carBounds.maxZ);
+            if (carCenterLoc != -1)
+                glUniform3f(carCenterLoc,
+                            carBounds.centerX,
+                            carBounds.centerY,
+                            carBounds.centerZ);
+            if (collisionModeLoc != -1)
+                glUniform1i(collisionModeLoc, collisionMode);
+            if (numTrianglesLoc != -1)
+                glUniform1i(numTrianglesLoc, numTriangles);
+
+            // LBM uniforms
+            if (useLBMLoc != -1)
+                glUniform1i(useLBMLoc, (useLBM && lbmGrid) ? 1 : 0);
+            if (lbmGridSizeLoc != -1 && lbmGrid) {
+                glUniform3i(lbmGridSizeLoc,
+                            lbmGrid->sizeX,
+                            lbmGrid->sizeY,
+                            lbmGrid->sizeZ);
+            }
+
+            // Collision grid uniforms
+            if (gridMinLoc != -1)
+                glUniform3f(
+                    gridMinLoc, collGrid.minX, collGrid.minY, collGrid.minZ);
+            if (gridCellSizeLoc != -1)
+                glUniform3f(gridCellSizeLoc,
+                            collGrid.cellSizeX,
+                            collGrid.cellSizeY,
+                            collGrid.cellSizeZ);
+            if (gridResLoc != -1)
+                glUniform3i(
+                    gridResLoc, COLL_GRID_RES, COLL_GRID_RES, COLL_GRID_RES);
+
+            // Bind grid SSBOs
+            if (gridCellStartBuf)
+                glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 8, gridCellStartBuf);
+            if (gridCellCountBuf)
+                glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 9, gridCellCountBuf);
+            if (gridTriIdxBuf)
+                glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 10, gridTriIdxBuf);
+
+            // Time uniform for randomness
+            if (timeLoc != -1)
+                glUniform1f(timeLoc, (float)SDL_GetTicks() / 1000.0f);
+
+            // Dispatch particle compute (skip when paused unless
+            // single-stepping)
+            if (!paused || stepOnce) {
                 glDispatchCompute((GPU_PARTICLES + 255) / 256, 1, 1);
                 glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT |
                                 GL_VERTEX_ATTRIB_ARRAY_BARRIER_BIT);
+
+                // Update streamline trails after particle positions are written
+                if (trailUpdateShader && visualizationMode == 7) {
+                    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 7, trailBuffer);
+                    glUseProgram(trailUpdateShader);
+                    glUniform1i(
+                        glGetUniformLocation(trailUpdateShader, "trailLen"),
+                        TRAIL_LEN);
+                    glUniform1i(
+                        glGetUniformLocation(trailUpdateShader, "numParticles"),
+                        GPU_PARTICLES);
+                    glDispatchCompute((GPU_PARTICLES + 255) / 256, 1, 1);
+                    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT |
+                                    GL_VERTEX_ATTRIB_ARRAY_BARRIER_BIT);
+                }
             }
-        }
 
-        if (visualizationMode == 7 && trailRenderProgram) {
-            // Streamline mode: render trails as line strips
-            glUseProgram(trailRenderProgram);
-            glUniformMatrix4fv(
-                glGetUniformLocation(trailRenderProgram, "projection"),
-                1, GL_FALSE, projection);
-            glUniformMatrix4fv(
-                glGetUniformLocation(trailRenderProgram, "view"),
-                1, GL_FALSE, view);
-            glUniform1i(
-                glGetUniformLocation(trailRenderProgram, "trailLen"),
-                TRAIL_LEN);
-            glUniform1f(
-                glGetUniformLocation(trailRenderProgram, "maxSpeed"),
-                maxSpeed);
+            if (visualizationMode == 7 && trailRenderProgram) {
+                // Streamline mode: render trails as line strips
+                glUseProgram(trailRenderProgram);
+                glUniformMatrix4fv(
+                    glGetUniformLocation(trailRenderProgram, "projection"),
+                    1,
+                    GL_FALSE,
+                    projection);
+                glUniformMatrix4fv(
+                    glGetUniformLocation(trailRenderProgram, "view"),
+                    1,
+                    GL_FALSE,
+                    view);
+                glUniform1i(
+                    glGetUniformLocation(trailRenderProgram, "trailLen"),
+                    TRAIL_LEN);
+                glUniform1f(
+                    glGetUniformLocation(trailRenderProgram, "maxSpeed"),
+                    maxSpeed);
 
-            glEnable(GL_PRIMITIVE_RESTART);
-            glPrimitiveRestartIndex(0xFFFFFFFF);
+                glEnable(GL_PRIMITIVE_RESTART);
+                glPrimitiveRestartIndex(0xFFFFFFFF);
 
-            glBindVertexArray(trailVAO);
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, trailEBO);
-            glDrawElements(GL_LINE_STRIP,
-                           GPU_PARTICLES * (TRAIL_LEN + 1),
-                           GL_UNSIGNED_INT, 0);
+                glBindVertexArray(trailVAO);
+                glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, trailEBO);
+                glDrawElements(GL_LINE_STRIP,
+                               GPU_PARTICLES * (TRAIL_LEN + 1),
+                               GL_UNSIGNED_INT,
+                               0);
 
-            glDisable(GL_PRIMITIVE_RESTART);
-            checkGLError("After rendering streamlines");
-        } else {
-            // Normal particle rendering (modes 0-6)
-            glUseProgram(particleShaderProgram);
-            if (viewLoc != -1)
-                glUniformMatrix4fv(viewLoc, 1, GL_FALSE, view);
-            if (vizModeLoc != -1)
-                glUniform1i(vizModeLoc, visualizationMode);
-            if (maxSpeedLoc != -1)
-                glUniform1f(maxSpeedLoc, maxSpeed);
+                glDisable(GL_PRIMITIVE_RESTART);
+                checkGLError("After rendering streamlines");
+            } else {
+                // Normal particle rendering (modes 0-6)
+                glUseProgram(particleShaderProgram);
+                if (viewLoc != -1)
+                    glUniformMatrix4fv(viewLoc, 1, GL_FALSE, view);
+                if (vizModeLoc != -1)
+                    glUniform1i(vizModeLoc, visualizationMode);
+                if (maxSpeedLoc != -1)
+                    glUniform1f(maxSpeedLoc, maxSpeed);
 
-            glBindVertexArray(particleVAO);
-            glDrawArrays(GL_POINTS, 0, GPU_PARTICLES);
-            checkGLError("After rendering particles");
-        }
+                glBindVertexArray(particleVAO);
+                glDrawArrays(GL_POINTS, 0, GPU_PARTICLES);
+                checkGLError("After rendering particles");
+            }
 
-        // Render car model
-        if (carModel.faceCount > 0) {
-            glUseProgram(0);
+            // Render car model
+            if (carModel.faceCount > 0) {
+                glUseProgram(0);
 
-            glMatrixMode(GL_PROJECTION);
-            glPushMatrix();
-            glLoadMatrixf(projection);
+                glMatrixMode(GL_PROJECTION);
+                glPushMatrix();
+                glLoadMatrixf(projection);
 
-            glMatrixMode(GL_MODELVIEW);
-            glPushMatrix();
-            glLoadMatrixf(view);
+                glMatrixMode(GL_MODELVIEW);
+                glPushMatrix();
+                glLoadMatrixf(view);
 
-            renderModel(&carModel, SCALE);
+                renderModel(&carModel, SCALE);
 
-            glPopMatrix();
-            glMatrixMode(GL_PROJECTION);
-            glPopMatrix();
-            glMatrixMode(GL_MODELVIEW);
+                glPopMatrix();
+                glMatrixMode(GL_PROJECTION);
+                glPopMatrix();
+                glMatrixMode(GL_MODELVIEW);
 
-            checkGLError("After rendering model");
-        }
+                checkGLError("After rendering model");
+            }
         } // end skipRendering
 
         // Compute and display drag coefficient every 20 frames
         // once the flow has developed (cdStartFrame computed above).
-        if (frameCount >= cdStartFrame && frameCount % 20 == 0 && lbmGrid && useLBM) {
+        if (frameCount >= cdStartFrame && frameCount % 20 == 0 && lbmGrid &&
+            useLBM) {
             // Compute force once, derive Cd and Cl from it
             float fx, fy, fz;
             LBM_ComputeDragForce(lbmGrid, &fx, &fy, &fz);
@@ -1646,7 +1703,12 @@ int main(int argc, char *argv[]) {
 
             printf("  Drag Force: (%.4f, %.4f, %.4f),"
                    " Cd=%.3f Cl=%.3f (avg=%.3f)\n",
-                   fx, fy, fz, Cd, Cl, cdEma);
+                   fx,
+                   fy,
+                   fz,
+                   Cd,
+                   Cl,
+                   cdEma);
 
             // Track Cd for convergence detection
             if (Cd > 0 && Cd < 1000) {
@@ -1664,13 +1726,15 @@ int main(int argc, char *argv[]) {
                         float d = cdHistory[j] - mean;
                         var += d * d;
                     }
-                    float relStd = sqrtf(var / CD_HISTORY_SIZE) / (mean + 1e-10f);
+                    float relStd =
+                        sqrtf(var / CD_HISTORY_SIZE) / (mean + 1e-10f);
 
                     if (relStd < 0.01f) {
                         converged = 1;
                         printf("  Cd converged (mean=%.3f,"
                                " relStd=%.4f)\n",
-                               mean, relStd);
+                               mean,
+                               relStd);
                         // Auto-stop in headless mode
                         if (maxFrames > 0) {
                             // Run 2 more seconds for clean video ending
@@ -1731,6 +1795,7 @@ int main(int argc, char *argv[]) {
     GLContext_Destroy(glCtx);
 
     printf("Cleanup complete. Exiting.\n");
-    printf("Thanks for Running my project! If you liked it please consider contributing or leaving a star on GitHub!");
+    printf("Thanks for Running my project! If you liked it please consider "
+           "contributing or leaving a star on GitHub!");
     return 0;
 }
