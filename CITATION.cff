@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "Lattice: GPU-accelerated Lattice Boltzmann fluid dynamics"
+type: software
+authors:
+  - family-names: Ashton
+    given-names: Marcos
+    email: marcosashiglesias@gmail.com
+repository-code: "https://github.com/MarcosAsh/Lattice_Fluid_Dynamics"
+license: MIT
+keywords:
+  - lattice-boltzmann
+  - computational-fluid-dynamics
+  - gpu-computing
+  - opengl-compute-shaders
+  - drag-coefficient
+  - wind-tunnel

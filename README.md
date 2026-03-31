@@ -114,6 +114,19 @@ This gives you a URL to set as `MODAL_RENDER_ENDPOINT`. You'll also need an `aws
 5. **Flow progress** -- rainbow gradient by X position
 6. **Vorticity** -- lateral motion indicator
 
+## Citing
+
+If you use Lattice in academic work, you can cite it with the BibTeX below (or click "Cite this repository" on GitHub):
+
+```bibtex
+@software{ashton_lattice,
+  author  = {Ashton, Marcos},
+  title   = {Lattice: {GPU}-accelerated {Lattice Boltzmann} fluid dynamics},
+  url     = {https://github.com/MarcosAsh/Lattice_Fluid_Dynamics},
+  license = {MIT}
+}
+```
+
 ## License
 
 MIT
