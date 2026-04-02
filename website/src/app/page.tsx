@@ -77,7 +77,17 @@ export default function Home() {
     if (typeof window === 'undefined') return [];
     try {
       const saved = localStorage.getItem('lattice_results');
-      return saved ? JSON.parse(saved) : [];
+      if (!saved) return [];
+      const parsed: SimulationResult[] = JSON.parse(saved);
+      // Backfill fields added after initial release
+      return parsed.map((r) => ({
+        ...r,
+        tStar: r.tStar ?? null,
+        flowThroughs: r.flowThroughs ?? null,
+        cfl: r.cfl ?? null,
+        cdPressureSeries: r.cdPressureSeries ?? [],
+        cdFrictionSeries: r.cdFrictionSeries ?? [],
+      }));
     } catch {
       return [];
     }

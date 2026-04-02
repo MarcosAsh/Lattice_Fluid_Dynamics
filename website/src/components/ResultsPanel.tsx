@@ -43,15 +43,17 @@ function downloadCsv(result: SimulationResult, strouhal: number | null) {
   if (result.cfl !== null) {
     rows.push(`# CFL: ${result.cfl.toFixed(4)}`);
   }
-  const hasPressure = result.cdPressureSeries.length > 0;
+  const hasPressure = (result.cdPressureSeries ?? []).length > 0;
   rows.push(hasPressure ? 'step,cd,cl,cd_pressure,cd_friction' : 'step,cd,cl');
   const len = Math.max(result.cdSeries.length, result.clSeries.length);
   for (let i = 0; i < len; i++) {
     const cd = i < result.cdSeries.length ? result.cdSeries[i].toFixed(6) : '';
     const cl = i < result.clSeries.length ? result.clSeries[i].toFixed(6) : '';
     if (hasPressure) {
-      const cdp = i < result.cdPressureSeries.length ? result.cdPressureSeries[i].toFixed(6) : '';
-      const cdf = i < result.cdFrictionSeries.length ? result.cdFrictionSeries[i].toFixed(6) : '';
+      const pSeries = result.cdPressureSeries ?? [];
+      const fSeries = result.cdFrictionSeries ?? [];
+      const cdp = i < pSeries.length ? pSeries[i].toFixed(6) : '';
+      const cdf = i < fSeries.length ? fSeries[i].toFixed(6) : '';
       rows.push(`${i},${cd},${cl},${cdp},${cdf}`);
     } else {
       rows.push(`${i},${cd},${cl}`);
