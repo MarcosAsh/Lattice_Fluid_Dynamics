@@ -4,15 +4,16 @@
 
 # Lattice
 
-GPU-accelerated wind tunnel that simulates fluid flow around 3D objects using Lattice Boltzmann Methods and OpenGL compute shaders. Written in C with a Next.js web frontend for remote rendering.
+GPU-accelerated wind tunnel that simulates fluid flow around 3D objects using Lattice Boltzmann Methods and OpenGL compute shaders. Written in C with a Next.js web frontend for remote rendering, plus a custom C++ ML framework for drag prediction.
 
-The simulation runs a D3Q19 LBM grid on the GPU, pushes hundreds of thousands of particles through the velocity field, and computes drag coefficients in real time. You can run it locally with a desktop window or trigger headless renders on a cloud GPU through the website.
+The simulation runs a D3Q19 LBM grid on the GPU, pushes 50,000 particles through the velocity field, and computes drag/lift coefficients in real time. You can run it locally with a desktop window or trigger headless renders on a cloud GPU through the website.
 
 ## What's in here
 
 ```
 simulation/   C simulation engine (LBM + OpenGL compute shaders)
 website/      Next.js frontend that talks to a Modal GPU worker
+ml/           C++ ML framework (autodiff, MLP, AdamW) + Python training tools
 ```
 
 ### Simulation (`simulation/`)
@@ -20,10 +21,18 @@ website/      Next.js frontend that talks to a Modal GPU worker
 The core fluid solver. Particles are advected through a 3D velocity field computed by the LBM kernel, with collision detection against arbitrary OBJ meshes. Everything runs on the GPU via OpenGL 4.3 compute shaders.
 
 - `src/` -- simulation loop, LBM solver, particle system, rendering
-- `shaders/` -- compute shaders for LBM collision/streaming and particle updates
-- `lib/` -- headers for fluid grid, particles, OpenGL helpers
+- `shaders/` -- compute shaders for LBM collision/streaming, particle updates, force computation, and streamline tracing
+- `lib/` -- headers for fluid grid, particles, OpenGL helpers, ML inference
 - `assets/` -- OBJ models (car, Ahmed bodies) and fonts
 - `obj-file-loader/` -- lightweight Wavefront OBJ parser
+
+Key solver features:
+- D3Q19 lattice with BGK, regularized, and MRT collision operators
+- Smagorinsky subgrid-scale turbulence model
+- Bouzidi interpolated bounce-back for second-order wall accuracy
+- Pressure/friction drag decomposition via equilibrium splitting
+- Dimensionless time (t*, flow-throughs, CFL) reporting
+- VTK ImageData export for ParaView post-processing
 
 ### Website (`website/`)
 
@@ -32,9 +41,23 @@ A Next.js app that lets you configure simulation parameters and kick off GPU ren
 Features:
 - Configure wind speed, visualization mode, collision mode, and model selection
 - Upload custom OBJ files for testing your own geometry
-- Drag coefficient (Cd) readout with comparison table across runs
+- Drag coefficient (Cd/Cl) readout with convergence chart and comparison table
+- Live Cd/Cl streaming during renders -- watch coefficients converge in real time
+- Batch parameter sweep with Cd vs wind speed curves
+- ML surrogate predictions (in-browser, sub-millisecond)
+- Strouhal number extraction from lift time series
 - Shareable URLs via hash-encoded parameters
+- CSV export with pressure/friction decomposition
 - Demo mode when no GPU backend is configured
+
+### ML (`ml/`)
+
+A from-scratch C++ ML framework with reverse-mode autodiff, and Python tools for data generation and evaluation.
+
+- `framework/` -- Tensor, AutoDiff, Linear layers, SwiGLU, AdamW optimizer, LTWS weight format
+- `train.cpp` -- training driver with mini-batch SGD and z-score normalization
+- `data_gen.py` -- parameter sweep on Modal for training data collection
+- `evaluate.py` -- MAE/RMSE/R² metrics with matplotlib visualizations
 
 ## Building the simulation
 
@@ -92,11 +115,13 @@ This gives you a URL to set as `MODAL_RENDER_ENDPOINT`. You'll also need an `aws
 | Key | Action |
 |---|---|
 | Mouse drag | Orbit camera |
+| Shift+drag / middle drag | Pan camera |
 | Scroll wheel | Zoom |
 | W/S | Tilt up/down |
 | A/D | Rotate around target |
 | Q/E | Zoom in/out (step) |
 | R | Reset camera |
+| F1/F2/F3/F4 | Front / side / top / isometric view |
 | Up/Down | Wind speed |
 | V | Cycle viz mode |
 | 3-9 | Select viz mode |
@@ -113,6 +138,19 @@ This gives you a URL to set as `MODAL_RENDER_ENDPOINT`. You'll also need an `aws
 4. **Turbulence** -- laminar vs turbulent regions
 5. **Flow progress** -- rainbow gradient by X position
 6. **Vorticity** -- lateral motion indicator
+7. **Pathlines** -- particle trails over time
+8. **Pressure** -- surface pressure coefficient (blue = low, red = high)
+9. **Streamlines** -- RK4-integrated curves through the instantaneous velocity field
+
+## VTK export
+
+Dump the velocity field for ParaView post-processing:
+
+```bash
+./build/3d_fluid_simulation_car --vtk-output=/tmp/vtk --vtk-interval=50
+```
+
+Writes VTI (VTK ImageData) files with velocity and solid mask at the specified frame interval.
 
 ## Citing
 
