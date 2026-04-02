@@ -83,7 +83,7 @@ build_cache = modal.Volume.from_name(
 )
 
 REPO_URL = (
-    "https://github.com/MarcosAsh/3dFluidDynamicsInC.git"
+    "https://github.com/MarcosAsh/Lattice_Fluid_Dynamics.git"
 )
 
 
@@ -390,29 +390,78 @@ def render_simulation(
             stderr=subprocess.PIPE,
             text=True,
         )
+
+        # Read stdout line-by-line for live Cd/Cl streaming
+        stdout_lines: list[str] = []
+        _live_cd: list[float] = []
+        _live_cl: list[float] = []
+        _live_update_interval = 3  # save progress every N new Cd samples
+        _last_live_count = 0
+
         try:
-            stdout, stderr = proc.communicate(
-                timeout=sim_timeout
-            )
-        except subprocess.TimeoutExpired:
+            deadline = time.monotonic() + sim_timeout
+            while True:
+                if time.monotonic() > deadline:
+                    proc.kill()
+                    proc.wait()
+                    stdout = "\n".join(stdout_lines)
+                    stderr = proc.stderr.read() if proc.stderr else ""
+                    log.error(
+                        "render timed out",
+                        extra={
+                            **ctx,
+                            "stdout_tail": (stdout or "")[-2000:],
+                            "stderr_tail": (stderr or "")[-500:],
+                        },
+                    )
+                    return {
+                        "status": "error",
+                        "error": (
+                            f"Timed out\nstdout:\n"
+                            f"{(stdout or '')[-2000:]}"
+                        ),
+                        "error_type": "timeout",
+                    }
+
+                line = proc.stdout.readline()
+                if not line and proc.poll() is not None:
+                    break
+                if line:
+                    stdout_lines.append(line.rstrip("\n"))
+
+                    # Parse Cd/Cl as they arrive
+                    if "Cd=" in line:
+                        try:
+                            val = float(line.split("Cd=")[1].split()[0])
+                            if math.isfinite(val):
+                                _live_cd.append(val)
+                        except (IndexError, ValueError):
+                            pass
+                    if "Cl=" in line:
+                        try:
+                            val = float(line.split("Cl=")[1].split()[0])
+                            if math.isfinite(val):
+                                _live_cl.append(val)
+                        except (IndexError, ValueError):
+                            pass
+
+                    # Periodically save progress for live polling
+                    if (job_id and len(_live_cd) > 0 and
+                            len(_live_cd) - _last_live_count >= _live_update_interval):
+                        _last_live_count = len(_live_cd)
+                        _save_job_result(job_id, {
+                            "status": "rendering",
+                            "cd_series": _live_cd[:],
+                            "cl_series": _live_cl[:],
+                        })
+
+            stderr = proc.stderr.read() if proc.stderr else ""
+            stdout = "\n".join(stdout_lines)
+        except Exception:
             proc.kill()
-            stdout, stderr = proc.communicate()
-            log.error(
-                "render timed out",
-                extra={
-                    **ctx,
-                    "stdout_tail": (stdout or "")[-2000:],
-                    "stderr_tail": (stderr or "")[-500:],
-                },
-            )
-            return {
-                "status": "error",
-                "error": (
-                    f"Timed out\nstdout:\n"
-                    f"{(stdout or '')[-2000:]}"
-                ),
-                "error_type": "timeout",
-            }
+            proc.wait()
+            stdout = "\n".join(stdout_lines)
+            stderr = proc.stderr.read() if proc.stderr else ""
 
         sim_rc = proc.returncode
         timings["simulation"] = time.monotonic() - t_sim
@@ -425,6 +474,11 @@ def render_simulation(
         char_length = None
         strouhal = None
         sample_interval = None
+        t_star = None
+        flow_throughs = None
+        cfl = None
+        cd_pressure_values = []
+        cd_friction_values = []
 
         def _parse_float(line: str, prefix: str, suffix: str | None = None) -> float | None:
             try:
@@ -472,6 +526,26 @@ def render_simulation(
                 val = _parse_float(line, "Sample interval:", "lattice")
                 if val is not None:
                     sample_interval = int(val)
+            if "t*=" in line:
+                val = _parse_float(line, "t*=")
+                if val is not None:
+                    t_star = val
+            if "flow-throughs=" in line:
+                val = _parse_float(line, "flow-throughs=")
+                if val is not None:
+                    flow_throughs = val
+            if "CFL:" in line:
+                val = _parse_float(line, "CFL:")
+                if val is not None:
+                    cfl = val
+            if "Cd_pressure=" in line:
+                val = _parse_float(line, "Cd_pressure=")
+                if val is not None:
+                    cd_pressure_values.append(val)
+            if "Cd_friction=" in line:
+                val = _parse_float(line, "Cd_friction=")
+                if val is not None:
+                    cd_friction_values.append(val)
 
         cd_value = None
         if cd_values:
@@ -598,6 +672,11 @@ def render_simulation(
             "char_length": char_length,
             "strouhal": strouhal,
             "sample_interval": sample_interval,
+            "t_star": t_star,
+            "flow_throughs": flow_throughs,
+            "cfl": cfl,
+            "cd_pressure_series": cd_pressure_values,
+            "cd_friction_series": cd_friction_values,
             "timings": {
                 k: round(v, 2)
                 for k, v in timings.items()

@@ -9,6 +9,8 @@ interface ControlPanelProps {
   params: SimulationParams;
   setParams: (params: SimulationParams) => void;
   onRender: () => void;
+  onSweep?: (windMin: number, windMax: number, windStep: number) => void;
+  sweepProgress?: string | null;
   disabled: boolean;
   objFile: File | null;
   onObjFileChange: (file: File | null) => void;
@@ -153,6 +155,8 @@ export default function ControlPanel({
   params,
   setParams,
   onRender,
+  onSweep,
+  sweepProgress,
   disabled,
   objFile,
   onObjFileChange,
@@ -162,6 +166,9 @@ export default function ControlPanel({
   const [mobileOpen, setMobileOpen] = useState(false);
   const [objValidation, setObjValidation] = useState<ObjValidationResult | null>(null);
   const [validating, setValidating] = useState(false);
+  const [sweepMin, setSweepMin] = useState(0.5);
+  const [sweepMax, setSweepMax] = useState(3.0);
+  const [sweepStep, setSweepStep] = useState(0.5);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -433,6 +440,66 @@ export default function ControlPanel({
               ? 'Select OBJ first'
               : 'Start Render'}
         </button>
+
+        {onSweep && (
+          <>
+            <hr className="border-ctp-surface1" />
+            <div className="text-[10px] text-ctp-overlay0 uppercase tracking-wider">
+              Parameter Sweep
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="flex flex-col gap-0.5">
+                <label className="text-[10px] text-ctp-subtext0">Min</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={5}
+                  step={0.5}
+                  value={sweepMin}
+                  onChange={(e) => setSweepMin(parseFloat(e.target.value) || 0)}
+                  className="bg-ctp-surface0 text-ctp-text text-xs rounded px-1.5 py-1 border border-ctp-surface1 w-full font-mono"
+                  disabled={disabled}
+                />
+              </div>
+              <div className="flex flex-col gap-0.5">
+                <label className="text-[10px] text-ctp-subtext0">Max</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={5}
+                  step={0.5}
+                  value={sweepMax}
+                  onChange={(e) => setSweepMax(parseFloat(e.target.value) || 0)}
+                  className="bg-ctp-surface0 text-ctp-text text-xs rounded px-1.5 py-1 border border-ctp-surface1 w-full font-mono"
+                  disabled={disabled}
+                />
+              </div>
+              <div className="flex flex-col gap-0.5">
+                <label className="text-[10px] text-ctp-subtext0">Step</label>
+                <input
+                  type="number"
+                  min={0.5}
+                  max={2}
+                  step={0.5}
+                  value={sweepStep}
+                  onChange={(e) => setSweepStep(parseFloat(e.target.value) || 0.5)}
+                  className="bg-ctp-surface0 text-ctp-text text-xs rounded px-1.5 py-1 border border-ctp-surface1 w-full font-mono"
+                  disabled={disabled}
+                />
+              </div>
+            </div>
+            {sweepProgress && (
+              <div className="text-xs text-ctp-overlay1 font-mono">{sweepProgress}</div>
+            )}
+            <button
+              onClick={() => onSweep(sweepMin, sweepMax, sweepStep)}
+              disabled={renderDisabled || sweepMin >= sweepMax}
+              className="bg-ctp-blue hover:bg-ctp-sapphire disabled:bg-ctp-surface1 disabled:text-ctp-overlay0 text-ctp-crust text-sm font-medium py-2 px-4 rounded transition-colors"
+            >
+              {disabled ? 'Running...' : 'Run Sweep'}
+            </button>
+          </>
+        )}
       </div>
     </div>
   );

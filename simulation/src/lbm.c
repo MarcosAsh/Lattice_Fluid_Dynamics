@@ -85,7 +85,7 @@ LBMGrid *LBM_Create(int sizeX, int sizeY, int sizeZ, float viscosity) {
     size_t velSize = grid->totalCells * 4 * sizeof(float);
     size_t solidSize = grid->totalCells * sizeof(int);
     size_t forceSize =
-        4 * sizeof(int); // forceX, forceY, forceZ, count (as ints)
+        7 * sizeof(int); // total(xyz), count, pressure(xyz)
 
     size_t totalGPU = 2 * fSize + velSize + solidSize + forceSize;
     printf("GPU memory: f=%.1f MB x2, vel=%.1f MB, solid=%.1f MB, "
@@ -203,7 +203,7 @@ LBMGrid *LBM_Create(int sizeX, int sizeY, int sizeZ, float viscosity) {
     }
     free(solidZeros);
 
-    int forceZeros[4] = {0, 0, 0, 0};
+    int forceZeros[7] = {0, 0, 0, 0, 0, 0, 0};
     glGenBuffers(1, &grid->forceBuffer);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->forceBuffer);
     glBufferData(
@@ -504,24 +504,36 @@ void LBM_ComputeDragForce(LBMGrid *grid,
                           float *forceX,
                           float *forceY,
                           float *forceZ) {
+    LBM_ComputeDragForceDecomposed(grid, forceX, forceY, forceZ,
+                                   NULL, NULL, NULL);
+}
+
+void LBM_ComputeDragForceDecomposed(LBMGrid *grid,
+                                    float *forceX,
+                                    float *forceY,
+                                    float *forceZ,
+                                    float *pressureX,
+                                    float *pressureY,
+                                    float *pressureZ) {
     *forceX = 0.0f;
     *forceY = 0.0f;
     *forceZ = 0.0f;
+    if (pressureX) *pressureX = 0.0f;
+    if (pressureY) *pressureY = 0.0f;
+    if (pressureZ) *pressureZ = 0.0f;
 
     if (!grid->forceShader)
         return;
 
-    // Clear force buffer
-    int zeros[4] = {0, 0, 0, 0};
+    // Clear force buffer (7 ints: total xyz, count, pressure xyz)
+    int zeros[7] = {0, 0, 0, 0, 0, 0, 0};
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->forceBuffer);
     glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(zeros), zeros);
 
-    // Bind buffers for Mei-Luo-Shyy momentum exchange:
-    // f (binding 2) = post-streaming from previous step (reflected
-    // distributions) f_new (binding 3) = post-collision (outgoing
-    // distributions) q_val (binding 7) = Bouzidi wall distances
+    // Bind buffers for Mei-Luo-Shyy momentum exchange
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, grid->fBuffer);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, grid->fNewBuffer);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, grid->velocityBuffer);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, grid->solidBuffer);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 6, grid->forceBuffer);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 7, grid->qBuffer);
@@ -536,7 +548,7 @@ void LBM_ComputeDragForce(LBMGrid *grid,
                     GL_BUFFER_UPDATE_BARRIER_BIT);
 
     // Read back results
-    int results[4];
+    int results[7];
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->forceBuffer);
     glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(results), results);
 
@@ -544,6 +556,9 @@ void LBM_ComputeDragForce(LBMGrid *grid,
     *forceX = results[0] / 10000.0f;
     *forceY = results[1] / 10000.0f;
     *forceZ = results[2] / 10000.0f;
+    if (pressureX) *pressureX = results[4] / 10000.0f;
+    if (pressureY) *pressureY = results[5] / 10000.0f;
+    if (pressureZ) *pressureZ = results[6] / 10000.0f;
 }
 
 float LBM_ComputeDragCoefficient(LBMGrid *grid,

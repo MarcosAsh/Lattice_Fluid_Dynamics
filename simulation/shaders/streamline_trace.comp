@@ -1,0 +1,109 @@
+#version 430 core
+layout(local_size_x = 256) in;
+
+// RK4 streamline integration through the LBM velocity field.
+// Each seed point produces TRACE_LEN vertices stored as vec4(x,y,z,speed).
+
+layout(std430, binding = 4) buffer VelocityField {
+    vec4 lbmVelocity[];
+};
+
+layout(std430, binding = 11) buffer StreamlineBuffer {
+    vec4 streamlines[];
+};
+
+uniform ivec3 lbmGridSize;
+uniform int numSeeds;
+uniform int traceLen;
+
+// World -> grid coordinate transform (must match particle.comp)
+vec3 worldToGrid(vec3 worldPos) {
+    vec3 gridPos;
+    gridPos.x = (worldPos.x + 4.0) / 8.0 * float(lbmGridSize.x);
+    gridPos.y = (worldPos.y + 2.0) / 4.0 * float(lbmGridSize.y);
+    gridPos.z = (worldPos.z + 2.0) / 4.0 * float(lbmGridSize.z);
+    return gridPos;
+}
+
+// Trilinear interpolation of velocity field
+vec3 sampleVelocity(vec3 worldPos) {
+    vec3 gp = worldToGrid(worldPos);
+    gp = clamp(gp, vec3(0.5), vec3(lbmGridSize) - vec3(1.5));
+
+    ivec3 i0 = ivec3(floor(gp));
+    ivec3 i1 = min(i0 + ivec3(1), lbmGridSize - ivec3(1));
+    vec3 f = fract(gp);
+
+    #define IDX(x,y,z) ((x) + (y)*lbmGridSize.x + (z)*lbmGridSize.x*lbmGridSize.y)
+
+    vec3 v000 = lbmVelocity[IDX(i0.x, i0.y, i0.z)].xyz;
+    vec3 v100 = lbmVelocity[IDX(i1.x, i0.y, i0.z)].xyz;
+    vec3 v010 = lbmVelocity[IDX(i0.x, i1.y, i0.z)].xyz;
+    vec3 v110 = lbmVelocity[IDX(i1.x, i1.y, i0.z)].xyz;
+    vec3 v001 = lbmVelocity[IDX(i0.x, i0.y, i1.z)].xyz;
+    vec3 v101 = lbmVelocity[IDX(i1.x, i0.y, i1.z)].xyz;
+    vec3 v011 = lbmVelocity[IDX(i0.x, i1.y, i1.z)].xyz;
+    vec3 v111 = lbmVelocity[IDX(i1.x, i1.y, i1.z)].xyz;
+
+    #undef IDX
+
+    vec3 v00 = mix(v000, v100, f.x);
+    vec3 v10 = mix(v010, v110, f.x);
+    vec3 v01 = mix(v001, v101, f.x);
+    vec3 v11 = mix(v011, v111, f.x);
+
+    vec3 v0 = mix(v00, v10, f.y);
+    vec3 v1 = mix(v01, v11, f.y);
+
+    return mix(v0, v1, f.z);
+}
+
+void main() {
+    uint seedIdx = gl_GlobalInvocationID.x;
+    if (seedIdx >= numSeeds)
+        return;
+
+    int base = int(seedIdx) * traceLen;
+
+    // Seed on a y-z plane upstream of the model (x = -2.5 in world coords).
+    // Distribute seeds in a grid pattern across the cross-section.
+    int gridSide = int(ceil(sqrt(float(numSeeds))));
+    int iy = int(seedIdx) / gridSide;
+    int iz = int(seedIdx) % gridSide;
+
+    float y = -1.5 + 3.0 * (float(iy) + 0.5) / float(gridSide);
+    float z = -1.5 + 3.0 * (float(iz) + 0.5) / float(gridSide);
+
+    vec3 pos = vec3(-2.5, y, z);
+
+    // Integration step size in world coordinates.
+    // Scale by grid spacing so the trace covers the domain.
+    float ds = 8.0 / float(traceLen);
+
+    for (int i = 0; i < traceLen; i++) {
+        vec3 vel = sampleVelocity(pos);
+        float speed = length(vel) * 8.0; // scale to world units
+
+        streamlines[base + i] = vec4(pos, speed);
+
+        // RK4 integration
+        vec3 k1 = sampleVelocity(pos) * 8.0;
+        vec3 k2 = sampleVelocity(pos + 0.5 * ds * k1) * 8.0;
+        vec3 k3 = sampleVelocity(pos + 0.5 * ds * k2) * 8.0;
+        vec3 k4 = sampleVelocity(pos + ds * k3) * 8.0;
+
+        vec3 step = (ds / 6.0) * (k1 + 2.0*k2 + 2.0*k3 + k4);
+
+        // Stop if velocity is near zero (stagnation)
+        if (length(step) < 1e-6) {
+            for (int j = i + 1; j < traceLen; j++)
+                streamlines[base + j] = vec4(pos, 0.0);
+            return;
+        }
+
+        pos += step;
+
+        // Clamp to domain
+        pos = clamp(pos, vec3(-4.0, -2.0, -2.0), vec3(4.0, 2.0, 2.0));
+    }
+}

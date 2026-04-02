@@ -9,6 +9,7 @@
 #include <float.h>
 #include <getopt.h>
 #include <string.h>
+#include <stdint.h>
 
 #include "../lib/gl_context.h"
 #include "../lib/lbm.h"
@@ -49,6 +50,7 @@ float cameraTargetZ = 0.0f;
 
 // Mouse control variables
 int mouseDown = 0;
+int middleMouseDown = 0;
 int lastMouseX = 0;
 int lastMouseY = 0;
 
@@ -69,11 +71,13 @@ const char *vizModeNames[] = {"Depth",
                               "Velocity Magnitude",
                               "Velocity Direction",
                               "Particle Lifetime",
-                              "Turbulence/Pressure",
+                              "Turbulence",
                               "Flow Progress",
                               "Vorticity",
+                              "Pathlines",
+                              "Pressure",
                               "Streamlines"};
-const int numVizModes = 8;
+const int numVizModes = 10;
 
 typedef struct {
     float minX, minY, minZ;
@@ -448,6 +452,82 @@ void saveFrameToPPM(const char *filename, int width, int height) {
     free(pixels);
 }
 
+// Write LBM velocity field as VTK ImageData (.vti) for ParaView.
+// Binary appended format for compact output.
+static void writeVTI(LBMGrid *grid, const char *path, int step) {
+    char filename[512];
+    snprintf(filename, sizeof(filename), "%s/field_%06d.vti", path, step);
+
+    int nx = grid->sizeX;
+    int ny = grid->sizeY;
+    int nz = grid->sizeZ;
+    int total = nx * ny * nz;
+
+    // Read velocity (vec4) and solid (int) from GPU
+    size_t velBytes = (size_t)total * 4 * sizeof(float);
+    size_t solidBytes = (size_t)total * sizeof(int);
+    float *vel = (float *)malloc(velBytes);
+    int *solid = (int *)malloc(solidBytes);
+    if (!vel || !solid) {
+        free(vel);
+        free(solid);
+        return;
+    }
+
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->velocityBuffer);
+    glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, velBytes, vel);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->solidBuffer);
+    glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, solidBytes, solid);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+    FILE *f = fopen(filename, "wb");
+    if (!f) {
+        free(vel);
+        free(solid);
+        return;
+    }
+
+    // VTI header
+    fprintf(f,
+            "<?xml version=\"1.0\"?>\n"
+            "<VTKFile type=\"ImageData\" version=\"1.0\""
+            " byte_order=\"LittleEndian\" header_type=\"UInt64\">\n"
+            "  <ImageData WholeExtent=\"0 %d 0 %d 0 %d\""
+            " Origin=\"0 0 0\" Spacing=\"1 1 1\">\n"
+            "    <Piece Extent=\"0 %d 0 %d 0 %d\">\n"
+            "      <PointData Vectors=\"velocity\" Scalars=\"solid\">\n"
+            "        <DataArray type=\"Float32\" Name=\"velocity\""
+            " NumberOfComponents=\"3\" format=\"appended\""
+            " offset=\"0\"/>\n"
+            "        <DataArray type=\"Int32\" Name=\"solid\""
+            " format=\"appended\" offset=\"%lu\"/>\n"
+            "      </PointData>\n"
+            "    </Piece>\n"
+            "  </ImageData>\n"
+            "  <AppendedData encoding=\"raw\">\n_",
+            nx, ny, nz, nx, ny, nz,
+            (unsigned long)(sizeof(uint64_t) +
+                            (size_t)total * 3 * sizeof(float)));
+
+    // Velocity array (strip w component from vec4)
+    uint64_t velDataSize = (uint64_t)total * 3 * sizeof(float);
+    fwrite(&velDataSize, sizeof(uint64_t), 1, f);
+    for (int i = 0; i < total; i++) {
+        fwrite(&vel[i * 4], sizeof(float), 3, f);
+    }
+
+    // Solid array
+    uint64_t solidDataSize = (uint64_t)total * sizeof(int);
+    fwrite(&solidDataSize, sizeof(uint64_t), 1, f);
+    fwrite(solid, sizeof(int), total, f);
+
+    fprintf(f, "\n  </AppendedData>\n</VTKFile>\n");
+    fclose(f);
+    free(vel);
+    free(solid);
+    printf("VTK: wrote %s\n", filename);
+}
+
 int main(int argc, char *argv[]) {
     printf("Starting 3D Fluid Simulation...\n");
     srand(time(NULL));
@@ -465,6 +545,8 @@ int main(int argc, char *argv[]) {
     int gridX = 128, gridY = 64, gridZ = 64;
     float smagorinskyCs = 0.1f;
     int useMRT = 0;
+    char vtkOutputPath[256] = "";
+    int vtkInterval = 100; // frames between VTK dumps
 
     static struct option long_options[] = {
         {"wind", required_argument, 0, 'w'},
@@ -479,6 +561,8 @@ int main(int argc, char *argv[]) {
         {"grid", required_argument, 0, 'g'},
         {"smagorinsky", required_argument, 0, 'S'},
         {"mrt", no_argument, 0, 'M'},
+        {"vtk-output", required_argument, 0, 'V'},
+        {"vtk-interval", required_argument, 0, 'I'},
         {"help", no_argument, 0, 'h'},
         {0, 0, 0, 0}
 
@@ -565,6 +649,15 @@ int main(int argc, char *argv[]) {
         case 'M':
             useMRT = 1;
             break;
+        case 'V':
+            strncpy(vtkOutputPath, optarg, sizeof(vtkOutputPath) - 1);
+            vtkOutputPath[sizeof(vtkOutputPath) - 1] = '\0';
+            break;
+        case 'I':
+            vtkInterval = atoi(optarg);
+            if (vtkInterval < 1)
+                vtkInterval = 1;
+            break;
         case 'h':
         default:
             printf("Usage: %s [options]\n", argv[0]);
@@ -589,6 +682,9 @@ int main(int argc, char *argv[]) {
             printf("  -S, --smagorinsky=CS  Smagorinsky constant 0-0.5 "
                    "(default: 0.1)\n");
             printf("  -M, --mrt             Enable MRT collision operator\n");
+            printf("  --vtk-output=PATH     Directory for VTK field dumps\n");
+            printf("  --vtk-interval=N      Frames between VTK dumps "
+                   "(default: 100)\n");
             printf("  -h, --help            Show this help\n");
             return 0;
         }
@@ -950,6 +1046,7 @@ int main(int argc, char *argv[]) {
     printf("  Char length: %.1f lattice units\n", charLength);
     printf("  Viscosity: %.6f\n", lbmViscosity);
     printf("  tau: %.4f\n", tau);
+    printf("  CFL: %.4f\n", latticeVelocity);
 
     printf("Initializing LBM grid...\n");
     lbmGrid = LBM_Create(lbmSizeX, lbmSizeY, lbmSizeZ, lbmViscosity);
@@ -1066,6 +1163,8 @@ int main(int argc, char *argv[]) {
     GLint gridCellSizeLoc =
         glGetUniformLocation(computeShaderProgram, "gridCellSize");
     GLint gridResLoc = glGetUniformLocation(computeShaderProgram, "gridRes");
+    GLint computeVizModeLoc =
+        glGetUniformLocation(computeShaderProgram, "vizMode");
 
     printf("Compute shader uniform locations:\n");
     printf("  dt=%d, wind=%d, carMin=%d, carMax=%d, carCenter=%d\n",
@@ -1212,6 +1311,56 @@ int main(int argc, char *argv[]) {
 
     checkGLError("After trail setup");
 
+    // RK4 streamline buffer and rendering setup
+#define STREAMLINE_SEEDS 256
+#define STREAMLINE_LEN 64
+    GLuint streamlineBuffer;
+    {
+        size_t slSize =
+            STREAMLINE_SEEDS * STREAMLINE_LEN * 4 * sizeof(float);
+        void *slZeros = calloc(1, slSize);
+        glGenBuffers(1, &streamlineBuffer);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, streamlineBuffer);
+        glBufferData(
+            GL_SHADER_STORAGE_BUFFER, slSize, slZeros, GL_DYNAMIC_COPY);
+        free(slZeros);
+    }
+
+    // Streamline VAO (same layout as trail: vec4 per vertex)
+    GLuint streamlineVAO;
+    glGenVertexArrays(1, &streamlineVAO);
+    glBindVertexArray(streamlineVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, streamlineBuffer);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(
+        0, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void *)0);
+    glBindVertexArray(0);
+
+    // Streamline EBO with primitive restart
+    GLuint streamlineEBO;
+    {
+        int idxCount = STREAMLINE_SEEDS * (STREAMLINE_LEN + 1);
+        GLuint *indices = (GLuint *)malloc(idxCount * sizeof(GLuint));
+        int k = 0;
+        for (int i = 0; i < STREAMLINE_SEEDS; i++) {
+            for (int j = 0; j < STREAMLINE_LEN; j++)
+                indices[k++] = i * STREAMLINE_LEN + j;
+            indices[k++] = 0xFFFFFFFF;
+        }
+        glGenBuffers(1, &streamlineEBO);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, streamlineEBO);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER,
+                     k * sizeof(GLuint),
+                     indices,
+                     GL_STATIC_DRAW);
+        free(indices);
+    }
+
+    GLuint streamlineTraceShader =
+        createComputeShader("shaders/streamline_trace.comp");
+
+    checkGLError("After streamline setup");
+
     printf("Creating fluid cube...\n");
     FluidCube *fluidCube = NULL;
     if (carModel.vertexCount > 0) {
@@ -1257,11 +1406,17 @@ int main(int argc, char *argv[]) {
     printf("CONTROLS\n");
     printf("----------------------------------------\n");
     printf("Mouse drag:     Rotate camera\n");
+    printf("Shift+drag:     Pan camera\n");
+    printf("Middle drag:    Pan camera\n");
     printf("Scroll wheel:   Zoom in/out\n");
     printf("A/D:            Rotate left/right\n");
     printf("W/S:            Rotate up/down\n");
     printf("Q/E:            Zoom in/out (step)\n");
     printf("R:              Reset camera\n");
+    printf("F1:             Front view\n");
+    printf("F2:             Side view\n");
+    printf("F3:             Top view\n");
+    printf("F4:             Isometric view\n");
     printf("UP/DOWN:        Adjust wind speed\n");
     printf("LEFT/RIGHT:     Adjust max speed scale\n");
     printf("\nCOLLISION MODES:\n");
@@ -1311,16 +1466,32 @@ int main(int argc, char *argv[]) {
                     mouseDown = 1;
                     lastMouseX = event.button.x;
                     lastMouseY = event.button.y;
+                } else if (event.button.button == SDL_BUTTON_MIDDLE) {
+                    middleMouseDown = 1;
+                    lastMouseX = event.button.x;
+                    lastMouseY = event.button.y;
                 }
             } else if (event.type == SDL_MOUSEBUTTONUP) {
                 if (event.button.button == SDL_BUTTON_LEFT) {
                     mouseDown = 0;
+                } else if (event.button.button == SDL_BUTTON_MIDDLE) {
+                    middleMouseDown = 0;
                 }
             } else if (event.type == SDL_MOUSEMOTION) {
-                if (mouseDown) {
-                    int dx = event.motion.x - lastMouseX;
-                    int dy = event.motion.y - lastMouseY;
-
+                int dx = event.motion.x - lastMouseX;
+                int dy = event.motion.y - lastMouseY;
+                if (mouseDown &&
+                    (SDL_GetModState() & KMOD_SHIFT)) {
+                    // Shift+left-drag: pan
+                    float panScale = cameraDistance * 0.002f;
+                    cameraTargetX -=
+                        dx * panScale * cosf(cameraAngleY);
+                    cameraTargetZ +=
+                        dx * panScale * sinf(cameraAngleY);
+                    cameraTargetY += dy * panScale;
+                    lastMouseX = event.motion.x;
+                    lastMouseY = event.motion.y;
+                } else if (mouseDown) {
                     cameraAngleY += dx * 0.005f;
                     cameraAngleX += dy * 0.005f;
 
@@ -1329,6 +1500,16 @@ int main(int argc, char *argv[]) {
                     if (cameraAngleX < -1.5f)
                         cameraAngleX = -1.5f;
 
+                    lastMouseX = event.motion.x;
+                    lastMouseY = event.motion.y;
+                } else if (middleMouseDown) {
+                    // Middle-click drag: pan
+                    float panScale = cameraDistance * 0.002f;
+                    cameraTargetX -=
+                        dx * panScale * cosf(cameraAngleY);
+                    cameraTargetZ +=
+                        dx * panScale * sinf(cameraAngleY);
+                    cameraTargetY += dy * panScale;
                     lastMouseX = event.motion.x;
                     lastMouseY = event.motion.y;
                 }
@@ -1449,7 +1630,38 @@ int main(int argc, char *argv[]) {
                     cameraAngleY = 0.0f;
                     cameraAngleX = 0.3f;
                     cameraDistance = 6.0f;
+                    cameraTargetX = -1.5f;
+                    cameraTargetY = 0.0f;
+                    cameraTargetZ = 0.0f;
                     printf("Camera reset\n");
+                    break;
+                case SDLK_F1:
+                    // Front view
+                    cameraAngleY = 0.0f;
+                    cameraAngleX = 0.0f;
+                    cameraDistance = 6.0f;
+                    printf("Camera: front\n");
+                    break;
+                case SDLK_F2:
+                    // Side view
+                    cameraAngleY = 1.5708f;
+                    cameraAngleX = 0.0f;
+                    cameraDistance = 6.0f;
+                    printf("Camera: side\n");
+                    break;
+                case SDLK_F3:
+                    // Top view
+                    cameraAngleY = 0.0f;
+                    cameraAngleX = 1.5f;
+                    cameraDistance = 8.0f;
+                    printf("Camera: top\n");
+                    break;
+                case SDLK_F4:
+                    // Isometric view
+                    cameraAngleY = 0.6f;
+                    cameraAngleX = 0.5f;
+                    cameraDistance = 7.0f;
+                    printf("Camera: isometric\n");
                     break;
                 case SDLK_l:
                     useLBM = !useLBM;
@@ -1481,6 +1693,11 @@ int main(int argc, char *argv[]) {
         float deltaTime = (currentTime - lastTime) / 1000.0f;
         lastTime = currentTime;
 
+        // Cap deltaTime so particles don't explode after the skip phase
+        // or any long stall. 60fps = 16.7ms, allow up to ~2 frames.
+        if (deltaTime > 0.05f)
+            deltaTime = 0.016f;
+
         // Run LBM simulation FIRST (skip when paused unless single-stepping)
         if (lbmGrid && useLBM && (!paused || stepOnce)) {
             // Ramp inlet velocity over first 300 frames (~5s) to avoid
@@ -1493,6 +1710,12 @@ int main(int argc, char *argv[]) {
 
             for (int i = 0; i < lbmSubsteps; i++) {
                 LBM_Step(lbmGrid, currentInletVel, 0.0f, 0.0f);
+            }
+
+            // VTK field dump at specified interval
+            if (strlen(vtkOutputPath) > 0 &&
+                frameCount % vtkInterval == 0) {
+                writeVTI(lbmGrid, vtkOutputPath, frameCount);
             }
         }
 
@@ -1514,6 +1737,34 @@ int main(int argc, char *argv[]) {
                 cdStartFrame = rampEnd;
         }
         int skipRendering = (renderDuration > 0 && frameCount < cdStartFrame);
+
+        // When the skip phase ends, reinitialize particles at the
+        // inlet so they fill the domain naturally as the video plays.
+        // Without this, particles sit frozen during the skip and get
+        // immediately swept out when rendering resumes.
+        if (!skipRendering && frameCount == cdStartFrame &&
+            renderDuration > 0) {
+            Particle *fresh =
+                (Particle *)malloc(GPU_PARTICLES * sizeof(Particle));
+            if (fresh) {
+                for (int i = 0; i < GPU_PARTICLES; i++) {
+                    fresh[i].x = -4.0f + ((float)rand() / RAND_MAX) * 8.0f;
+                    fresh[i].y = ((float)rand() / RAND_MAX - 0.5f) * 2.6f;
+                    fresh[i].z = ((float)rand() / RAND_MAX - 0.5f) * 2.6f;
+                    fresh[i].padding1 = 0.0f;
+                    fresh[i].vx = 0.3f + ((float)rand() / RAND_MAX) * 0.1f;
+                    fresh[i].vy = 0.0f;
+                    fresh[i].vz = 0.0f;
+                    fresh[i].life = 0.2f + ((float)rand() / RAND_MAX) * 0.8f;
+                }
+                glBindBuffer(GL_SHADER_STORAGE_BUFFER, particleBuffer);
+                glBufferSubData(GL_SHADER_STORAGE_BUFFER,
+                                0,
+                                GPU_PARTICLES * sizeof(Particle),
+                                fresh);
+                free(fresh);
+            }
+        }
 
         if (!skipRendering) {
             // Now set up particle compute shader
@@ -1584,6 +1835,10 @@ int main(int argc, char *argv[]) {
             if (gridTriIdxBuf)
                 glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 10, gridTriIdxBuf);
 
+            // Visualization mode for pressure coloring in compute
+            if (computeVizModeLoc != -1)
+                glUniform1i(computeVizModeLoc, visualizationMode);
+
             // Time uniform for randomness
             if (timeLoc != -1)
                 glUniform1f(timeLoc, (float)SDL_GetTicks() / 1000.0f);
@@ -1595,7 +1850,7 @@ int main(int argc, char *argv[]) {
                 glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT |
                                 GL_VERTEX_ATTRIB_ARRAY_BARRIER_BIT);
 
-                // Update streamline trails after particle positions are written
+                // Update pathline trails after particle positions are written
                 if (trailUpdateShader && visualizationMode == 7) {
                     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 7, trailBuffer);
                     glUseProgram(trailUpdateShader);
@@ -1609,10 +1864,34 @@ int main(int argc, char *argv[]) {
                     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT |
                                     GL_VERTEX_ATTRIB_ARRAY_BARRIER_BIT);
                 }
+
+                // RK4 streamline trace (recompute every frame)
+                if (streamlineTraceShader && visualizationMode == 9 &&
+                    lbmGrid && useLBM) {
+                    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4,
+                                     LBM_GetVelocityBuffer(lbmGrid));
+                    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 11,
+                                     streamlineBuffer);
+                    glUseProgram(streamlineTraceShader);
+                    glUniform3i(
+                        glGetUniformLocation(streamlineTraceShader,
+                                             "lbmGridSize"),
+                        lbmGrid->sizeX, lbmGrid->sizeY, lbmGrid->sizeZ);
+                    glUniform1i(
+                        glGetUniformLocation(streamlineTraceShader, "numSeeds"),
+                        STREAMLINE_SEEDS);
+                    glUniform1i(
+                        glGetUniformLocation(streamlineTraceShader, "traceLen"),
+                        STREAMLINE_LEN);
+                    glDispatchCompute(
+                        (STREAMLINE_SEEDS + 255) / 256, 1, 1);
+                    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT |
+                                    GL_VERTEX_ATTRIB_ARRAY_BARRIER_BIT);
+                }
             }
 
             if (visualizationMode == 7 && trailRenderProgram) {
-                // Streamline mode: render trails as line strips
+                // Pathline mode: render trails as line strips
                 glUseProgram(trailRenderProgram);
                 glUniformMatrix4fv(
                     glGetUniformLocation(trailRenderProgram, "projection"),
@@ -1638,6 +1917,38 @@ int main(int argc, char *argv[]) {
                 glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, trailEBO);
                 glDrawElements(GL_LINE_STRIP,
                                GPU_PARTICLES * (TRAIL_LEN + 1),
+                               GL_UNSIGNED_INT,
+                               0);
+
+                glDisable(GL_PRIMITIVE_RESTART);
+                checkGLError("After rendering pathlines");
+            } else if (visualizationMode == 9 && trailRenderProgram) {
+                // Streamline mode: render RK4 traces as line strips
+                glUseProgram(trailRenderProgram);
+                glUniformMatrix4fv(
+                    glGetUniformLocation(trailRenderProgram, "projection"),
+                    1,
+                    GL_FALSE,
+                    projection);
+                glUniformMatrix4fv(
+                    glGetUniformLocation(trailRenderProgram, "view"),
+                    1,
+                    GL_FALSE,
+                    view);
+                glUniform1i(
+                    glGetUniformLocation(trailRenderProgram, "trailLen"),
+                    STREAMLINE_LEN);
+                glUniform1f(
+                    glGetUniformLocation(trailRenderProgram, "maxSpeed"),
+                    maxSpeed);
+
+                glEnable(GL_PRIMITIVE_RESTART);
+                glPrimitiveRestartIndex(0xFFFFFFFF);
+
+                glBindVertexArray(streamlineVAO);
+                glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, streamlineEBO);
+                glDrawElements(GL_LINE_STRIP,
+                               STREAMLINE_SEEDS * (STREAMLINE_LEN + 1),
                                GL_UNSIGNED_INT,
                                0);
 
@@ -1685,9 +1996,10 @@ int main(int argc, char *argv[]) {
         // once the flow has developed (cdStartFrame computed above).
         if (frameCount >= cdStartFrame && frameCount % 20 == 0 && lbmGrid &&
             useLBM) {
-            // Compute force once, derive Cd and Cl from it
-            float fx, fy, fz;
-            LBM_ComputeDragForce(lbmGrid, &fx, &fy, &fz);
+            // Compute force with pressure/friction decomposition
+            float fx, fy, fz, px, py, pz;
+            LBM_ComputeDragForceDecomposed(lbmGrid, &fx, &fy, &fz,
+                                           &px, &py, &pz);
 
             // Reference area ~ car frontal area in lattice units
             float scaleY = lbmGrid->sizeY / 4.0f;
@@ -1698,6 +2010,8 @@ int main(int argc, char *argv[]) {
             float denom = dynP * refArea;
             float Cd = (denom > 1e-10f) ? fabsf(fx) / denom : 0.0f;
             float Cl = (denom > 1e-10f) ? fabsf(fy) / denom : 0.0f;
+            float CdPressure = (denom > 1e-10f) ? fabsf(px) / denom : 0.0f;
+            float CdFriction = Cd - CdPressure;
 
             // Exponential moving average for stable reporting
             if (cdHistoryCount == 0) {
@@ -1707,14 +2021,29 @@ int main(int argc, char *argv[]) {
                 cdEma = alpha * Cd + (1.0f - alpha) * cdEma;
             }
 
+            int totalSteps = frameCount * lbmSubsteps;
+            float tStar = (charLength > 0)
+                              ? (float)totalSteps * latticeVelocity / charLength
+                              : 0.0f;
+            float flowThroughs =
+                (lbmGrid && lbmGrid->sizeX > 0)
+                    ? (float)totalSteps * latticeVelocity / lbmGrid->sizeX
+                    : 0.0f;
+
             printf("  Drag Force: (%.4f, %.4f, %.4f),"
-                   " Cd=%.3f Cl=%.3f (avg=%.3f)\n",
+                   " Cd=%.3f Cl=%.3f (avg=%.3f)"
+                   " t*=%.3f flow-throughs=%.2f\n",
                    fx,
                    fy,
                    fz,
                    Cd,
                    Cl,
-                   cdEma);
+                   cdEma,
+                   tStar,
+                   flowThroughs);
+            printf("  Cd_pressure=%.3f Cd_friction=%.3f\n",
+                   CdPressure,
+                   CdFriction);
 
             // Store Cl for Strouhal extraction
             if (clSeries) {
@@ -1858,6 +2187,11 @@ int main(int argc, char *argv[]) {
     glDeleteVertexArrays(1, &trailVAO);
     glDeleteBuffers(1, &trailBuffer);
     glDeleteBuffers(1, &trailEBO);
+    glDeleteVertexArrays(1, &streamlineVAO);
+    glDeleteBuffers(1, &streamlineBuffer);
+    glDeleteBuffers(1, &streamlineEBO);
+    if (streamlineTraceShader)
+        glDeleteProgram(streamlineTraceShader);
     if (trailUpdateShader)
         glDeleteProgram(trailUpdateShader);
     if (trailRenderProgram)

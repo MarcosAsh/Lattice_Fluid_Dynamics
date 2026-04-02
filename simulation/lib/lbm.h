@@ -73,6 +73,16 @@ void LBM_ComputeDragForce(LBMGrid *grid,
                           float *forceY,
                           float *forceZ);
 
+// Compute drag force with pressure/friction decomposition.
+// Pressure components may be NULL if not needed.
+void LBM_ComputeDragForceDecomposed(LBMGrid *grid,
+                                    float *forceX,
+                                    float *forceY,
+                                    float *forceZ,
+                                    float *pressureX,
+                                    float *pressureY,
+                                    float *pressureZ);
+
 // Compute drag coefficient
 float LBM_ComputeDragCoefficient(LBMGrid *grid,
                                  float inletVelocity,

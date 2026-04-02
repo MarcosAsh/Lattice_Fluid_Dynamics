@@ -12,6 +12,11 @@ export interface SimulationResult {
   clSeries: number[];
   charLength: number | null;
   sampleInterval: number | null;
+  tStar: number | null;
+  flowThroughs: number | null;
+  cfl: number | null;
+  cdPressureSeries: number[];
+  cdFrictionSeries: number[];
   model: string;
   windSpeed: number;
   timestamp: number;
@@ -29,12 +34,28 @@ function downloadCsv(result: SimulationResult, strouhal: number | null) {
   if (strouhal !== null) {
     rows.push(`# Strouhal number: ${strouhal.toFixed(4)}`);
   }
-  rows.push('step,cd,cl');
+  if (result.tStar !== null) {
+    rows.push(`# t* = ${result.tStar.toFixed(3)}`);
+  }
+  if (result.flowThroughs !== null) {
+    rows.push(`# Flow-throughs: ${result.flowThroughs.toFixed(2)}`);
+  }
+  if (result.cfl !== null) {
+    rows.push(`# CFL: ${result.cfl.toFixed(4)}`);
+  }
+  const hasPressure = result.cdPressureSeries.length > 0;
+  rows.push(hasPressure ? 'step,cd,cl,cd_pressure,cd_friction' : 'step,cd,cl');
   const len = Math.max(result.cdSeries.length, result.clSeries.length);
   for (let i = 0; i < len; i++) {
     const cd = i < result.cdSeries.length ? result.cdSeries[i].toFixed(6) : '';
     const cl = i < result.clSeries.length ? result.clSeries[i].toFixed(6) : '';
-    rows.push(`${i},${cd},${cl}`);
+    if (hasPressure) {
+      const cdp = i < result.cdPressureSeries.length ? result.cdPressureSeries[i].toFixed(6) : '';
+      const cdf = i < result.cdFrictionSeries.length ? result.cdFrictionSeries[i].toFixed(6) : '';
+      rows.push(`${i},${cd},${cl},${cdp},${cdf}`);
+    } else {
+      rows.push(`${i},${cd},${cl}`);
+    }
   }
   const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
   const url = URL.createObjectURL(blob);
@@ -301,6 +322,95 @@ function useStrouhal(result: SimulationResult | null): SpectrumResult | null {
   }, [result]);
 }
 
+function SweepChart({ history }: { history: SimulationResult[] }) {
+  // Group results by model that have Cd values at different wind speeds
+  const sweepData = useMemo(() => {
+    const byModel = new Map<string, { ws: number; cd: number; cl: number }[]>();
+    for (const r of history) {
+      if (r.cdValue === null) continue;
+      const key = r.model;
+      if (!byModel.has(key)) byModel.set(key, []);
+      byModel.get(key)!.push({ ws: r.windSpeed, cd: r.cdValue, cl: r.clValue ?? 0 });
+    }
+    // Only show models with 2+ distinct wind speeds
+    const result: { model: string; points: { ws: number; cd: number; cl: number }[] }[] = [];
+    for (const [model, points] of byModel) {
+      const unique = new Set(points.map((p) => p.ws));
+      if (unique.size >= 2) {
+        const sorted = [...points].sort((a, b) => a.ws - b.ws);
+        result.push({ model, points: sorted });
+      }
+    }
+    return result;
+  }, [history]);
+
+  if (sweepData.length === 0) return null;
+
+  const W = 320;
+  const H = 160;
+  const pad = { top: 12, right: 12, bottom: 24, left: 44 };
+  const plotW = W - pad.left - pad.right;
+  const plotH = H - pad.top - pad.bottom;
+
+  const allPoints = sweepData.flatMap((d) => d.points);
+  const wsMin = Math.min(...allPoints.map((p) => p.ws));
+  const wsMax = Math.max(...allPoints.map((p) => p.ws));
+  const cdMax = Math.max(...allPoints.map((p) => p.cd)) * 1.15 || 1;
+  const wsRange = wsMax - wsMin || 1;
+
+  const colors = ['#cba6f7', '#89b4fa', '#a6e3a1', '#f9e2af'];
+
+  return (
+    <div className="mb-3">
+      <div className="text-[10px] text-ctp-overlay0 uppercase tracking-wider mb-1">
+        C<sub>d</sub> vs Wind Speed
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxWidth: W }}>
+        <rect x={pad.left} y={pad.top} width={plotW} height={plotH} fill="none" stroke="#45475a" strokeWidth={0.5} />
+        {[0, 0.5, 1].map((f) => {
+          const y = pad.top + plotH - f * plotH;
+          const val = (f * cdMax).toFixed(2);
+          return (
+            <g key={f}>
+              <line x1={pad.left} x2={pad.left + plotW} y1={y} y2={y} stroke="#313244" strokeWidth={0.5} />
+              <text x={pad.left - 4} y={y + 3} textAnchor="end" fill="#6c7086" fontSize={8}>{val}</text>
+            </g>
+          );
+        })}
+        {sweepData.map((series, si) => {
+          const color = colors[si % colors.length];
+          const pts = series.points.map((p) => ({
+            x: pad.left + ((p.ws - wsMin) / wsRange) * plotW,
+            y: pad.top + plotH - (p.cd / cdMax) * plotH,
+          }));
+          const path = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+          return (
+            <g key={series.model}>
+              <path d={path} fill="none" stroke={color} strokeWidth={1.5} />
+              {pts.map((p, i) => (
+                <circle key={i} cx={p.x} cy={p.y} r={3} fill={color} />
+              ))}
+              <text x={pts[pts.length - 1].x + 4} y={pts[pts.length - 1].y + 3} fill={color} fontSize={8}>
+                {MODEL_LABELS[series.model] ?? series.model}
+              </text>
+            </g>
+          );
+        })}
+        {/* X axis labels */}
+        {allPoints.filter((p, i, a) => a.findIndex((q) => q.ws === p.ws) === i).map((p) => {
+          const x = pad.left + ((p.ws - wsMin) / wsRange) * plotW;
+          return (
+            <text key={p.ws} x={x} y={H - 4} textAnchor="middle" fill="#6c7086" fontSize={8}>
+              {p.ws.toFixed(1)}
+            </text>
+          );
+        })}
+        <text x={W / 2} y={H} textAnchor="middle" fill="#6c7086" fontSize={7}>Wind Speed (m/s)</text>
+      </svg>
+    </div>
+  );
+}
+
 export default function ResultsPanel({
   current,
   history,
@@ -346,6 +456,19 @@ export default function ResultsPanel({
               St = fL/U
             </div>
           </div>
+          {current.tStar !== null && (
+            <div className="border border-ctp-surface1 rounded p-3 min-w-0">
+              <div className="text-ctp-overlay1 mb-1">Dimensionless Time</div>
+              <div className="text-lg font-mono text-ctp-text truncate">
+                t* = {current.tStar.toFixed(3)}
+              </div>
+              <div className="text-ctp-overlay0 mt-0.5">
+                {current.flowThroughs !== null
+                  ? `${current.flowThroughs.toFixed(1)} flow-throughs`
+                  : ''}
+              </div>
+            </div>
+          )}
           <div className="border border-ctp-surface1 rounded p-3 col-span-2 lg:col-span-1">
             <div className="text-ctp-overlay1 mb-1">Configuration</div>
             <div className="text-sm text-ctp-text font-medium">
@@ -372,6 +495,9 @@ export default function ResultsPanel({
           Export CSV
         </button>
       )}
+
+      {/* Cd vs Wind Speed sweep chart */}
+      <SweepChart history={history} />
 
       {/* Comparison table */}
       {history.length > 1 && (

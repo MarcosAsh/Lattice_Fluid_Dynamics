@@ -3,6 +3,8 @@ layout(local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
 
 // Mei-Luo-Shyy momentum exchange with Bouzidi q values for
 // accurate force computation on curved boundaries.
+// Decomposes total force into pressure and friction contributions
+// using the equilibrium/non-equilibrium splitting of f.
 
 layout(std430, binding = 2) buffer LBMBuffer {
     float f[];
@@ -10,6 +12,10 @@ layout(std430, binding = 2) buffer LBMBuffer {
 
 layout(std430, binding = 3) buffer LBMBufferNew {
     float f_new[];
+};
+
+layout(std430, binding = 4) buffer VelocityBuffer {
+    vec4 velocity[];
 };
 
 layout(std430, binding = 5) buffer SolidMask {
@@ -21,6 +27,9 @@ layout(std430, binding = 6) buffer ForceBuffer {
     int forceYInt;
     int forceZInt;
     int solidCount;
+    int pressureForceXInt;
+    int pressureForceYInt;
+    int pressureForceZInt;
 };
 
 layout(std430, binding = 7) buffer BouzidiQ {
@@ -49,6 +58,14 @@ const ivec3 e[19] = ivec3[19](ivec3(0, 0, 0),
                               ivec3(0, 1, -1),
                               ivec3(0, -1, -1));
 
+const float w[19] = float[19](
+    1.0/3.0,
+    1.0/18.0, 1.0/18.0, 1.0/18.0, 1.0/18.0, 1.0/18.0, 1.0/18.0,
+    1.0/36.0, 1.0/36.0, 1.0/36.0, 1.0/36.0,
+    1.0/36.0, 1.0/36.0, 1.0/36.0, 1.0/36.0,
+    1.0/36.0, 1.0/36.0, 1.0/36.0, 1.0/36.0
+);
+
 const int opposite[19] = int[19](
     0, 2, 1, 4, 3, 6, 5, 10, 9, 8, 7, 14, 13, 12, 11, 18, 17, 16, 15);
 
@@ -58,6 +75,13 @@ int idx3D(int x, int y, int z) {
 
 int idxF(int x, int y, int z, int i) {
     return i + 19 * idx3D(x, y, z);
+}
+
+float feq(int i, float rho, vec3 u) {
+    float eu = float(e[i].x) * u.x + float(e[i].y) * u.y + float(e[i].z) * u.z;
+    float u2 = dot(u, u);
+    float cs2 = 1.0 / 3.0;
+    return w[i] * rho * (1.0 + eu / cs2 + (eu * eu) / (2.0 * cs2 * cs2) - u2 / (2.0 * cs2));
 }
 
 void main() {
@@ -71,7 +95,13 @@ void main() {
     if (solid[cellIdx] != 0)
         return;
 
+    // Local velocity and density for equilibrium computation
+    vec4 vel = velocity[cellIdx];
+    vec3 u = vel.xyz;
+    float rho = vel.w;
+
     vec3 localForce = vec3(0.0);
+    vec3 pressureForce = vec3(0.0);
     bool hasSolidNeighbor = false;
 
     for (int i = 1; i < 19; i++) {
@@ -83,15 +113,22 @@ void main() {
             int iopp = opposite[i];
 
             // Mei-Luo-Shyy: F_i = e_i * (f*_i + f_iopp)
-            // f*_i = post-collision heading toward wall
-            // f_iopp = the Bouzidi-reflected distribution (from f buffer,
-            // which holds post-streaming values from the previous step)
             float fi_star = f_new[idxF(pos.x, pos.y, pos.z, i)];
             float f_iopp = f[idxF(pos.x, pos.y, pos.z, iopp)];
 
-            localForce.x += (fi_star + f_iopp) * float(e[i].x);
-            localForce.y += (fi_star + f_iopp) * float(e[i].y);
-            localForce.z += (fi_star + f_iopp) * float(e[i].z);
+            // Total momentum exchange
+            float ftotal = fi_star + f_iopp;
+            localForce.x += ftotal * float(e[i].x);
+            localForce.y += ftotal * float(e[i].y);
+            localForce.z += ftotal * float(e[i].z);
+
+            // Pressure (equilibrium) contribution
+            float feq_i = feq(i, rho, u);
+            float feq_iopp = feq(iopp, rho, u);
+            float fpressure = feq_i + feq_iopp;
+            pressureForce.x += fpressure * float(e[i].x);
+            pressureForce.y += fpressure * float(e[i].y);
+            pressureForce.z += fpressure * float(e[i].z);
         }
     }
 
@@ -100,5 +137,8 @@ void main() {
         atomicAdd(forceYInt, int(round(localForce.y * 10000.0)));
         atomicAdd(forceZInt, int(round(localForce.z * 10000.0)));
         atomicAdd(solidCount, 1);
+        atomicAdd(pressureForceXInt, int(round(pressureForce.x * 10000.0)));
+        atomicAdd(pressureForceYInt, int(round(pressureForce.y * 10000.0)));
+        atomicAdd(pressureForceZInt, int(round(pressureForce.z * 10000.0)));
     }
 }

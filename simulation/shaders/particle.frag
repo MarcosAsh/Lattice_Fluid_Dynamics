@@ -131,6 +131,13 @@ void main() {
         vec3 turbulent = vec3(1.0, 0.5, 0.0);
         color = mix(laminar, turbulent, vorticity);
     }
+    // Mode 8: Surface pressure distribution (Cp via cool-warm)
+    else if (visualizationMode == 8) {
+        // vSpeed holds Cp (pressure coefficient), typically in [-2, 2].
+        // Map: -1 = blue (low pressure), 0 = white, +1 = red (high pressure).
+        float cp = clamp(vSpeed * 0.5 + 0.5, 0.0, 1.0);
+        color = coolWarmColormap(cp);
+    }
     // Default: white
     else {
         color = vec3(1.0);

@@ -56,6 +56,7 @@ uniform int collisionMode;
 uniform int useLBM;
 uniform ivec3 lbmGridSize;
 uniform float time;
+uniform int vizMode;
 
 // Collision grid parameters
 uniform vec3 gridMin;
@@ -80,6 +81,25 @@ vec3 sampleLBMVelocity(vec3 worldPos) {
     idx = clamp(idx, 0, maxIdx);
 
     return lbmVelocity[idx].xyz;
+}
+
+float sampleLBMDensity(vec3 worldPos) {
+    vec3 gridPos;
+    gridPos.x = (worldPos.x + 4.0) / 8.0 * float(lbmGridSize.x);
+    gridPos.y = (worldPos.y + 2.0) / 4.0 * float(lbmGridSize.y);
+    gridPos.z = (worldPos.z + 2.0) / 4.0 * float(lbmGridSize.z);
+
+    gridPos = clamp(gridPos, vec3(0.5), vec3(lbmGridSize) - vec3(1.5));
+
+    ivec3 cell = ivec3(floor(gridPos));
+    cell = clamp(cell, ivec3(0), lbmGridSize - ivec3(1));
+
+    int idx = cell.x + cell.y * lbmGridSize.x +
+              cell.z * lbmGridSize.x * lbmGridSize.y;
+    int maxIdx = lbmGridSize.x * lbmGridSize.y * lbmGridSize.z - 1;
+    idx = clamp(idx, 0, maxIdx);
+
+    return lbmVelocity[idx].w;
 }
 
 bool isInsideAABB(vec3 pos, vec3 minB, vec3 maxB) {
@@ -211,10 +231,20 @@ void main() {
         flowVel = wind;
     }
 
-    // Smooth LBM flow speed for coloring (exponential moving average
-    // prevents pulsating from vortex shedding oscillations)
-    float rawSpeed = length(flowVel);
-    p.padding1 = mix(p.padding1, rawSpeed, 0.02);
+    // Store coloring data: pressure coefficient for mode 8,
+    // smoothed flow speed for all other modes.
+    if (vizMode == 8 && useLBM == 1 && lbmGridSize.x > 0) {
+        // Pressure coefficient: Cp = (p - p_inf) / (0.5 * rho * U^2)
+        // In LBM: p = rho * cs^2 = rho / 3.  p_inf = 1/3 (rho_0 = 1).
+        float rho = sampleLBMDensity(p.position);
+        float cp = (rho - 1.0) / (0.5 * 0.05 * 0.05 / (1.0 / 3.0));
+        p.padding1 = mix(p.padding1, cp, 0.05);
+    } else {
+        // Smooth LBM flow speed for coloring (exponential moving average
+        // prevents pulsating from vortex shedding oscillations)
+        float rawSpeed = length(flowVel);
+        p.padding1 = mix(p.padding1, rawSpeed, 0.02);
+    }
 
     // Gradual velocity update -- particles have inertia
     p.velocity = mix(p.velocity, flowVel, 0.05);

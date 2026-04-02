@@ -72,6 +72,7 @@ export default function Home() {
   const [status, setStatus] = useState<JobStatus>('idle');
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [liveResult, setLiveResult] = useState<SimulationResult | null>(null);
   const [results, setResults] = useState<SimulationResult[]>(() => {
     if (typeof window === 'undefined') return [];
     try {
@@ -133,7 +134,7 @@ export default function Home() {
     writeHash(params);
   }, [params]);
 
-  const currentResult = results.length > 0 ? results[results.length - 1] : null;
+  const currentResult = liveResult ?? (results.length > 0 ? results[results.length - 1] : null);
 
   const startRender = useCallback(async () => {
     if (params.model === 'custom' && !objFile) {
@@ -189,9 +190,32 @@ export default function Home() {
 
         const data = await pollRes.json();
 
-        if (data.status === 'rendering') continue;
+        if (data.status === 'rendering') {
+          // Update live chart with partial Cd/Cl data
+          if (data.cd_series?.length) {
+            setLiveResult({
+              videoUrl: '',
+              cdValue: null,
+              clValue: null,
+              cdSeries: data.cd_series,
+              clSeries: data.cl_series ?? [],
+              charLength: null,
+              sampleInterval: null,
+              tStar: null,
+              flowThroughs: null,
+              cfl: null,
+              cdPressureSeries: [],
+              cdFrictionSeries: [],
+              model: params.model,
+              windSpeed: params.windSpeed,
+              timestamp: Date.now(),
+            });
+          }
+          continue;
+        }
 
         if (data.status === 'complete' && data.video_url) {
+          setLiveResult(null);
           setVideoUrl(data.video_url);
           setStatus('complete');
 
@@ -203,6 +227,11 @@ export default function Home() {
             clSeries: data.cl_series ?? [],
             charLength: data.char_length ?? null,
             sampleInterval: data.sample_interval ?? null,
+            tStar: data.t_star ?? null,
+            flowThroughs: data.flow_throughs ?? null,
+            cfl: data.cfl ?? null,
+            cdPressureSeries: data.cd_pressure_series ?? [],
+            cdFrictionSeries: data.cd_friction_series ?? [],
             model: params.model,
             windSpeed: params.windSpeed,
             timestamp: Date.now(),
@@ -222,6 +251,82 @@ export default function Home() {
       setStatus('error');
     } finally {
       renderStartTime.current = null;
+    }
+  }, [params, objFile]);
+
+  const [sweepProgress, setSweepProgress] = useState<string | null>(null);
+
+  const startSweep = useCallback(async (windMin: number, windMax: number, windStep: number) => {
+    const speeds: number[] = [];
+    for (let w = windMin; w <= windMax + 0.001; w += windStep) {
+      speeds.push(Math.round(w * 10) / 10);
+    }
+    if (speeds.length === 0) return;
+
+    setError(null);
+    setStatus('rendering');
+
+    try {
+      for (let i = 0; i < speeds.length; i++) {
+        const ws = speeds[i];
+        setSweepProgress(`${i + 1}/${speeds.length}: wind ${ws.toFixed(1)} m/s`);
+
+        const sweepParams = { ...params, windSpeed: ws };
+        const body: Record<string, unknown> = { ...sweepParams };
+        if (params.model === 'custom' && objFile) {
+          body.objData = await objFile.text();
+        }
+
+        const submitRes = await fetch('/api/render', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        if (!submitRes.ok) throw new Error(`Sweep submit failed at wind ${ws}`);
+        const submitData = await submitRes.json();
+        const jobId = submitData.jobId;
+        if (!jobId) throw new Error('No job ID');
+
+        const maxPollTime = (params.duration ?? 5) * 60 * 1000;
+        const pollStart = Date.now();
+        let done = false;
+
+        while (Date.now() - pollStart < maxPollTime) {
+          await new Promise((r) => setTimeout(r, 3000));
+          const pollRes = await fetch(`/api/render?jobId=${encodeURIComponent(jobId)}`);
+          if (!pollRes.ok) continue;
+          const data = await pollRes.json();
+          if (data.status === 'rendering') continue;
+          if (data.status === 'complete' && data.video_url) {
+            const result: SimulationResult = {
+              videoUrl: data.video_url,
+              cdValue: data.cd_value ?? null,
+              clValue: data.cl_value ?? null,
+              cdSeries: data.cd_series ?? [],
+              clSeries: data.cl_series ?? [],
+              charLength: data.char_length ?? null,
+              sampleInterval: data.sample_interval ?? null,
+              tStar: data.t_star ?? null,
+              flowThroughs: data.flow_throughs ?? null,
+              cfl: data.cfl ?? null,
+              cdPressureSeries: data.cd_pressure_series ?? [],
+              cdFrictionSeries: data.cd_friction_series ?? [],
+              model: params.model,
+              windSpeed: ws,
+              timestamp: Date.now(),
+            };
+            setResults((prev) => [...prev, result]);
+            setVideoUrl(data.video_url);
+            done = true;
+            break;
+          }
+          if (data.status === 'error') throw new Error(data.error || `Sweep failed at wind ${ws}`);
+        }
+        if (!done) throw new Error(`Sweep timed out at wind ${ws}`);
+      }
+
+      setStatus('complete');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error');
+      setStatus('error');
+    } finally {
+      setSweepProgress(null);
     }
   }, [params, objFile]);
 
@@ -271,6 +376,8 @@ export default function Home() {
             params={params}
             setParams={setParams}
             onRender={startRender}
+            onSweep={startSweep}
+            sweepProgress={sweepProgress}
             disabled={!backendAvailable || status === 'rendering'}
             objFile={objFile}
             onObjFileChange={setObjFile}

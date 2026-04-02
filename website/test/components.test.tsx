@@ -14,6 +14,12 @@ const mockResult: SimulationResult = {
   model: 'ahmed25',
   windSpeed: 1.5,
   charLength: 0.044,
+  sampleInterval: 10,
+  tStar: 1.234,
+  flowThroughs: 3.5,
+  cfl: 0.05,
+  cdPressureSeries: [],
+  cdFrictionSeries: [],
   timestamp: Date.now(),
 };
 
