@@ -34,7 +34,7 @@ vec3 sampleVelocity(vec3 worldPos) {
     ivec3 i1 = min(i0 + ivec3(1), lbmGridSize - ivec3(1));
     vec3 f = fract(gp);
 
-    #define IDX(x,y,z) ((x) + (y)*lbmGridSize.x + (z)*lbmGridSize.x*lbmGridSize.y)
+    #define IDX(a,b,c) ((a) + (b)*lbmGridSize.x + (c)*lbmGridSize.x*lbmGridSize.y)
 
     vec3 v000 = lbmVelocity[IDX(i0.x, i0.y, i0.z)].xyz;
     vec3 v100 = lbmVelocity[IDX(i1.x, i0.y, i0.z)].xyz;
