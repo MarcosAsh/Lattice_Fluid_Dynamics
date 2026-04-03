@@ -1,0 +1,22 @@
+base_models:
+  - ahmed25
+  - ahmed35
+
+ffd_grid: [4, 3, 3]  # control points per axis
+num_samples: 500
+displacement_range: 0.15  # fraction of bbox
+enforce_symmetry: true
+
+# Simulation parameters for data generation
+wind_speed: 1.0
+reynolds: 10000
+duration: 15
+collision_mode: 2  # mesh collision for accuracy
+
+# Rate limiting for Modal
+max_concurrent: 4
+retry_limit: 3
+
+# Optimization defaults
+optimize_steps: 200
+optimize_lr: 0.01
