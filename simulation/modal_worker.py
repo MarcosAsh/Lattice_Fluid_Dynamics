@@ -260,6 +260,8 @@ def render_simulation(
     model: str = "car",
     obj_data: str | None = None,
     reynolds: float = 0,
+    superres: bool = False,
+    grid: str | None = None,
 ) -> dict:
     timings = {}
     t0 = time.monotonic()
@@ -365,6 +367,7 @@ def render_simulation(
         env = os.environ.copy()
         env["DISPLAY"] = ":99"
 
+        sim_grid = grid or GRID
         cmd = [
             "stdbuf", "-oL",
             str(executable),
@@ -373,11 +376,13 @@ def render_simulation(
             f"--collision={collision_mode}",
             f"--duration={duration}",
             f"--output={frames_dir}",
-            f"--grid={GRID}",
+            f"--grid={sim_grid}",
         ]
         cmd.append(f"--model={model_path}")
         if reynolds > 0:
             cmd.append(f"--reynolds={reynolds}")
+        if superres:
+            cmd.append("--superres")
 
         log.info("simulation starting", extra=ctx)
         t_sim = time.monotonic()
@@ -807,6 +812,8 @@ def _run_render(data: dict):
         model=data.get("model", "car"),
         obj_data=data.get("obj_data"),
         reynolds=float(data.get("reynolds", 0)),
+        superres=bool(data.get("superres", False)),
+        grid=data.get("grid"),
     )
 
     _save_job_result(job_id, result)
