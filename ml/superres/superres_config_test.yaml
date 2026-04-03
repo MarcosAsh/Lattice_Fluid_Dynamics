@@ -1,0 +1,17 @@
+# Minimal config for testing the Modal data generation pipeline
+coarse_grid: "32x16x16"
+fine_grid: "64x32x32"
+upscale_factor: 2
+
+models:
+  - ahmed25
+
+wind_speeds:
+  - 1.0
+
+reynolds_numbers:
+  - 0
+
+duration: 5
+vtk_interval: 100
+patch_neighborhood: 3

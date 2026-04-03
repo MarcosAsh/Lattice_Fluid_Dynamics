@@ -450,6 +450,49 @@ def run_simulation(
             xvfb_proc.wait()
 
 
+def run_simulation_modal(
+    model: str,
+    wind_speed: float,
+    reynolds: float,
+    grid: str,
+    duration: int,
+    vtk_interval: int,
+    vtk_dir: Path,
+) -> tuple[bool, str]:
+    """Run the simulation via Modal GPU and download VTK files.
+
+    Calls the generate_vtk_field Modal function remotely, receives
+    base64-encoded VTI files, and writes them to vtk_dir.
+    """
+    import base64
+    import modal
+
+    vtk_dir.mkdir(parents=True, exist_ok=True)
+
+    try:
+        generate_vtk_field = modal.Function.from_name("fluid-sim", "generate_vtk_field")
+        result = generate_vtk_field.remote(
+            model=model,
+            wind_speed=wind_speed,
+            reynolds=reynolds,
+            grid=grid,
+            duration=duration,
+            vtk_interval=vtk_interval,
+        )
+    except Exception as e:
+        return False, f"Modal call failed: {e}"
+
+    if result.get("status") != "complete":
+        return False, f"Modal error: {result.get('error', 'unknown')}"
+
+    fields = result.get("fields", [])
+    for field_entry in fields:
+        vti_path = vtk_dir / field_entry["filename"]
+        vti_path.write_bytes(base64.b64decode(field_entry["data"]))
+
+    return True, f"Downloaded {len(fields)} VTK files from Modal"
+
+
 # ---------------------------------------------------------------------------
 # .srbin I/O
 # ---------------------------------------------------------------------------
@@ -557,14 +600,18 @@ def process_pair(
     accumulator: PatchAccumulator,
     neighborhood: int,
     work_dir: Path,
+    use_modal: bool = False,
 ) -> PairResult:
     """Run coarse and fine simulations, extract patches, accumulate them."""
     coarse_vtk_dir = work_dir / f"{pc.pair_id}_coarse"
     fine_vtk_dir = work_dir / f"{pc.pair_id}_fine"
 
+    runner = run_simulation_modal if use_modal else run_simulation
+
     # Run fine simulation
-    print(f"  [{pc.pair_id}] Running fine sim ({pc.fine_grid})...")
-    ok, msg = run_simulation(
+    backend = "Modal GPU" if use_modal else "local"
+    print(f"  [{pc.pair_id}] Running fine sim ({pc.fine_grid}) on {backend}...")
+    ok, msg = runner(
         model=pc.model,
         wind_speed=pc.wind_speed,
         reynolds=pc.reynolds,
@@ -626,7 +673,7 @@ def process_pair(
 # Main pipeline
 # ---------------------------------------------------------------------------
 
-def run_pipeline(config_path: str, resume: bool = False):
+def run_pipeline(config_path: str, resume: bool = False, use_modal: bool = False):
     config = load_config(config_path)
     pairs = generate_pair_configs(config)
     manifest = load_manifest() if resume else {"completed": {}, "failed": {}}
@@ -635,15 +682,18 @@ def run_pipeline(config_path: str, resume: bool = False):
 
     pending = [p for p in pairs if p.pair_id not in completed]
     print(f"Total configs: {len(pairs)}, completed: {len(completed)}, pending: {len(pending)}")
+    if use_modal:
+        print("Using Modal GPU backend")
 
     if not pending:
         print("All pairs already generated.")
         return
 
-    if not SIM_BINARY.exists():
+    if not use_modal and not SIM_BINARY.exists():
         print(
             f"ERROR: Simulation binary not found at {SIM_BINARY}\n"
-            f"Build it first: cd {PROJECT_ROOT} && make",
+            f"Build it first: cd {PROJECT_ROOT} && make\n"
+            f"Or use --modal to run on Modal GPU instead.",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -660,7 +710,7 @@ def run_pipeline(config_path: str, resume: bool = False):
             tag = f"[{i + 1}/{len(pending)}]"
             print(f"{tag} {pc.model} wind={pc.wind_speed} Re={pc.reynolds}")
 
-            result = process_pair(pc, accumulator, neighborhood, work_dir)
+            result = process_pair(pc, accumulator, neighborhood, work_dir, use_modal=use_modal)
 
             if result.status == "complete":
                 manifest.setdefault("completed", {})[pc.pair_id] = {
@@ -834,6 +884,11 @@ def main():
         action="store_true",
         help="Verify the .srbin file and print statistics",
     )
+    parser.add_argument(
+        "--modal",
+        action="store_true",
+        help="Run simulations on Modal GPU instead of locally",
+    )
     args = parser.parse_args()
 
     if args.status:
@@ -849,7 +904,7 @@ def main():
         print(f"ERROR: Config not found at {config_path}", file=sys.stderr)
         sys.exit(1)
 
-    run_pipeline(str(config_path), resume=args.resume)
+    run_pipeline(str(config_path), resume=args.resume, use_modal=args.modal)
 
 
 if __name__ == "__main__":

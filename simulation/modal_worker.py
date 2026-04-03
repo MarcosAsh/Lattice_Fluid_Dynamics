@@ -868,6 +868,117 @@ def force_rebuild() -> str:
     return build_simulation.local()
 
 
+@app.function(
+    image=image.pip_install("numpy"),
+    gpu="A10G",
+    volumes={"/cache": build_cache},
+    timeout=1800,
+)
+def generate_vtk_field(
+    model: str = "ahmed25",
+    wind_speed: float = 1.0,
+    reynolds: float = 0,
+    grid: str = "128x96x96",
+    duration: int = 15,
+    vtk_interval: int = 50,
+) -> dict:
+    """Run simulation with VTK output and return velocity fields as bytes.
+
+    Used by the super-resolution data generation pipeline to collect
+    paired coarse/fine velocity fields without needing a local binary.
+    """
+    import base64
+    import numpy as np
+
+    executable = Path("/cache/build/3d_fluid_simulation_car")
+    source_dir = Path("/cache/source/simulation")
+
+    if not executable.exists():
+        log.info("binary missing, building")
+        build_simulation.local()
+
+    if not executable.exists():
+        return {"status": "error", "error": "Build failed"}
+
+    vtk_dir = Path(tempfile.mkdtemp(prefix="vtk_"))
+
+    model_paths = {
+        "car": "assets/3d-files/car-model.obj",
+        "ahmed25": "assets/3d-files/ahmed_25deg_m.obj",
+        "ahmed35": "assets/3d-files/ahmed_35deg_m.obj",
+    }
+    model_path = model_paths.get(model, model_paths["car"])
+
+    # Start Xvfb
+    xvfb = subprocess.Popen(
+        ["Xvfb", ":99", "-screen", "0", "1920x1080x24"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    time.sleep(2)
+
+    env = os.environ.copy()
+    env["DISPLAY"] = ":99"
+
+    frames_dir = Path(tempfile.mkdtemp(prefix="frames_"))
+    cmd = [
+        "stdbuf", "-oL",
+        str(executable),
+        f"--wind={wind_speed}",
+        f"--duration={duration}",
+        f"--grid={grid}",
+        f"--model={model_path}",
+        f"--output={frames_dir}",
+        f"--vtk-output={vtk_dir}",
+        f"--vtk-interval={vtk_interval}",
+        "--viz=1", "--collision=1",
+    ]
+    if reynolds > 0:
+        cmd.append(f"--reynolds={reynolds}")
+
+    try:
+        result = subprocess.run(
+            cmd, cwd=str(source_dir), env=env,
+            capture_output=True, text=True,
+            timeout=duration * 120 + 300,
+        )
+
+        vtk_files = sorted(vtk_dir.glob("field_*.vti"))
+        log.info(f"vtk generation done: {len(vtk_files)} files, rc={result.returncode}")
+
+        if not vtk_files:
+            return {
+                "status": "error",
+                "error": f"No VTK files (rc={result.returncode})",
+                "stdout_tail": (result.stdout or "")[-1000:],
+            }
+
+        # Read each VTI and return the raw binary data
+        fields = []
+        for vti in vtk_files:
+            fields.append({
+                "filename": vti.name,
+                "data": base64.b64encode(vti.read_bytes()).decode(),
+            })
+
+        return {
+            "status": "complete",
+            "grid": grid,
+            "model": model,
+            "num_fields": len(fields),
+            "fields": fields,
+        }
+
+    except subprocess.TimeoutExpired:
+        return {"status": "error", "error": "Timed out"}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+    finally:
+        xvfb.terminate()
+        shutil.rmtree(frames_dir, ignore_errors=True)
+        shutil.rmtree(vtk_dir, ignore_errors=True)
+
+
 @app.function(image=image, timeout=30, secrets=[modal.Secret.from_name("aws-secret")])
 @modal.fastapi_endpoint(method="POST")
 def optimize_shape(data: dict) -> dict:
