@@ -38,7 +38,6 @@ int sliderHeight = 20;
 int handleWidth = 10;
 int handleX = 100;
 int isDragging = 0;
-float windSpeed = 1.0f;
 
 // Camera rotation variables
 float cameraAngleY = 0.0f;
@@ -55,7 +54,6 @@ int lastMouseX = 0;
 int lastMouseY = 0;
 
 // Visualization mode
-int visualizationMode = 1;
 float maxSpeed = 0.5f;
 
 // LBM settings
@@ -133,6 +131,12 @@ static CollisionGrid buildCollisionGrid(GPUTriangle *tris,
     // First pass: count how many cells each triangle overlaps
     g.cellCount = (int *)calloc(g.totalCells, sizeof(int));
     int *tmpCount = (int *)calloc(g.totalCells, sizeof(int));
+    if (!g.cellCount || !tmpCount) {
+        free(g.cellCount);
+        free(tmpCount);
+        memset(&g, 0, sizeof(g));
+        return g;
+    }
 
     for (int t = 0; t < numTris; t++) {
         float txMin = fminf(tris[t].v0x, fminf(tris[t].v1x, tris[t].v2x));
@@ -173,12 +177,25 @@ static CollisionGrid buildCollisionGrid(GPUTriangle *tris,
 
     // Prefix sum to get cellStart
     g.cellStart = (int *)malloc(g.totalCells * sizeof(int));
+    if (!g.cellStart) {
+        free(g.cellCount);
+        free(tmpCount);
+        memset(&g, 0, sizeof(g));
+        return g;
+    }
     g.cellStart[0] = 0;
     for (int i = 1; i < g.totalCells; i++)
         g.cellStart[i] = g.cellStart[i - 1] + g.cellCount[i - 1];
 
     // Second pass: fill triIndices
     g.triIndices = (int *)malloc(g.totalIndices * sizeof(int));
+    if (!g.triIndices) {
+        free(g.cellStart);
+        free(g.cellCount);
+        free(tmpCount);
+        memset(&g, 0, sizeof(g));
+        return g;
+    }
 
     for (int t = 0; t < numTris; t++) {
         float txMin = fminf(tris[t].v0x, fminf(tris[t].v1x, tris[t].v2x));
@@ -433,6 +450,10 @@ void calculateViewMatrix(float *view,
 
 void saveFrameToPPM(const char *filename, int width, int height) {
     unsigned char *pixels = (unsigned char *)malloc(width * height * 3);
+    if (!pixels) {
+        printf("Error: Could not allocate pixel buffer for %s\n", filename);
+        return;
+    }
     glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, pixels);
 
     FILE *f = fopen(filename, "wb");
@@ -584,8 +605,8 @@ int main(int argc, char *argv[]) {
             visualizationMode = atoi(optarg);
             if (visualizationMode < 0)
                 visualizationMode = 0;
-            if (visualizationMode > 6)
-                visualizationMode = 6;
+            if (visualizationMode >= numVizModes)
+                visualizationMode = numVizModes - 1;
             break;
         case 'c':
             collisionMode = atoi(optarg);
@@ -663,7 +684,7 @@ int main(int argc, char *argv[]) {
             printf("Usage: %s [options]\n", argv[0]);
             printf("Options:\n");
             printf("  -w, --wind=SPEED      Wind speed 0-5 (default: 1.0)\n");
-            printf("  -v, --viz=MODE        Visualization mode 0-6 (default: "
+            printf("  -v, --viz=MODE        Visualization mode 0-9 (default: "
                    "1)\n");
             printf("  -c, --collision=MODE  Collision 0=off, 1=AABB, 2=mesh, "
                    "3=voxel "
@@ -729,7 +750,8 @@ int main(int argc, char *argv[]) {
     printf("GLSL Version: %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
     printf("Renderer: %s\n", glGetString(GL_RENDERER));
 
-    SDL_GL_SetSwapInterval(1);
+    if (renderDuration == 0)
+        SDL_GL_SetSwapInterval(1);
 
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_PROGRAM_POINT_SIZE);
@@ -1439,6 +1461,7 @@ int main(int argc, char *argv[]) {
     int maxFrames = (renderDuration > 0) ? renderDuration * 60 : 0;
 
 // Convergence detection for auto-stop
+#define CD_SAMPLE_INTERVAL 20
 #define CD_HISTORY_SIZE 100
     float cdHistory[CD_HISTORY_SIZE];
     int cdHistoryCount = 0;
@@ -1580,6 +1603,8 @@ int main(int argc, char *argv[]) {
                     break;
                 case SDLK_UP:
                     windSpeed += 0.5f;
+                    if (windSpeed > 5.0f)
+                        windSpeed = 5.0f;
                     printf("Wind speed: %.1f\n", windSpeed);
                     break;
                 case SDLK_DOWN:
@@ -1981,7 +2006,7 @@ int main(int argc, char *argv[]) {
                 glPushMatrix();
                 glLoadMatrixf(view);
 
-                renderModel(&carModel, SCALE);
+                renderModel(&carModel);
 
                 glPopMatrix();
                 glMatrixMode(GL_PROJECTION);
@@ -1994,8 +2019,8 @@ int main(int argc, char *argv[]) {
 
         // Compute and display drag coefficient every 20 frames
         // once the flow has developed (cdStartFrame computed above).
-        if (frameCount >= cdStartFrame && frameCount % 20 == 0 && lbmGrid &&
-            useLBM) {
+        if (frameCount >= cdStartFrame && frameCount % CD_SAMPLE_INTERVAL == 0 &&
+            lbmGrid && useLBM) {
             // Compute force with pressure/friction decomposition
             float fx, fy, fz, px, py, pz;
             LBM_ComputeDragForceDecomposed(lbmGrid, &fx, &fy, &fz,
@@ -2009,9 +2034,11 @@ int main(int argc, char *argv[]) {
             float dynP = 0.5f * latticeVelocity * latticeVelocity;
             float denom = dynP * refArea;
             float Cd = (denom > 1e-10f) ? fabsf(fx) / denom : 0.0f;
-            float Cl = (denom > 1e-10f) ? fabsf(fy) / denom : 0.0f;
+            float Cl = (denom > 1e-10f) ? fy / denom : 0.0f;
             float CdPressure = (denom > 1e-10f) ? fabsf(px) / denom : 0.0f;
             float CdFriction = Cd - CdPressure;
+            if (CdFriction < 0.0f)
+                CdFriction = 0.0f;
 
             // Exponential moving average for stable reporting
             if (cdHistoryCount == 0) {
@@ -2049,10 +2076,15 @@ int main(int argc, char *argv[]) {
             if (clSeries) {
                 if (clCount >= clCapacity) {
                     clCapacity *= 2;
-                    clSeries =
+                    float *tmp =
                         (float *)realloc(clSeries, clCapacity * sizeof(float));
+                    if (tmp) {
+                        clSeries = tmp;
+                    } else {
+                        clCapacity /= 2;
+                    }
                 }
-                if (clSeries)
+                if (clCount < clCapacity)
                     clSeries[clCount++] = Cl;
             }
 
@@ -2137,8 +2169,9 @@ int main(int argc, char *argv[]) {
         }
 
         // DFT over one-sided spectrum (skip DC).
-        // Each Cl sample corresponds to lbmSubsteps lattice timesteps.
-        float fs = 1.0f / lbmSubsteps;
+        // Each Cl sample corresponds to CD_SAMPLE_INTERVAL frames,
+        // each frame running lbmSubsteps lattice timesteps.
+        float fs = 1.0f / (CD_SAMPLE_INTERVAL * lbmSubsteps);
         int nfreqs = n / 2;
         float peakPow = 0;
         float peakFreq = 0;

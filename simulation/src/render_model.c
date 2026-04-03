@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <math.h>
 
-void renderModel(Model *model, int scale) {
+void renderModel(Model *model) {
     if (model->faceCount == 0)
         return;
 

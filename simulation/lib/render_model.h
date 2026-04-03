@@ -4,6 +4,6 @@
 #include "../obj-file-loader/lib/model_loader.h"
 
 // Function to render the 3D model using OpenGL
-void renderModel(Model *model, int scale);
+void renderModel(Model *model);
 
 #endif // RENDER_MODEL_H
