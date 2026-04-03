@@ -1,0 +1,216 @@
+#version 430 core
+layout(local_size_x = 4, local_size_y = 4, local_size_z = 4) in;
+
+// Coarse velocity field from LBM (vec4: ux, uy, uz, rho)
+layout(std430, binding = 4) readonly buffer CoarseVelocity {
+    vec4 coarseVel[];
+};
+
+// Fine (upscaled) velocity field output
+layout(std430, binding = 12) writeonly buffer FineVelocity {
+    vec4 fineVel[];
+};
+
+// MLP weights packed sequentially:
+//   W0 (128x108), b0 (128), W1 (128x128), b1 (128),
+//   W2 (128x128), b2 (128), W3 (32x128), b3 (32)
+layout(std430, binding = 13) readonly buffer Weights {
+    float weights[];
+};
+
+uniform ivec3 coarseSize;  // e.g., (64, 48, 48)
+uniform ivec3 fineSize;    // e.g., (128, 96, 96)
+
+// Normalizer: mean and std per channel (4 channels)
+uniform vec4 normMean;
+uniform vec4 normStd;
+
+// Weight offsets (precomputed on CPU)
+uniform int wOff0;  // W0 start
+uniform int bOff0;  // b0 start
+uniform int wOff1;  // W1 start
+uniform int bOff1;
+uniform int wOff2;
+uniform int bOff2;
+uniform int wOff3;
+uniform int bOff3;
+
+// Hidden dimension
+uniform int hiddenDim;  // 128
+
+int coarseIdx(int x, int y, int z) {
+    return x + y * coarseSize.x + z * coarseSize.x * coarseSize.y;
+}
+
+int fineIdx(int x, int y, int z) {
+    return x + y * fineSize.x + z * fineSize.x * fineSize.y;
+}
+
+vec4 sampleCoarse(int x, int y, int z) {
+    x = clamp(x, 0, coarseSize.x - 1);
+    y = clamp(y, 0, coarseSize.y - 1);
+    z = clamp(z, 0, coarseSize.z - 1);
+    return coarseVel[coarseIdx(x, y, z)];
+}
+
+vec4 normalize_ch(vec4 v) {
+    return (v - normMean) / normStd;
+}
+
+vec4 denormalize_ch(vec4 v) {
+    return v * normStd + normMean;
+}
+
+// Gather 3x3x3 neighborhood into a flat array (108 floats).
+// Layout: [z][y][x][channel], x fastest.
+void gatherPatch(int cx, int cy, int cz, out float patch[108]) {
+    int idx = 0;
+    for (int dz = -1; dz <= 1; dz++) {
+        for (int dy = -1; dy <= 1; dy++) {
+            for (int dx = -1; dx <= 1; dx++) {
+                vec4 v = normalize_ch(sampleCoarse(cx + dx, cy + dy, cz + dz));
+                patch[idx++] = v.x;
+                patch[idx++] = v.y;
+                patch[idx++] = v.z;
+                patch[idx++] = v.w;
+            }
+        }
+    }
+}
+
+// Trilinear interpolation of center cell to 2x2x2 sub-cells.
+void trilinearSkip(float patch[108], out float skip[32]) {
+    // The patch center is at index [1][1][1] = flat index 13*4 = 52
+    // For each sub-cell offset (dz, dy, dx) in {0,1}^3,
+    // interpolate from the 8 surrounding coarse cells.
+    int outIdx = 0;
+    for (int dz = 0; dz < 2; dz++) {
+        for (int dy = 0; dy < 2; dy++) {
+            for (int dx = 0; dx < 2; dx++) {
+                float fx = 0.25 + 0.5 * float(dx);
+                float fy = 0.25 + 0.5 * float(dy);
+                float fz = 0.25 + 0.5 * float(dz);
+
+                vec4 val = vec4(0.0);
+                for (int cz = 0; cz < 2; cz++) {
+                    for (int cy = 0; cy < 2; cy++) {
+                        for (int cx = 0; cx < 2; cx++) {
+                            float wz = (cz == 1) ? fz : (1.0 - fz);
+                            float wy = (cy == 1) ? fy : (1.0 - fy);
+                            float wx = (cx == 1) ? fx : (1.0 - fx);
+                            float w = wz * wy * wx;
+
+                            // Grid offset from center (1,1,1)
+                            int iz = 1 + cz;
+                            int iy = 1 + cy;
+                            int ix = 1 + cx;
+                            int pIdx = (iz * 9 + iy * 3 + ix) * 4;
+                            val += w * vec4(
+                                patch[pIdx], patch[pIdx+1],
+                                patch[pIdx+2], patch[pIdx+3]
+                            );
+                        }
+                    }
+                }
+                skip[outIdx++] = val.x;
+                skip[outIdx++] = val.y;
+                skip[outIdx++] = val.z;
+                skip[outIdx++] = val.w;
+            }
+        }
+    }
+}
+
+// Dense layer: out[j] = ReLU(sum_i(W[j*inDim+i] * in[i]) + b[j])
+// W stored row-major: W[outDim][inDim]
+void linearReLU(float inp[128], int inDim, int wOff, int bOff,
+                int outDim, out float outp[128]) {
+    for (int j = 0; j < outDim; j++) {
+        float sum = weights[bOff + j];
+        for (int i = 0; i < inDim; i++) {
+            sum += weights[wOff + j * inDim + i] * inp[i];
+        }
+        outp[j] = max(sum, 0.0);  // ReLU
+    }
+}
+
+// Final layer (no activation)
+void linearNoAct(float inp[128], int inDim, int wOff, int bOff,
+                 int outDim, out float outp[32]) {
+    for (int j = 0; j < outDim; j++) {
+        float sum = weights[bOff + j];
+        for (int i = 0; i < inDim; i++) {
+            sum += weights[wOff + j * inDim + i] * inp[i];
+        }
+        outp[j] = sum;
+    }
+}
+
+void main() {
+    // Each invocation handles one coarse cell
+    int cx = int(gl_GlobalInvocationID.x);
+    int cy = int(gl_GlobalInvocationID.y);
+    int cz = int(gl_GlobalInvocationID.z);
+
+    if (cx >= coarseSize.x || cy >= coarseSize.y || cz >= coarseSize.z)
+        return;
+
+    // Gather 3x3x3 neighborhood
+    float patch[108];
+    gatherPatch(cx, cy, cz, patch);
+
+    // Trilinear skip connection
+    float skip[32];
+    trilinearSkip(patch, skip);
+
+    // MLP forward pass: 108 -> 128 -> 128 -> 128 -> 32
+    // Layer 0: Linear(108, hidden) + ReLU
+    float h0[128];
+    {
+        // First layer: input is 108-dim, can't use the fixed-size helper
+        for (int j = 0; j < hiddenDim; j++) {
+            float sum = weights[bOff0 + j];
+            for (int i = 0; i < 108; i++) {
+                sum += weights[wOff0 + j * 108 + i] * patch[i];
+            }
+            h0[j] = max(sum, 0.0);
+        }
+    }
+
+    // Layer 1: Linear(hidden, hidden) + ReLU
+    float h1[128];
+    linearReLU(h0, hiddenDim, wOff1, bOff1, hiddenDim, h1);
+
+    // Layer 2: Linear(hidden, hidden) + ReLU
+    float h2[128];
+    linearReLU(h1, hiddenDim, wOff2, bOff2, hiddenDim, h2);
+
+    // Layer 3: Linear(hidden, 32), no activation
+    float correction[32];
+    linearNoAct(h2, hiddenDim, wOff3, bOff3, 32, correction);
+
+    // Output = skip + correction, then denormalize
+    int outIdx = 0;
+    for (int dz = 0; dz < 2; dz++) {
+        for (int dy = 0; dy < 2; dy++) {
+            for (int dx = 0; dx < 2; dx++) {
+                int fi = outIdx * 4;
+                vec4 val = vec4(
+                    skip[fi] + correction[fi],
+                    skip[fi+1] + correction[fi+1],
+                    skip[fi+2] + correction[fi+2],
+                    skip[fi+3] + correction[fi+3]
+                );
+                val = denormalize_ch(val);
+
+                int fx = cx * 2 + dx;
+                int fy = cy * 2 + dy;
+                int fz = cz * 2 + dz;
+                if (fx < fineSize.x && fy < fineSize.y && fz < fineSize.z) {
+                    fineVel[fineIdx(fx, fy, fz)] = val;
+                }
+                outIdx++;
+            }
+        }
+    }
+}

@@ -33,6 +33,7 @@ add_executable(3d_fluid_simulation_car
     src/opengl_utils.c
     src/lbm.c
     src/ml_predict.c
+    src/superres.c
     ${GLAD_SOURCES}
 )
 

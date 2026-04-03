@@ -20,6 +20,7 @@
 #include "../lib/opengl_utils.h"
 #include "../lib/config.h"
 #include "../lib/ml_predict.h"
+#include "../lib/superres.h"
 
 #define GPU_PARTICLES MAX_PARTICLES
 
@@ -568,6 +569,9 @@ int main(int argc, char *argv[]) {
     int useMRT = 0;
     char vtkOutputPath[256] = "";
     int vtkInterval = 100; // frames between VTK dumps
+    int useSuperRes = 0;
+    char srWeightsPath[256] = "assets/sr_model.bin";
+    char srNormPath[256] = "assets/sr_model_norm.bin";
 
     static struct option long_options[] = {
         {"wind", required_argument, 0, 'w'},
@@ -584,6 +588,8 @@ int main(int argc, char *argv[]) {
         {"mrt", no_argument, 0, 'M'},
         {"vtk-output", required_argument, 0, 'V'},
         {"vtk-interval", required_argument, 0, 'I'},
+        {"superres", no_argument, 0, 'R'},
+        {"sr-weights", required_argument, 0, 'W'},
         {"help", no_argument, 0, 'h'},
         {0, 0, 0, 0}
 
@@ -679,6 +685,13 @@ int main(int argc, char *argv[]) {
             if (vtkInterval < 1)
                 vtkInterval = 1;
             break;
+        case 'R':
+            useSuperRes = 1;
+            break;
+        case 'W':
+            strncpy(srWeightsPath, optarg, sizeof(srWeightsPath) - 1);
+            srWeightsPath[sizeof(srWeightsPath) - 1] = '\0';
+            break;
         case 'h':
         default:
             printf("Usage: %s [options]\n", argv[0]);
@@ -706,6 +719,10 @@ int main(int argc, char *argv[]) {
             printf("  --vtk-output=PATH     Directory for VTK field dumps\n");
             printf("  --vtk-interval=N      Frames between VTK dumps "
                    "(default: 100)\n");
+            printf("  --superres            Enable 2x super-resolution "
+                   "upscaling\n");
+            printf("  --sr-weights=PATH     Super-resolution weights "
+                   "(default: assets/sr_model.bin)\n");
             printf("  -h, --help            Show this help\n");
             return 0;
         }
@@ -1163,6 +1180,24 @@ int main(int argc, char *argv[]) {
     } else {
         printf("ML model not loaded (no weight files), "
                "skipping instant prediction\n");
+    }
+
+    // Super-resolution upscaler (optional)
+    SuperResUpscaler *srUpscaler = NULL;
+    if (useSuperRes) {
+        srUpscaler = SR_Create(lbmSizeX, lbmSizeY, lbmSizeZ,
+                               srWeightsPath, srNormPath);
+        if (srUpscaler) {
+            int fineX, fineY, fineZ;
+            SR_GetFineSize(srUpscaler, &fineX, &fineY, &fineZ);
+            printf("Super-resolution: %dx%dx%d -> %dx%dx%d\n",
+                   lbmSizeX, lbmSizeY, lbmSizeZ,
+                   fineX, fineY, fineZ);
+        } else {
+            printf("Super-resolution: failed to initialize, "
+                   "falling back to native resolution\n");
+            useSuperRes = 0;
+        }
     }
 
     // Get compute shader uniform locations
@@ -1737,6 +1772,11 @@ int main(int argc, char *argv[]) {
                 LBM_Step(lbmGrid, currentInletVel, 0.0f, 0.0f);
             }
 
+            // Super-resolution upscale after LBM step
+            if (srUpscaler) {
+                SR_Upscale(srUpscaler, LBM_GetVelocityBuffer(lbmGrid));
+            }
+
             // VTK field dump at specified interval
             if (strlen(vtkOutputPath) > 0 &&
                 frameCount % vtkInterval == 0) {
@@ -1799,11 +1839,14 @@ int main(int argc, char *argv[]) {
             glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, particleBuffer);
             glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, triangleBuffer);
 
-            // Bind LBM velocity and solid buffers if using LBM
+            // Bind LBM velocity and solid buffers if using LBM.
+            // When super-resolution is active, particles sample the
+            // upscaled fine velocity buffer instead.
             if (lbmGrid && useLBM) {
-                glBindBufferBase(GL_SHADER_STORAGE_BUFFER,
-                                 4,
-                                 LBM_GetVelocityBuffer(lbmGrid));
+                GLuint velBuf = srUpscaler
+                    ? SR_GetFineVelocityBuffer(srUpscaler)
+                    : LBM_GetVelocityBuffer(lbmGrid);
+                glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, velBuf);
                 glBindBufferBase(
                     GL_SHADER_STORAGE_BUFFER, 5, lbmGrid->solidBuffer);
             }
@@ -1833,10 +1876,16 @@ int main(int argc, char *argv[]) {
             if (useLBMLoc != -1)
                 glUniform1i(useLBMLoc, (useLBM && lbmGrid) ? 1 : 0);
             if (lbmGridSizeLoc != -1 && lbmGrid) {
-                glUniform3i(lbmGridSizeLoc,
-                            lbmGrid->sizeX,
-                            lbmGrid->sizeY,
-                            lbmGrid->sizeZ);
+                if (srUpscaler) {
+                    int fx, fy, fz;
+                    SR_GetFineSize(srUpscaler, &fx, &fy, &fz);
+                    glUniform3i(lbmGridSizeLoc, fx, fy, fz);
+                } else {
+                    glUniform3i(lbmGridSizeLoc,
+                                lbmGrid->sizeX,
+                                lbmGrid->sizeY,
+                                lbmGrid->sizeZ);
+                }
             }
 
             // Collision grid uniforms
@@ -2215,6 +2264,8 @@ int main(int argc, char *argv[]) {
         LBM_Free(lbmGrid);
     if (mlModel)
         ML_Free(mlModel);
+    if (srUpscaler)
+        SR_Free(srUpscaler);
     glDeleteVertexArrays(1, &particleVAO);
     glDeleteBuffers(1, &particleBuffer);
     glDeleteVertexArrays(1, &trailVAO);
