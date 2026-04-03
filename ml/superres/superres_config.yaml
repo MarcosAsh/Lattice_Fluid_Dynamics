@@ -1,0 +1,19 @@
+# Super-resolution paired data generation config.
+# Run: python gen_pairs.py --config superres_config.yaml
+
+coarse_grid: "64x48x48"
+fine_grid: "128x96x96"
+upscale_factor: 2
+
+models:
+  - car
+  - ahmed25
+  - ahmed35
+
+wind_speeds: [0.5, 1.0, 1.5, 2.0, 2.5, 3.0]
+reynolds_numbers: [0, 5000, 10000]
+
+duration: 15           # seconds of simulation time
+vtk_interval: 50       # frames between VTK dumps
+patch_neighborhood: 3  # 3x3x3 coarse input patches
+max_concurrent: 4
