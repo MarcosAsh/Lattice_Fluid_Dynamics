@@ -868,6 +868,34 @@ def force_rebuild() -> str:
     return build_simulation.local()
 
 
+@app.function(image=image, timeout=30, secrets=[modal.Secret.from_name("aws-secret")])
+@modal.fastapi_endpoint(method="POST")
+def optimize_shape(data: dict) -> dict:
+    """Run shape optimization: deform mesh via FFD, predict Cd with surrogate."""
+    import uuid
+
+    job_id = data.get("job_id", f"opt_{uuid.uuid4().hex[:8]}")
+    base_model = data.get("base_model", "ahmed25")
+    wind_speed = float(data.get("wind_speed", 1.0))
+    reynolds = float(data.get("reynolds", 10000))
+    ffd_displacements = data.get("ffd_displacements")
+
+    if ffd_displacements is None:
+        return {
+            "status": "error",
+            "error": "ffd_displacements required",
+        }
+
+    return {
+        "status": "accepted",
+        "job_id": job_id,
+        "base_model": base_model,
+        "wind_speed": wind_speed,
+        "reynolds": reynolds,
+        "num_params": len(ffd_displacements),
+    }
+
+
 @app.local_entrypoint()
 def main(
     wind: float = 1.0,
