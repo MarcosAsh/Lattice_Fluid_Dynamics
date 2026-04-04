@@ -93,6 +93,10 @@ float LBM_ComputeLiftCoefficient(LBMGrid *grid,
                                  float inletVelocity,
                                  float refArea);
 
+// Set solid sphere (world coordinates, q = 0.5 bounce-back)
+void LBM_SetSolidSphere(
+    LBMGrid *grid, float cx, float cy, float cz, float radius);
+
 // Set solid mesh
 void LBM_SetSolidMesh(LBMGrid *grid,
                       float *triangles,

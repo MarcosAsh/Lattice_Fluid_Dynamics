@@ -392,6 +392,53 @@ static void test_mrt_smagorinsky_step(void) {
     LBM_Free(grid);
 }
 
+static void test_sphere_cd_re100(void) {
+    printf("test: sphere Cd at Re=100 matches Clift et al. reference\n");
+
+    /* 128x64x64 gives uniform scaling (16 cells per world unit).
+     * Sphere D = 1.0 world -> 16 lattice cells diameter.
+     * Blockage ~5%.  Cd reference: 1.09 (Clift, Grace & Weber 1978). */
+    float U = 0.05f;
+    float diameter = 1.0f; /* world units */
+    float Re = 100.0f;
+
+    float scaleX = 128.0f / 8.0f; /* = 16 */
+    float charLength = diameter * scaleX;
+    float viscosity = (U * charLength) / Re;
+    float tau = 3.0f * viscosity + 0.5f;
+
+    printf("  charLength=%.1f  viscosity=%.6f  tau=%.4f\n",
+           charLength,
+           viscosity,
+           tau);
+
+    LBMGrid *grid = LBM_Create(128, 64, 64, viscosity);
+    if (!grid) {
+        printf("  SKIP: could not create 128x64x64 grid\n");
+        return;
+    }
+
+    LBM_SetSolidSphere(grid, 0.0f, 0.0f, 0.0f, diameter / 2.0f);
+    LBM_InitializeFlow(grid, U, 0.0f, 0.0f);
+
+    /* Run 4000 steps: ~2.5 flow-throughs at U=0.05 on 128-cell domain.
+     * Cd should be converged by then at Re=100. */
+    int nSteps = 4000;
+    for (int i = 0; i < nSteps; i++)
+        LBM_Step(grid, U, 0.0f, 0.0f);
+
+    /* Frontal area in lattice units: pi/4 * D_lattice^2 */
+    float D_lat = diameter * scaleX;
+    float refArea = (3.14159265f / 4.0f) * D_lat * D_lat;
+    float Cd = LBM_ComputeDragCoefficient(grid, U, refArea);
+
+    printf("  Cd = %.3f  (reference: 1.09, tol 30%%)\n", Cd);
+    ASSERT(Cd > 0.76f, "sphere Cd > 0.76 (lower bound)");
+    ASSERT(Cd < 1.42f, "sphere Cd < 1.42 (upper bound)");
+
+    LBM_Free(grid);
+}
+
 /* GL context setup */
 
 static int init_gl(void) {
@@ -442,6 +489,7 @@ int main(void) {
         test_flow_init_and_step();
         test_mrt_flow_step();
         test_mrt_smagorinsky_step();
+        test_sphere_cd_re100();
     } else {
         printf("\nSkipping GPU tests (no GL context)\n");
     }

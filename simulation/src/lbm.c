@@ -84,8 +84,7 @@ LBMGrid *LBM_Create(int sizeX, int sizeY, int sizeZ, float viscosity) {
     size_t fSize = 19 * grid->totalCells * sizeof(float);
     size_t velSize = grid->totalCells * 4 * sizeof(float);
     size_t solidSize = grid->totalCells * sizeof(int);
-    size_t forceSize =
-        7 * sizeof(int); // total(xyz), count, pressure(xyz)
+    size_t forceSize = 7 * sizeof(int); // total(xyz), count, pressure(xyz)
 
     size_t totalGPU = 2 * fSize + velSize + solidSize + forceSize;
     printf("GPU memory: f=%.1f MB x2, vel=%.1f MB, solid=%.1f MB, "
@@ -408,6 +407,79 @@ void LBM_SetSolidAABB(LBMGrid *grid,
     free(solidData);
 }
 
+void LBM_SetSolidSphere(
+    LBMGrid *grid, float cx, float cy, float cz, float radius) {
+    float scaleX = grid->sizeX / 8.0f;
+    float scaleY = grid->sizeY / 4.0f;
+    float scaleZ = grid->sizeZ / 4.0f;
+
+    int *solidData = (int *)calloc(grid->totalCells, sizeof(int));
+    int solidCount = 0;
+
+    for (int gz = 0; gz < grid->sizeZ; gz++) {
+        for (int gy = 0; gy < grid->sizeY; gy++) {
+            for (int gx = 0; gx < grid->sizeX; gx++) {
+                float wx = (gx + 0.5f) / scaleX - 4.0f;
+                float wy = (gy + 0.5f) / scaleY - 2.0f;
+                float wz = (gz + 0.5f) / scaleZ - 2.0f;
+                float dx = wx - cx, dy = wy - cy, dz = wz - cz;
+                if (dx * dx + dy * dy + dz * dz <= radius * radius) {
+                    int idx =
+                        gx + gy * grid->sizeX + gz * grid->sizeX * grid->sizeY;
+                    solidData[idx] = 1;
+                    solidCount++;
+                }
+            }
+        }
+    }
+
+    printf("LBM solid sphere: %d cells (R=%.2f at (%.2f,%.2f,%.2f))\n",
+           solidCount,
+           radius,
+           cx,
+           cy,
+           cz);
+
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->solidBuffer);
+    glBufferSubData(
+        GL_SHADER_STORAGE_BUFFER, 0, grid->totalCells * sizeof(int), solidData);
+
+    // Bouzidi q = 0.5 for all boundary links (standard bounce-back)
+    size_t qCount = (size_t)19 * grid->totalCells;
+    float *qData = (float *)malloc(qCount * sizeof(float));
+    for (size_t qi = 0; qi < qCount; qi++)
+        qData[qi] = -1.0f;
+
+    int qLinks = 0;
+    for (int gz = 0; gz < grid->sizeZ; gz++) {
+        for (int gy = 0; gy < grid->sizeY; gy++) {
+            for (int gx = 0; gx < grid->sizeX; gx++) {
+                int ci = gx + gy * grid->sizeX + gz * grid->sizeX * grid->sizeY;
+                if (solidData[ci] == 1)
+                    continue;
+                for (int i = 1; i < 19; i++) {
+                    int nx = gx + ex[i], ny = gy + ey[i], nz = gz + ez[i];
+                    if (nx < 0 || nx >= grid->sizeX || ny < 0 ||
+                        ny >= grid->sizeY || nz < 0 || nz >= grid->sizeZ)
+                        continue;
+                    int ni =
+                        nx + ny * grid->sizeX + nz * grid->sizeX * grid->sizeY;
+                    if (solidData[ni] == 1) {
+                        qData[ci * 19 + i] = 0.5f;
+                        qLinks++;
+                    }
+                }
+            }
+        }
+    }
+
+    printf("Sphere Bouzidi: %d boundary links\n", qLinks);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->qBuffer);
+    glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, qCount * sizeof(float), qData);
+    free(qData);
+    free(solidData);
+}
+
 void LBM_InitializeFlow(LBMGrid *grid, float ux, float uy, float uz) {
     float rho = 1.0f;
 
@@ -504,8 +576,8 @@ void LBM_ComputeDragForce(LBMGrid *grid,
                           float *forceX,
                           float *forceY,
                           float *forceZ) {
-    LBM_ComputeDragForceDecomposed(grid, forceX, forceY, forceZ,
-                                   NULL, NULL, NULL);
+    LBM_ComputeDragForceDecomposed(
+        grid, forceX, forceY, forceZ, NULL, NULL, NULL);
 }
 
 void LBM_ComputeDragForceDecomposed(LBMGrid *grid,
@@ -518,9 +590,12 @@ void LBM_ComputeDragForceDecomposed(LBMGrid *grid,
     *forceX = 0.0f;
     *forceY = 0.0f;
     *forceZ = 0.0f;
-    if (pressureX) *pressureX = 0.0f;
-    if (pressureY) *pressureY = 0.0f;
-    if (pressureZ) *pressureZ = 0.0f;
+    if (pressureX)
+        *pressureX = 0.0f;
+    if (pressureY)
+        *pressureY = 0.0f;
+    if (pressureZ)
+        *pressureZ = 0.0f;
 
     if (!grid->forceShader)
         return;
@@ -556,9 +631,12 @@ void LBM_ComputeDragForceDecomposed(LBMGrid *grid,
     *forceX = results[0] / 10000.0f;
     *forceY = results[1] / 10000.0f;
     *forceZ = results[2] / 10000.0f;
-    if (pressureX) *pressureX = results[4] / 10000.0f;
-    if (pressureY) *pressureY = results[5] / 10000.0f;
-    if (pressureZ) *pressureZ = results[6] / 10000.0f;
+    if (pressureX)
+        *pressureX = results[4] / 10000.0f;
+    if (pressureY)
+        *pressureY = results[5] / 10000.0f;
+    if (pressureZ)
+        *pressureZ = results[6] / 10000.0f;
 }
 
 float LBM_ComputeDragCoefficient(LBMGrid *grid,

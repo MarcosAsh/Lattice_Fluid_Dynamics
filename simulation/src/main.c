@@ -510,26 +510,31 @@ static void writeVTI(LBMGrid *grid, const char *path, int step) {
     }
 
     // VTI header
-    fprintf(f,
-            "<?xml version=\"1.0\"?>\n"
-            "<VTKFile type=\"ImageData\" version=\"1.0\""
-            " byte_order=\"LittleEndian\" header_type=\"UInt64\">\n"
-            "  <ImageData WholeExtent=\"0 %d 0 %d 0 %d\""
-            " Origin=\"0 0 0\" Spacing=\"1 1 1\">\n"
-            "    <Piece Extent=\"0 %d 0 %d 0 %d\">\n"
-            "      <PointData Vectors=\"velocity\" Scalars=\"solid\">\n"
-            "        <DataArray type=\"Float32\" Name=\"velocity\""
-            " NumberOfComponents=\"3\" format=\"appended\""
-            " offset=\"0\"/>\n"
-            "        <DataArray type=\"Int32\" Name=\"solid\""
-            " format=\"appended\" offset=\"%lu\"/>\n"
-            "      </PointData>\n"
-            "    </Piece>\n"
-            "  </ImageData>\n"
-            "  <AppendedData encoding=\"raw\">\n_",
-            nx, ny, nz, nx, ny, nz,
-            (unsigned long)(sizeof(uint64_t) +
-                            (size_t)total * 3 * sizeof(float)));
+    fprintf(
+        f,
+        "<?xml version=\"1.0\"?>\n"
+        "<VTKFile type=\"ImageData\" version=\"1.0\""
+        " byte_order=\"LittleEndian\" header_type=\"UInt64\">\n"
+        "  <ImageData WholeExtent=\"0 %d 0 %d 0 %d\""
+        " Origin=\"0 0 0\" Spacing=\"1 1 1\">\n"
+        "    <Piece Extent=\"0 %d 0 %d 0 %d\">\n"
+        "      <PointData Vectors=\"velocity\" Scalars=\"solid\">\n"
+        "        <DataArray type=\"Float32\" Name=\"velocity\""
+        " NumberOfComponents=\"3\" format=\"appended\""
+        " offset=\"0\"/>\n"
+        "        <DataArray type=\"Int32\" Name=\"solid\""
+        " format=\"appended\" offset=\"%lu\"/>\n"
+        "      </PointData>\n"
+        "    </Piece>\n"
+        "  </ImageData>\n"
+        "  <AppendedData encoding=\"raw\">\n_",
+        nx,
+        ny,
+        nz,
+        nx,
+        ny,
+        nz,
+        (unsigned long)(sizeof(uint64_t) + (size_t)total * 3 * sizeof(float)));
 
     // Velocity array (strip w component from vec4)
     uint64_t velDataSize = (uint64_t)total * 3 * sizeof(float);
@@ -1185,14 +1190,18 @@ int main(int argc, char *argv[]) {
     // Super-resolution upscaler (optional)
     SuperResUpscaler *srUpscaler = NULL;
     if (useSuperRes) {
-        srUpscaler = SR_Create(lbmSizeX, lbmSizeY, lbmSizeZ,
-                               srWeightsPath, srNormPath);
+        srUpscaler =
+            SR_Create(lbmSizeX, lbmSizeY, lbmSizeZ, srWeightsPath, srNormPath);
         if (srUpscaler) {
             int fineX, fineY, fineZ;
             SR_GetFineSize(srUpscaler, &fineX, &fineY, &fineZ);
             printf("Super-resolution: %dx%dx%d -> %dx%dx%d\n",
-                   lbmSizeX, lbmSizeY, lbmSizeZ,
-                   fineX, fineY, fineZ);
+                   lbmSizeX,
+                   lbmSizeY,
+                   lbmSizeZ,
+                   fineX,
+                   fineY,
+                   fineZ);
         } else {
             printf("Super-resolution: failed to initialize, "
                    "falling back to native resolution\n");
@@ -1370,11 +1379,10 @@ int main(int argc, char *argv[]) {
 
     // RK4 streamline buffer and rendering setup
 #define STREAMLINE_SEEDS 256
-#define STREAMLINE_LEN 64
+#define STREAMLINE_LEN   64
     GLuint streamlineBuffer;
     {
-        size_t slSize =
-            STREAMLINE_SEEDS * STREAMLINE_LEN * 4 * sizeof(float);
+        size_t slSize = STREAMLINE_SEEDS * STREAMLINE_LEN * 4 * sizeof(float);
         void *slZeros = calloc(1, slSize);
         glGenBuffers(1, &streamlineBuffer);
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, streamlineBuffer);
@@ -1497,7 +1505,7 @@ int main(int argc, char *argv[]) {
 
 // Convergence detection for auto-stop
 #define CD_SAMPLE_INTERVAL 20
-#define CD_HISTORY_SIZE 100
+#define CD_HISTORY_SIZE    100
     float cdHistory[CD_HISTORY_SIZE];
     int cdHistoryCount = 0;
     int converged = 0;
@@ -1538,14 +1546,11 @@ int main(int argc, char *argv[]) {
             } else if (event.type == SDL_MOUSEMOTION) {
                 int dx = event.motion.x - lastMouseX;
                 int dy = event.motion.y - lastMouseY;
-                if (mouseDown &&
-                    (SDL_GetModState() & KMOD_SHIFT)) {
+                if (mouseDown && (SDL_GetModState() & KMOD_SHIFT)) {
                     // Shift+left-drag: pan
                     float panScale = cameraDistance * 0.002f;
-                    cameraTargetX -=
-                        dx * panScale * cosf(cameraAngleY);
-                    cameraTargetZ +=
-                        dx * panScale * sinf(cameraAngleY);
+                    cameraTargetX -= dx * panScale * cosf(cameraAngleY);
+                    cameraTargetZ += dx * panScale * sinf(cameraAngleY);
                     cameraTargetY += dy * panScale;
                     lastMouseX = event.motion.x;
                     lastMouseY = event.motion.y;
@@ -1563,10 +1568,8 @@ int main(int argc, char *argv[]) {
                 } else if (middleMouseDown) {
                     // Middle-click drag: pan
                     float panScale = cameraDistance * 0.002f;
-                    cameraTargetX -=
-                        dx * panScale * cosf(cameraAngleY);
-                    cameraTargetZ +=
-                        dx * panScale * sinf(cameraAngleY);
+                    cameraTargetX -= dx * panScale * cosf(cameraAngleY);
+                    cameraTargetZ += dx * panScale * sinf(cameraAngleY);
                     cameraTargetY += dy * panScale;
                     lastMouseX = event.motion.x;
                     lastMouseY = event.motion.y;
@@ -1778,8 +1781,7 @@ int main(int argc, char *argv[]) {
             }
 
             // VTK field dump at specified interval
-            if (strlen(vtkOutputPath) > 0 &&
-                frameCount % vtkInterval == 0) {
+            if (strlen(vtkOutputPath) > 0 && frameCount % vtkInterval == 0) {
                 writeVTI(lbmGrid, vtkOutputPath, frameCount);
             }
         }
@@ -1844,8 +1846,8 @@ int main(int argc, char *argv[]) {
             // upscaled fine velocity buffer instead.
             if (lbmGrid && useLBM) {
                 GLuint velBuf = srUpscaler
-                    ? SR_GetFineVelocityBuffer(srUpscaler)
-                    : LBM_GetVelocityBuffer(lbmGrid);
+                                    ? SR_GetFineVelocityBuffer(srUpscaler)
+                                    : LBM_GetVelocityBuffer(lbmGrid);
                 glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, velBuf);
                 glBindBufferBase(
                     GL_SHADER_STORAGE_BUFFER, 5, lbmGrid->solidBuffer);
@@ -1942,23 +1944,24 @@ int main(int argc, char *argv[]) {
                 // RK4 streamline trace (recompute every frame)
                 if (streamlineTraceShader && visualizationMode == 9 &&
                     lbmGrid && useLBM) {
-                    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4,
+                    glBindBufferBase(GL_SHADER_STORAGE_BUFFER,
+                                     4,
                                      LBM_GetVelocityBuffer(lbmGrid));
-                    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 11,
-                                     streamlineBuffer);
+                    glBindBufferBase(
+                        GL_SHADER_STORAGE_BUFFER, 11, streamlineBuffer);
                     glUseProgram(streamlineTraceShader);
-                    glUniform3i(
-                        glGetUniformLocation(streamlineTraceShader,
-                                             "lbmGridSize"),
-                        lbmGrid->sizeX, lbmGrid->sizeY, lbmGrid->sizeZ);
+                    glUniform3i(glGetUniformLocation(streamlineTraceShader,
+                                                     "lbmGridSize"),
+                                lbmGrid->sizeX,
+                                lbmGrid->sizeY,
+                                lbmGrid->sizeZ);
                     glUniform1i(
                         glGetUniformLocation(streamlineTraceShader, "numSeeds"),
                         STREAMLINE_SEEDS);
                     glUniform1i(
                         glGetUniformLocation(streamlineTraceShader, "traceLen"),
                         STREAMLINE_LEN);
-                    glDispatchCompute(
-                        (STREAMLINE_SEEDS + 255) / 256, 1, 1);
+                    glDispatchCompute((STREAMLINE_SEEDS + 255) / 256, 1, 1);
                     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT |
                                     GL_VERTEX_ATTRIB_ARRAY_BARRIER_BIT);
                 }
@@ -2068,19 +2071,20 @@ int main(int argc, char *argv[]) {
 
         // Compute and display drag coefficient every 20 frames
         // once the flow has developed (cdStartFrame computed above).
-        if (frameCount >= cdStartFrame && frameCount % CD_SAMPLE_INTERVAL == 0 &&
-            lbmGrid && useLBM) {
+        if (frameCount >= cdStartFrame &&
+            frameCount % CD_SAMPLE_INTERVAL == 0 && lbmGrid && useLBM) {
             // Compute force with pressure/friction decomposition
             float fx, fy, fz, px, py, pz;
-            LBM_ComputeDragForceDecomposed(lbmGrid, &fx, &fy, &fz,
-                                           &px, &py, &pz);
+            LBM_ComputeDragForceDecomposed(
+                lbmGrid, &fx, &fy, &fz, &px, &py, &pz);
 
             // Reference area ~ car frontal area in lattice units
             float scaleY = lbmGrid->sizeY / 4.0f;
             float scaleZ = lbmGrid->sizeZ / 4.0f;
             float refArea = (carBounds.maxY - carBounds.minY) * scaleY *
                             (carBounds.maxZ - carBounds.minZ) * scaleZ;
-            float dynP = 0.5f * latticeVelocity * latticeVelocity;
+            float rho_0 = 1.0f;
+            float dynP = 0.5f * rho_0 * latticeVelocity * latticeVelocity;
             float denom = dynP * refArea;
             float Cd = (denom > 1e-10f) ? fabsf(fx) / denom : 0.0f;
             float Cl = (denom > 1e-10f) ? fy / denom : 0.0f;
@@ -2088,6 +2092,38 @@ int main(int argc, char *argv[]) {
             float CdFriction = Cd - CdPressure;
             if (CdFriction < 0.0f)
                 CdFriction = 0.0f;
+
+            // One-time diagnostic: print Cd calculation breakdown so
+            // users can verify units and spot comparison mistakes.
+            static int cdDiagPrinted = 0;
+            if (!cdDiagPrinted) {
+                float bodyLatY = (carBounds.maxY - carBounds.minY) * scaleY;
+                float bodyLatZ = (carBounds.maxZ - carBounds.minZ) * scaleZ;
+                float blockage = refArea / (lbmGrid->sizeY * lbmGrid->sizeZ);
+                printf("  Cd calculation breakdown:\n");
+                printf("    Re = %.0f, U_lattice = %.4f, rho_0 = %.1f\n",
+                       reynoldsNumber,
+                       latticeVelocity,
+                       rho_0);
+                printf("    Body (lattice): %.1f x %.1f x %.1f cells\n",
+                       charLength,
+                       bodyLatY,
+                       bodyLatZ);
+                printf("    Ref area = %.1f cells^2 (bounding box frontal)\n",
+                       refArea);
+                printf(
+                    "    Dynamic pressure = %.6f, denom = %.6f\n", dynP, denom);
+                printf("    Blockage ratio = %.1f%%\n", blockage * 100.0f);
+                if (fminf(bodyLatY, bodyLatZ) < 10.0f)
+                    printf("    WARNING: body < 10 cells across -- Cd is "
+                           "unreliable at this resolution\n");
+                if (blockage > 0.05f)
+                    printf("    WARNING: blockage > 5%% -- confinement "
+                           "inflates Cd\n");
+                printf("    NOTE: published Ahmed body Cd ~0.3 is at "
+                       "Re > 500k. Low-Re simulations give higher Cd.\n");
+                cdDiagPrinted = 1;
+            }
 
             // Exponential moving average for stable reporting
             if (cdHistoryCount == 0) {
