@@ -1109,13 +1109,16 @@ def run_tests(grid: str = "256x128x128", duration: int = 120):
             print(f"Test build failed: {result.stderr}")
             return
 
-    # Run unit tests
+    # Run unit tests -- unset DISPLAY so EGL uses GPU directly
+    # instead of falling back to Xvfb + Mesa software GL.
+    egl_env = {k: v for k, v in os.environ.items() if k != "DISPLAY"}
     print("=" * 60)
     print("UNIT TESTS")
     print("=" * 60)
     result = subprocess.run(
         [str(test_bin)],
         cwd=str(source_dir),
+        env=egl_env,
         capture_output=True, text=True,
         timeout=600,
     )
