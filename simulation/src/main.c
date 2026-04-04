@@ -1074,12 +1074,12 @@ int main(int argc, char *argv[]) {
 
     float lbmViscosity = (latticeVelocity * charLength) / reynoldsNumber;
     float tau = 3.0f * lbmViscosity + 0.5f;
-    // tau < 0.65 causes period-2 force oscillation (omega > 1.54)
-    // that makes Cd unreliable. Clamp to 0.65 for converged results.
-    // Higher Re requires more grid cells across the body.
-    if (tau < 0.65f) {
-        lbmViscosity = (0.65f - 0.5f) / 3.0f;
-        tau = 0.65f;
+    // tau < 0.52 is numerically unstable. At 0.52 < tau < 0.65,
+    // the force has period-2 oscillation but the EMA averages it
+    // out after ~50 samples. MRT + Smagorinsky help stability.
+    if (tau < 0.52f) {
+        lbmViscosity = (0.52f - 0.5f) / 3.0f;
+        tau = 0.52f;
         float actualRe = (latticeVelocity * charLength) / lbmViscosity;
         printf("  Re capped at %.0f (tau=%.2f needed for stable Cd, "
                "requested Re=%.0f)\n",
