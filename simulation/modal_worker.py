@@ -1071,7 +1071,7 @@ def main(
 
 @app.function(
     image=image,
-    gpu="A10G",
+    gpu="A100",
     volumes={"/cache": build_cache},
     timeout=3600,
 )
