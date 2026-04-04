@@ -80,8 +80,9 @@ GLContext *GLContext_CreateInteractive(int w, int h) {
 static GLContext *headless_sdl_fallback(int w, int h) {
     printf("Using SDL hidden window for headless\n");
 
-    /* Force software GL for Xvfb environments. */
-    setenv("LIBGL_ALWAYS_SOFTWARE", "1", 1);
+    /* If NVIDIA GL is available, let it handle rendering even under
+     * Xvfb.  Only force software when there is no hardware GL at all
+     * (checked after context creation below). */
     setenv("MESA_GL_VERSION_OVERRIDE", "4.3", 0);
 
     GLContext *ctx = (GLContext *)calloc(1, sizeof(*ctx));
