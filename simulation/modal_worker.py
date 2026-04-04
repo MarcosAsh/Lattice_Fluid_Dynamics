@@ -1093,6 +1093,14 @@ def run_tests(grid: str = "256x128x128", duration: int = 120):
         shutil.rmtree(source_dir)
     build_simulation.local()
 
+    # Verify we got the right commit
+    result = subprocess.run(
+        ["git", "log", "--oneline", "-1"],
+        cwd="/cache/source",
+        capture_output=True, text=True,
+    )
+    print(f"Built commit: {result.stdout.strip()}")
+
     source_dir = Path("/cache/source/simulation")
     build_dir = Path("/cache/build")
     test_bin = build_dir / "test_lbm"
