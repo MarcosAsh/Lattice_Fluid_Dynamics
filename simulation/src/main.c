@@ -1060,30 +1060,30 @@ int main(int argc, char *argv[]) {
     // (cs = 1/sqrt(3) ~ 0.577, so Ma = 0.05/0.577 = 0.087)
     float latticeVelocity = 0.05f;
 
-    // Derive Reynolds number from the grid's maximum stable Re when
-    // --reynolds is not given. This pushes toward the highest Re
-    // the grid can sustain (limited by the tau >= 0.52 clamp below).
+    // Derive Reynolds number from wind speed when --reynolds is
+    // not given. Scale: 200 * windSpeed, so wind=1 -> Re=200.
+    // The tau clamp caps the effective Re on coarse grids.
     float scaleX = lbmSizeX / 8.0f;
     float charLength = (carBounds.maxX - carBounds.minX) * scaleX;
 
     if (reynoldsNumber <= 0) {
-        float nuMin = (0.52f - 0.5f) / 3.0f;
-        float reMax = (latticeVelocity * charLength) / nuMin;
-        reynoldsNumber = 0.8f * reMax;
+        reynoldsNumber = 200.0f * windSpeed;
         if (reynoldsNumber < 50.0f)
             reynoldsNumber = 50.0f;
     }
 
     float lbmViscosity = (latticeVelocity * charLength) / reynoldsNumber;
     float tau = 3.0f * lbmViscosity + 0.5f;
-    if (tau < 0.52f) {
-        lbmViscosity = (0.52f - 0.5f) / 3.0f;
-        tau = 0.52f;
+    // tau < 0.65 causes period-2 force oscillation (omega > 1.54)
+    // that makes Cd unreliable. Clamp to 0.65 for converged results.
+    // Higher Re requires more grid cells across the body.
+    if (tau < 0.65f) {
+        lbmViscosity = (0.65f - 0.5f) / 3.0f;
+        tau = 0.65f;
         float actualRe = (latticeVelocity * charLength) / lbmViscosity;
-        printf("  Re capped at %.0f (tau would be too low for "
-               "Re=%.0f)\n",
-               actualRe,
-               reynoldsNumber);
+        printf("  Re capped at %.0f (tau=%.2f needed for stable Cd, "
+               "requested Re=%.0f)\n",
+               actualRe, tau, reynoldsNumber);
         reynoldsNumber = actualRe;
     }
     printf("Reynolds number: %.0f\n", reynoldsNumber);
@@ -1091,6 +1091,9 @@ int main(int argc, char *argv[]) {
     printf("  Viscosity: %.6f\n", lbmViscosity);
     printf("  tau: %.4f\n", tau);
     printf("  CFL: %.4f\n", latticeVelocity);
+
+    float refArea = 0.0f, bboxArea = 0.0f;
+    float epsilon = 0.0f, blockageFactor = 1.0f;
 
     printf("Initializing LBM grid...\n");
     lbmGrid = LBM_Create(lbmSizeX, lbmSizeY, lbmSizeZ, lbmViscosity);
@@ -1135,17 +1138,10 @@ int main(int argc, char *argv[]) {
         printf("Smagorinsky SGS enabled (Cs=%.2f), periodic YZ\n",
                lbmGrid->smagorinskyCs);
 
-        if (useMRT) {
-            lbmGrid->useMRT = 1;
-            lbmGrid->useRegularized = 0;
-            printf("MRT collision enabled\n");
-        } else if (lbmGrid->tau < 0.6f) {
-            // Auto-enable regularized when tau is low.
-            lbmGrid->useRegularized = 1;
-            printf("Regularized collision enabled "
-                   "(tau=%.3f)\n",
-                   lbmGrid->tau);
-        }
+        // MRT is on by default -- much more stable than BGK at
+        // low tau, which is typical for external aero grids.
+        lbmGrid->useMRT = 1;
+        printf("MRT collision enabled\n");
 
         LBM_InitializeFlow(lbmGrid, latticeVelocity, 0.0f, 0.0f);
 
@@ -1164,6 +1160,22 @@ int main(int argc, char *argv[]) {
                    nu);
         }
         printf("  Sample interval: %d lattice steps\n", lbmSubsteps);
+
+        // Compute reference area and blockage BEFORE the main loop
+        // (glFinish in the readback disrupts force computation if
+        // called mid-loop).
+        {
+            float sY = lbmGrid->sizeY / 4.0f;
+            float sZ = lbmGrid->sizeZ / 4.0f;
+            bboxArea = (carBounds.maxY - carBounds.minY) * sY *
+                       (carBounds.maxZ - carBounds.minZ) * sZ;
+            refArea = LBM_ComputeProjectedArea(lbmGrid, 0);
+            if (refArea < 1.0f)
+                refArea = bboxArea;
+            epsilon = refArea / ((float)lbmGrid->sizeY * lbmGrid->sizeZ);
+            blockageFactor = (1.0f - epsilon) * (1.0f - epsilon);
+        }
+
         printf("LBM initialized successfully\n");
     } else {
         printf("Warning: LBM initialization failed, using simple wind\n");
@@ -2084,22 +2096,8 @@ int main(int argc, char *argv[]) {
             LBM_ComputeDragForceDecomposed(
                 lbmGrid, &fx, &fy, &fz, &px, &py, &pz);
 
-            // Reference area: actual projected frontal area (cached)
-            static float refArea = 0.0f;
-            static float bboxArea = 0.0f;
-            static float epsilon = 0.0f;
-            static float blockageFactor = 1.0f;
-            if (refArea == 0.0f) {
-                float scaleY = lbmGrid->sizeY / 4.0f;
-                float scaleZ = lbmGrid->sizeZ / 4.0f;
-                bboxArea = (carBounds.maxY - carBounds.minY) * scaleY *
-                           (carBounds.maxZ - carBounds.minZ) * scaleZ;
-                refArea = LBM_ComputeProjectedArea(lbmGrid, 0);
-                if (refArea < 1.0f)
-                    refArea = bboxArea; // fallback
-                epsilon = refArea / ((float)lbmGrid->sizeY * lbmGrid->sizeZ);
-                blockageFactor = (1.0f - epsilon) * (1.0f - epsilon);
-            }
+            // refArea, bboxArea, epsilon, blockageFactor computed at
+            // init (see LBM initialization block above)
 
             float rho_0 = 1.0f;
             float dynP = 0.5f * rho_0 * latticeVelocity * latticeVelocity;

@@ -588,7 +588,7 @@ void LBM_AddGroundPlane(LBMGrid *grid, float worldZ) {
 
 float LBM_ComputeProjectedArea(LBMGrid *grid, int axis) {
     int *solidData = (int *)malloc(grid->totalCells * sizeof(int));
-    glFinish(); // ensure all GPU work completes before readback
+    glMemoryBarrier(GL_BUFFER_UPDATE_BARRIER_BIT);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->solidBuffer);
     glGetBufferSubData(
         GL_SHADER_STORAGE_BUFFER, 0, grid->totalCells * sizeof(int), solidData);

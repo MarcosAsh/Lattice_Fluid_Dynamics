@@ -108,16 +108,6 @@ void main() {
         float q = q_val[idxF(pos.x, pos.y, pos.z, i)];
 
         if (q >= 0.0) {
-            // Only count force from body cells (solid==1), not ground (==2)
-            ivec3 nb = pos + e[i];
-            if (nb.x < 0 || nb.x >= gridSize.x ||
-                nb.y < 0 || nb.y >= gridSize.y ||
-                nb.z < 0 || nb.z >= gridSize.z)
-                continue;
-            int nbIdx = idx3D(nb.x, nb.y, nb.z);
-            if (solid[nbIdx] != 1)
-                continue;
-
             hasSolidNeighbor = true;
 
             int iopp = opposite[i];
