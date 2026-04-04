@@ -1118,8 +1118,10 @@ int main(int argc, char *argv[]) {
                              carBounds.maxZ);
         }
 
-        // Ground plane at bottom of car bounding box
-        LBM_AddGroundPlane(lbmGrid, carBounds.minZ);
+        // Ground plane is available via LBM_AddGroundPlane() but
+        // disabled by default: it conflicts with periodic z-BC and
+        // needs sufficient domain height (> 3x body height) plus
+        // ground clearance to avoid dominating the drag signal.
 
         // Periodic lateral boundaries -- correct for external aero
         // when blockage ratio < 5%.
