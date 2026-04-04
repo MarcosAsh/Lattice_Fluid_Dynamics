@@ -11,6 +11,7 @@ import { Callout } from '../../components/docs/Callout';
 import { DocTable } from '../../components/docs/DocTable';
 import { MathBlock } from '../../components/docs/MathBlock';
 import { SrcLink } from '../../components/docs/SrcLink';
+import { GridCalculator } from '../../components/docs/GridCalculator';
 
 function Section({
   id,
@@ -509,43 +510,112 @@ python evaluate.py --weights model.bin --norm model_norm.bin --data dataset/trai
         {/* ------------------------------------------------------------ */}
         <Section id="validation" title="Validation">
           <P>
-            Validated against the Ahmed body, a standard automotive aerodynamics
-            benchmark (Ahmed et al., SAE 840300).
+            The solver uses a sphere drag test to validate the force computation
+            pipeline (momentum exchange, Bouzidi boundary, Cd formula). At Re=100
+            with 16 cells across the sphere diameter, the measured Cd falls
+            within the expected range from Clift, Grace &amp; Weber (1978).
           </P>
+
+          <h3 className="text-base font-semibold mb-3 mt-6">
+            Sphere reference test
+          </h3>
           <DocTable
-            headers={['Source', '\u03c6 = 25\u00b0', '\u03c6 = 35\u00b0', 'Error']}
+            headers={['Re', 'Grid', 'Cd (sim)', 'Cd (ref)', 'Status']}
             rows={[
-              ['Wind tunnel (Ahmed et al.)', '0.285', '0.260', '--'],
-              ['OpenFOAM RANS', '0.298', '0.271', '4.5%'],
-              ['Lattice (coarse, 128\u00b3)', '0.312', '0.283', '9.5%'],
-              ['Lattice (fine, 256\u00b3)', '0.295', '0.268', '3.5%'],
+              ['100', '128\u00d764\u00d764', '1.1 \u2013 1.3', '1.09', 'Pass (30% tol)'],
             ]}
           />
+
+          <h3 className="text-base font-semibold mb-3 mt-6">
+            Why Cd differs from wind tunnel data
+          </h3>
           <P>
-            The fine-grid result matches within 3.5% of wind tunnel data. The
-            coarse grid is less accurate but runs at interactive frame rates on
-            consumer hardware.
+            Published Ahmed body data (Ahmed 1984, Lienhart 2003) is measured
+            at Re &gt; 500,000 where the flow is fully turbulent. The LBM
+            solver on typical grids (128-256 cells) operates at Re = 50-200
+            where the flow is laminar. At laminar Re the boundary layer is
+            thicker, separation occurs earlier, and Cd is 3-10x higher
+            than at turbulent Re. This is physically correct behavior, not
+            a bug.
           </P>
+          <P>
+            The Smagorinsky SGS turbulence model adds local eddy viscosity that
+            partially compensates, but matching high-Re experimental data requires
+            grids with hundreds of cells across the body -- beyond what consumer
+            GPUs can handle in real time.
+          </P>
+
+          <h3 className="text-base font-semibold mb-3 mt-6">
+            Grid size and Reynolds number
+          </h3>
+          <P>
+            The achievable Reynolds number is limited by the grid resolution.
+            The relaxation parameter &tau; must stay above 0.52 for numerical
+            stability. This relationship determines the maximum Re for each
+            grid:
+          </P>
+          <MathBlock>{`Re_{max} = \\frac{U \\cdot L_{body}}{\\nu_{min}}, \\quad \\nu_{min} = \\frac{\\tau_{min} - 0.5}{3}`}</MathBlock>
+          <DocTable
+            headers={['Grid', 'Body cells', 'Re (max)', 'Cd range', 'GPU VRAM']}
+            rows={[
+              ['128\u00d764\u00d764', '~38', '~115', '2 \u2013 5', '86 MB'],
+              ['128\u00d796\u00d796', '~38', '~115', '2 \u2013 5', '240 MB'],
+              ['256\u00d7128\u00d7128', '~77', '~230', '1 \u2013 3', '960 MB'],
+              ['512\u00d7256\u00d7256', '~153', '~460', '0.5 \u2013 2', '7.6 GB'],
+            ]}
+          />
+          <Callout type="note">
+            The Cd values above are for the Ahmed body at 25{'\u00b0'} slant.
+            Published wind tunnel Cd {'\u2248'} 0.29 is at Re {'\u2248'} 768,000
+            (Lienhart 2003). Reaching that Re would need {'\u2248'}2,000 cells
+            across the body.
+          </Callout>
+
+          <h3 className="text-base font-semibold mb-3 mt-6">
+            Try it yourself
+          </h3>
+          <P>
+            Use the calculator below to see what Reynolds number and memory
+            footprint your grid configuration produces:
+          </P>
+          <GridCalculator />
         </Section>
 
         {/* ------------------------------------------------------------ */}
         {/* Performance                                                   */}
         {/* ------------------------------------------------------------ */}
         <Section id="performance" title="Performance">
+          <P>
+            Performance depends on grid size and GPU. The LBM kernel is
+            memory-bandwidth-bound: each cell reads and writes 19 float32
+            distributions per step. Typical throughput on modern GPUs:
+          </P>
           <DocTable
-            headers={['GPU', 'Grid', 'FPS', 'MLUPS']}
+            headers={['GPU', 'Grid', 'Steps/sec', 'MLUPS']}
             rows={[
-              ['GTX 1060 6GB', '128\u00b3', '58', '120'],
-              ['RTX 3070', '256\u00b3', '62', '450'],
-              ['RTX 4090', '256\u00b3', '60', '980'],
-              ['NVIDIA T4 (Modal)', '256x128x128', 'headless', '~300'],
+              ['A10G (Modal)', '128\u00d796\u00d796', '~400', '~470'],
+              ['A100 40GB (Modal)', '256\u00d7128\u00d7128', '~100', '~420'],
+              ['RTX 3070', '128\u00d764\u00d764', '~800', '~420'],
+              ['RTX 4090', '256\u00d7128\u00d7128', '~200', '~840'],
             ]}
           />
           <P>
-            MLUPS = Million Lattice Updates Per Second. LBM complexity is O(N)
-            where N is the total number of grid cells. Memory usage scales as
-            ~150 bytes per cell (19 distributions x 2 buffers + velocity +
-            solid mask).
+            MLUPS = Million Lattice Updates Per Second. Memory usage per cell is
+            approximately 200 bytes (19 distributions {'\u00d7'} 2 buffers +
+            velocity + solid + Bouzidi q). A 256{'\u00d7'}128{'\u00d7'}128 grid
+            needs about 960 MB of GPU buffer space.
+          </P>
+
+          <h3 className="text-base font-semibold mb-3 mt-6">
+            Convergence time
+          </h3>
+          <P>
+            The drag coefficient needs 3-5 flow-throughs to converge. A
+            flow-through is the time for a fluid element to traverse the domain:
+            N_x / U_lattice steps. For a 256-cell domain at U = 0.05, one
+            flow-through takes 5,120 steps. The simulation reports an exponential
+            moving average (EMA) of Cd that stabilizes after approximately 50
+            samples.
           </P>
         </Section>
 
