@@ -1073,7 +1073,7 @@ def main(
     image=image,
     gpu="A100",
     volumes={"/cache": build_cache},
-    timeout=3600,
+    timeout=7200,
 )
 def run_tests(grid: str = "256x128x128", duration: int = 120):
     """Run LBM test suite + Ahmed body at larger grid on GPU.
@@ -1083,7 +1083,14 @@ def run_tests(grid: str = "256x128x128", duration: int = 120):
     import subprocess
     from pathlib import Path
 
-    # Rebuild from latest source
+    # Force clean rebuild to pick up latest changes
+    import shutil
+    build_dir = Path("/cache/build")
+    if build_dir.exists():
+        shutil.rmtree(build_dir)
+    source_dir = Path("/cache/source")
+    if source_dir.exists():
+        shutil.rmtree(source_dir)
     build_simulation.local()
 
     source_dir = Path("/cache/source/simulation")
