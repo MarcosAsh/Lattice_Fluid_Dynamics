@@ -1129,7 +1129,9 @@ def run_tests(grid: str = "256x128x128", duration: int = 120):
     import time
     time.sleep(2)
 
-    env = {**os.environ, "DISPLAY": ":99"}
+    # Unset DISPLAY so the sim uses EGL (direct GPU) instead of
+    # Xvfb + Mesa software GL which has a 128MB SSBO limit.
+    env = {k: v for k, v in os.environ.items() if k != "DISPLAY"}
     cmd = [
         str(sim_bin),
         "--angle=25",
