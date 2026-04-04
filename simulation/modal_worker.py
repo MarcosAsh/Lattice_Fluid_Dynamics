@@ -1156,22 +1156,21 @@ def run_tests(grid: str = "256x128x128", duration: int = 120):
         f"--grid={grid}",
         f"--duration={duration}",
     ]
-    result = subprocess.run(
+    proc = subprocess.Popen(
         cmd,
         cwd=str(source_dir),
         env=env,
-        capture_output=True, text=True,
-        timeout=duration * 60 + 300,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
     )
-
-    # Print key lines
-    for line in result.stdout.splitlines():
-        if any(kw in line for kw in [
-            "Reynolds", "tau:", "Cd calc", "Projected", "Blockage",
-            "Effective", "Drag Force", "avg=", "Cd_pressure",
-            "WARNING", "capped", "Ground", "charLength",
-        ]):
-            print(line)
-
-    xvfb.kill()
+    try:
+        for line in proc.stdout:
+            print(line, end="", flush=True)
+        proc.wait(timeout=duration * 60 + 300)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        print("ERROR: simulation timed out")
+    finally:
+        xvfb.kill()
     print("\nDone.")
