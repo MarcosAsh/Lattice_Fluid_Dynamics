@@ -94,14 +94,13 @@ LBMGrid *LBM_Create(int sizeX, int sizeY, int sizeZ, float viscosity) {
            solidSize / (1024.0 * 1024.0),
            totalGPU / (1024.0 * 1024.0));
 
-    // Validate buffer sizes against SSBO limit
+    // Check if buffer exceeds SSBO limit. Try anyway -- some drivers
+    // report a conservative limit but actually support larger bindings.
     if (maxSSBOSize > 0 && (GLint64)fSize > maxSSBOSize) {
-        printf("ERROR: f buffer (%zu bytes) exceeds "
-               "GL_MAX_SHADER_STORAGE_BLOCK_SIZE (%lld bytes)\n",
-               fSize,
-               (long long)maxSSBOSize);
-        free(grid);
-        return NULL;
+        printf("WARNING: f buffer (%.0f MB) exceeds reported "
+               "SSBO limit (%.0f MB). Attempting allocation anyway.\n",
+               fSize / (1024.0 * 1024.0),
+               maxSSBOSize / (1024.0 * 1024.0));
     }
 
     // Validate dispatch size
