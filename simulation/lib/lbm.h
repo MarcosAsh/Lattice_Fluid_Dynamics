@@ -93,9 +93,17 @@ float LBM_ComputeLiftCoefficient(LBMGrid *grid,
                                  float inletVelocity,
                                  float refArea);
 
-// Set solid sphere (world coordinates, q = 0.5 bounce-back)
+// Set solid sphere (world coordinates, analytic Bouzidi q)
 void LBM_SetSolidSphere(
     LBMGrid *grid, float cx, float cy, float cz, float radius);
+
+// Add a ground plane at worldZ (merges with existing solid buffer).
+// Ground cells are marked solid=2 so the force shader can exclude them.
+void LBM_AddGroundPlane(LBMGrid *grid, float worldZ);
+
+// Compute the projected frontal area (lattice units^2) of solid==1 cells
+// onto the plane perpendicular to the given axis (0=x, 1=y, 2=z).
+float LBM_ComputeProjectedArea(LBMGrid *grid, int axis);
 
 // Set solid mesh
 void LBM_SetSolidMesh(LBMGrid *grid,

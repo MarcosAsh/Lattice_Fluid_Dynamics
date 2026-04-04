@@ -337,7 +337,7 @@ void main() {
             int si = ci.x + ci.y * lbmGridSize.x
                      + ci.z * lbmGridSize.x * lbmGridSize.y;
 
-            if (solid[si] == 1) {
+            if (solid[si] != 0) {
                 vec3 cellCenter = (vec3(ci) + 0.5) / vec3(lbmGridSize)
                                   * vec3(8.0, 4.0, 4.0)
                                   - vec3(4.0, 2.0, 2.0);
@@ -361,7 +361,7 @@ void main() {
                     if (ni[axes[a]] >= 0 && ni[axes[a]] < lbmGridSize[axes[a]]) {
                         int nsi = ni.x + ni.y * lbmGridSize.x
                                   + ni.z * lbmGridSize.x * lbmGridSize.y;
-                        if (solid[nsi] == 1)
+                        if (solid[nsi] != 0)
                             continue; // neighbor is solid, try next axis
                     }
 

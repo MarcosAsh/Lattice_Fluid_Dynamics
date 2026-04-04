@@ -1060,16 +1060,16 @@ int main(int argc, char *argv[]) {
     // (cs = 1/sqrt(3) ~ 0.577, so Ma = 0.05/0.577 = 0.087)
     float latticeVelocity = 0.05f;
 
-    // Derive Reynolds number from wind speed when --reynolds is
-    // not given. This makes the wind speed slider actually change
-    // the flow physics instead of only affecting particle viz.
-    // Scale: 200 * windSpeed, so wind=1 -> Re=200, wind=5 -> Re=1000.
-    // The tau clamp caps the effective Re on coarse grids.
+    // Derive Reynolds number from the grid's maximum stable Re when
+    // --reynolds is not given. This pushes toward the highest Re
+    // the grid can sustain (limited by the tau >= 0.52 clamp below).
     float scaleX = lbmSizeX / 8.0f;
     float charLength = (carBounds.maxX - carBounds.minX) * scaleX;
 
     if (reynoldsNumber <= 0) {
-        reynoldsNumber = 200.0f * windSpeed;
+        float nuMin = (0.52f - 0.5f) / 3.0f;
+        float reMax = (latticeVelocity * charLength) / nuMin;
+        reynoldsNumber = 0.8f * reMax;
         if (reynoldsNumber < 50.0f)
             reynoldsNumber = 50.0f;
     }
@@ -1117,6 +1117,10 @@ int main(int argc, char *argv[]) {
                              carBounds.maxY,
                              carBounds.maxZ);
         }
+
+        // Ground plane at bottom of car bounding box
+        LBM_AddGroundPlane(lbmGrid, carBounds.minZ);
+
         // Periodic lateral boundaries -- correct for external aero
         // when blockage ratio < 5%.
         lbmGrid->periodicYZ = 1;
@@ -2078,11 +2082,23 @@ int main(int argc, char *argv[]) {
             LBM_ComputeDragForceDecomposed(
                 lbmGrid, &fx, &fy, &fz, &px, &py, &pz);
 
-            // Reference area ~ car frontal area in lattice units
-            float scaleY = lbmGrid->sizeY / 4.0f;
-            float scaleZ = lbmGrid->sizeZ / 4.0f;
-            float refArea = (carBounds.maxY - carBounds.minY) * scaleY *
-                            (carBounds.maxZ - carBounds.minZ) * scaleZ;
+            // Reference area: actual projected frontal area (cached)
+            static float refArea = 0.0f;
+            static float bboxArea = 0.0f;
+            static float epsilon = 0.0f;
+            static float blockageFactor = 1.0f;
+            if (refArea == 0.0f) {
+                float scaleY = lbmGrid->sizeY / 4.0f;
+                float scaleZ = lbmGrid->sizeZ / 4.0f;
+                bboxArea = (carBounds.maxY - carBounds.minY) * scaleY *
+                           (carBounds.maxZ - carBounds.minZ) * scaleZ;
+                refArea = LBM_ComputeProjectedArea(lbmGrid, 0);
+                if (refArea < 1.0f)
+                    refArea = bboxArea; // fallback
+                epsilon = refArea / ((float)lbmGrid->sizeY * lbmGrid->sizeZ);
+                blockageFactor = (1.0f - epsilon) * (1.0f - epsilon);
+            }
+
             float rho_0 = 1.0f;
             float dynP = 0.5f * rho_0 * latticeVelocity * latticeVelocity;
             float denom = dynP * refArea;
@@ -2093,13 +2109,16 @@ int main(int argc, char *argv[]) {
             if (CdFriction < 0.0f)
                 CdFriction = 0.0f;
 
-            // One-time diagnostic: print Cd calculation breakdown so
-            // users can verify units and spot comparison mistakes.
+            // Blockage correction (Pope & Harper 1966)
+            float CdCorr = Cd * blockageFactor;
+
+            // One-time diagnostic
             static int cdDiagPrinted = 0;
             if (!cdDiagPrinted) {
+                float scaleY = lbmGrid->sizeY / 4.0f;
+                float scaleZ = lbmGrid->sizeZ / 4.0f;
                 float bodyLatY = (carBounds.maxY - carBounds.minY) * scaleY;
                 float bodyLatZ = (carBounds.maxZ - carBounds.minZ) * scaleZ;
-                float blockage = refArea / (lbmGrid->sizeY * lbmGrid->sizeZ);
                 printf("  Cd calculation breakdown:\n");
                 printf("    Re = %.0f, U_lattice = %.4f, rho_0 = %.1f\n",
                        reynoldsNumber,
@@ -2109,15 +2128,18 @@ int main(int argc, char *argv[]) {
                        charLength,
                        bodyLatY,
                        bodyLatZ);
-                printf("    Ref area = %.1f cells^2 (bounding box frontal)\n",
-                       refArea);
-                printf(
-                    "    Dynamic pressure = %.6f, denom = %.6f\n", dynP, denom);
-                printf("    Blockage ratio = %.1f%%\n", blockage * 100.0f);
+                printf("    Projected area = %.1f cells^2 "
+                       "(bbox = %.1f)\n",
+                       refArea,
+                       bboxArea);
+                printf("    Blockage = %.1f%%, correction = %.3f "
+                       "(Pope & Harper 1966)\n",
+                       epsilon * 100.0f,
+                       blockageFactor);
                 if (fminf(bodyLatY, bodyLatZ) < 10.0f)
                     printf("    WARNING: body < 10 cells across -- Cd is "
                            "unreliable at this resolution\n");
-                if (blockage > 0.05f)
+                if (epsilon > 0.05f)
                     printf("    WARNING: blockage > 5%% -- confinement "
                            "inflates Cd\n");
                 printf("    NOTE: published Ahmed body Cd ~0.3 is at "
@@ -2125,12 +2147,12 @@ int main(int argc, char *argv[]) {
                 cdDiagPrinted = 1;
             }
 
-            // Exponential moving average for stable reporting
+            // Exponential moving average tracks corrected Cd
             if (cdHistoryCount == 0) {
-                cdEma = Cd;
+                cdEma = CdCorr;
             } else {
                 float alpha = 0.1f;
-                cdEma = alpha * Cd + (1.0f - alpha) * cdEma;
+                cdEma = alpha * CdCorr + (1.0f - alpha) * cdEma;
             }
 
             int totalSteps = frameCount * lbmSubsteps;
@@ -2143,12 +2165,13 @@ int main(int argc, char *argv[]) {
                     : 0.0f;
 
             printf("  Drag Force: (%.4f, %.4f, %.4f),"
-                   " Cd=%.3f Cl=%.3f (avg=%.3f)"
+                   " Cd=%.3f Cd_corr=%.3f Cl=%.3f (avg=%.3f)"
                    " t*=%.3f flow-throughs=%.2f\n",
                    fx,
                    fy,
                    fz,
                    Cd,
+                   CdCorr,
                    Cl,
                    cdEma,
                    tStar,

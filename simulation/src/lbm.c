@@ -444,7 +444,7 @@ void LBM_SetSolidSphere(
     glBufferSubData(
         GL_SHADER_STORAGE_BUFFER, 0, grid->totalCells * sizeof(int), solidData);
 
-    // Bouzidi q = 0.5 for all boundary links (standard bounce-back)
+    // Bouzidi q via analytic ray-sphere intersection
     size_t qCount = (size_t)19 * grid->totalCells;
     float *qData = (float *)malloc(qCount * sizeof(float));
     for (size_t qi = 0; qi < qCount; qi++)
@@ -457,6 +457,11 @@ void LBM_SetSolidSphere(
                 int ci = gx + gy * grid->sizeX + gz * grid->sizeX * grid->sizeY;
                 if (solidData[ci] == 1)
                     continue;
+
+                float wx = (gx + 0.5f) / scaleX - 4.0f;
+                float wy = (gy + 0.5f) / scaleY - 2.0f;
+                float wz = (gz + 0.5f) / scaleZ - 2.0f;
+
                 for (int i = 1; i < 19; i++) {
                     int nx = gx + ex[i], ny = gy + ey[i], nz = gz + ez[i];
                     if (nx < 0 || nx >= grid->sizeX || ny < 0 ||
@@ -464,20 +469,175 @@ void LBM_SetSolidSphere(
                         continue;
                     int ni =
                         nx + ny * grid->sizeX + nz * grid->sizeX * grid->sizeY;
-                    if (solidData[ni] == 1) {
+                    if (solidData[ni] != 1)
+                        continue;
+
+                    // Ray-sphere intersection for exact q
+                    float dx = (float)ex[i] / scaleX;
+                    float dy = (float)ey[i] / scaleY;
+                    float dz = (float)ez[i] / scaleZ;
+                    float ox = wx - cx, oy = wy - cy, oz = wz - cz;
+                    float a = dx * dx + dy * dy + dz * dz;
+                    float b = 2.0f * (ox * dx + oy * dy + oz * dz);
+                    float c = ox * ox + oy * oy + oz * oz - radius * radius;
+                    float disc = b * b - 4.0f * a * c;
+
+                    float q = 0.5f; // fallback
+                    if (disc >= 0.0f) {
+                        float t = (-b - sqrtf(disc)) / (2.0f * a);
+                        if (t > 0.0f && t <= 1.0f)
+                            q = t;
+                    }
+                    if (q < 0.01f)
+                        q = 0.01f;
+                    if (q > 0.99f)
+                        q = 0.99f;
+
+                    qData[ci * 19 + i] = q;
+                    qLinks++;
+                }
+            }
+        }
+    }
+
+    printf("Sphere Bouzidi: %d boundary links (analytic q)\n", qLinks);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->qBuffer);
+    glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, qCount * sizeof(float), qData);
+    free(qData);
+    free(solidData);
+}
+
+void LBM_AddGroundPlane(LBMGrid *grid, float worldZ) {
+    float scaleZ = grid->sizeZ / 4.0f;
+    int gzGround = (int)((worldZ + 2.0f) * scaleZ);
+    if (gzGround < 0)
+        gzGround = 0;
+    if (gzGround >= grid->sizeZ)
+        gzGround = grid->sizeZ - 1;
+
+    // Read back existing buffers
+    int *solidData = (int *)malloc(grid->totalCells * sizeof(int));
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->solidBuffer);
+    glGetBufferSubData(
+        GL_SHADER_STORAGE_BUFFER, 0, grid->totalCells * sizeof(int), solidData);
+
+    size_t qCount = (size_t)19 * grid->totalCells;
+    float *qData = (float *)malloc(qCount * sizeof(float));
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->qBuffer);
+    glGetBufferSubData(
+        GL_SHADER_STORAGE_BUFFER, 0, qCount * sizeof(float), qData);
+
+    // Mark ground cells as solid=2 (preserve existing body=1)
+    int groundCells = 0;
+    for (int gz = 0; gz <= gzGround; gz++) {
+        for (int gy = 0; gy < grid->sizeY; gy++) {
+            for (int gx = 0; gx < grid->sizeX; gx++) {
+                int idx =
+                    gx + gy * grid->sizeX + gz * grid->sizeX * grid->sizeY;
+                if (solidData[idx] == 0) {
+                    solidData[idx] = 2;
+                    groundCells++;
+                }
+            }
+        }
+    }
+
+    // Set Bouzidi q for fluid cells just above ground
+    int gzAbove = gzGround + 1;
+    int groundLinks = 0;
+    if (gzAbove < grid->sizeZ) {
+        for (int gy = 0; gy < grid->sizeY; gy++) {
+            for (int gx = 0; gx < grid->sizeX; gx++) {
+                int ci =
+                    gx + gy * grid->sizeX + gzAbove * grid->sizeX * grid->sizeY;
+                if (solidData[ci] != 0)
+                    continue;
+                // Set q for all downward directions (ez[i] == -1)
+                for (int i = 1; i < 19; i++) {
+                    if (ez[i] != -1)
+                        continue;
+                    int nz = gzAbove + ez[i]; // = gzGround
+                    int ny = gy + ey[i], nx = gx + ex[i];
+                    if (nx < 0 || nx >= grid->sizeX || ny < 0 ||
+                        ny >= grid->sizeY || nz < 0)
+                        continue;
+                    int ni =
+                        nx + ny * grid->sizeX + nz * grid->sizeX * grid->sizeY;
+                    if (solidData[ni] != 0 && qData[ci * 19 + i] < 0.0f) {
                         qData[ci * 19 + i] = 0.5f;
-                        qLinks++;
+                        groundLinks++;
                     }
                 }
             }
         }
     }
 
-    printf("Sphere Bouzidi: %d boundary links\n", qLinks);
+    printf("Ground plane: z_lattice=%d, %d cells, %d boundary links\n",
+           gzGround,
+           groundCells,
+           groundLinks);
+
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->solidBuffer);
+    glBufferSubData(
+        GL_SHADER_STORAGE_BUFFER, 0, grid->totalCells * sizeof(int), solidData);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->qBuffer);
     glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, qCount * sizeof(float), qData);
-    free(qData);
     free(solidData);
+    free(qData);
+}
+
+float LBM_ComputeProjectedArea(LBMGrid *grid, int axis) {
+    int *solidData = (int *)malloc(grid->totalCells * sizeof(int));
+    glFinish(); // ensure all GPU work completes before readback
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->solidBuffer);
+    glGetBufferSubData(
+        GL_SHADER_STORAGE_BUFFER, 0, grid->totalCells * sizeof(int), solidData);
+
+    int count = 0;
+    if (axis == 0) {
+        // Project onto Y-Z plane: count columns with any solid==1
+        for (int gz = 0; gz < grid->sizeZ; gz++) {
+            for (int gy = 0; gy < grid->sizeY; gy++) {
+                int found = 0;
+                for (int gx = 0; gx < grid->sizeX && !found; gx++) {
+                    int idx =
+                        gx + gy * grid->sizeX + gz * grid->sizeX * grid->sizeY;
+                    if (solidData[idx] == 1)
+                        found = 1;
+                }
+                count += found;
+            }
+        }
+    } else if (axis == 1) {
+        for (int gz = 0; gz < grid->sizeZ; gz++) {
+            for (int gx = 0; gx < grid->sizeX; gx++) {
+                int found = 0;
+                for (int gy = 0; gy < grid->sizeY && !found; gy++) {
+                    int idx =
+                        gx + gy * grid->sizeX + gz * grid->sizeX * grid->sizeY;
+                    if (solidData[idx] == 1)
+                        found = 1;
+                }
+                count += found;
+            }
+        }
+    } else {
+        for (int gy = 0; gy < grid->sizeY; gy++) {
+            for (int gx = 0; gx < grid->sizeX; gx++) {
+                int found = 0;
+                for (int gz = 0; gz < grid->sizeZ && !found; gz++) {
+                    int idx =
+                        gx + gy * grid->sizeX + gz * grid->sizeX * grid->sizeY;
+                    if (solidData[idx] == 1)
+                        found = 1;
+                }
+                count += found;
+            }
+        }
+    }
+
+    free(solidData);
+    return (float)count;
 }
 
 void LBM_InitializeFlow(LBMGrid *grid, float ux, float uy, float uz) {

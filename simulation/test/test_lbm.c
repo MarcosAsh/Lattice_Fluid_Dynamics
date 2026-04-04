@@ -427,14 +427,59 @@ static void test_sphere_cd_re100(void) {
     for (int i = 0; i < nSteps; i++)
         LBM_Step(grid, U, 0.0f, 0.0f);
 
-    /* Frontal area in lattice units: pi/4 * D_lattice^2 */
-    float D_lat = diameter * scaleX;
-    float refArea = (3.14159265f / 4.0f) * D_lat * D_lat;
-    float Cd = LBM_ComputeDragCoefficient(grid, U, refArea);
+    /* Use actual projected area instead of pi/4 * D^2 */
+    float projArea = LBM_ComputeProjectedArea(grid, 0);
+    printf("  projected area = %.1f cells^2\n", projArea);
+    float Cd = LBM_ComputeDragCoefficient(grid, U, projArea);
 
     printf("  Cd = %.3f  (reference: 1.09, tol 30%%)\n", Cd);
     ASSERT(Cd > 0.76f, "sphere Cd > 0.76 (lower bound)");
     ASSERT(Cd < 1.42f, "sphere Cd < 1.42 (upper bound)");
+
+    LBM_Free(grid);
+}
+
+static void test_ground_plane(void) {
+    printf("test: ground plane marks cells and doesn't crash\n");
+    LBMGrid *grid = LBM_Create(32, 16, 16, 0.1f);
+    if (!grid) {
+        printf("  SKIP: could not create grid\n");
+        return;
+    }
+    LBM_SetSolidAABB(grid, -0.3f, -0.15f, -0.15f, 0.3f, 0.15f, 0.15f);
+    LBM_AddGroundPlane(grid, -0.15f);
+
+    /* Read back solid buffer and verify:
+     * - some cells are 1 (body)
+     * - some cells are 2 (ground)
+     * - some cells are 0 (fluid) */
+    int *solid = (int *)malloc(grid->totalCells * sizeof(int));
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->solidBuffer);
+    glGetBufferSubData(
+        GL_SHADER_STORAGE_BUFFER, 0, grid->totalCells * sizeof(int), solid);
+    int body = 0, ground = 0, fluid = 0;
+    for (int i = 0; i < grid->totalCells; i++) {
+        if (solid[i] == 1)
+            body++;
+        else if (solid[i] == 2)
+            ground++;
+        else
+            fluid++;
+    }
+    free(solid);
+    printf("  body=%d ground=%d fluid=%d\n", body, ground, fluid);
+    ASSERT(body > 0, "some body cells");
+    ASSERT(ground > 0, "some ground cells");
+    ASSERT(fluid > 0, "some fluid cells");
+
+    /* Run a few steps to verify no crash */
+    LBM_InitializeFlow(grid, 0.05f, 0.0f, 0.0f);
+    for (int i = 0; i < 20; i++)
+        LBM_Step(grid, 0.05f, 0.0f, 0.0f);
+
+    float fx, fy, fz;
+    LBM_ComputeDragForce(grid, &fx, &fy, &fz);
+    ASSERT(fabs(fx) > 1e-10, "drag force nonzero with ground");
 
     LBM_Free(grid);
 }
@@ -489,6 +534,7 @@ int main(void) {
         test_flow_init_and_step();
         test_mrt_flow_step();
         test_mrt_smagorinsky_step();
+        test_ground_plane();
         test_sphere_cd_re100();
     } else {
         printf("\nSkipping GPU tests (no GL context)\n");
