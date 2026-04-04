@@ -554,7 +554,11 @@ python evaluate.py --weights model.bin --norm model_norm.bin --data dataset/trai
             stability. This relationship determines the maximum Re for each
             grid:
           </P>
-          <MathBlock>{`Re_{max} = \\frac{U \\cdot L_{body}}{\\nu_{min}}, \\quad \\nu_{min} = \\frac{\\tau_{min} - 0.5}{3}`}</MathBlock>
+          <MathBlock>
+            Re<sub>max</sub> = U &#xb7; L<sub>body</sub> / &#x3bd;<sub>min</sub>
+            &nbsp;&nbsp;&nbsp;&nbsp;
+            &#x3bd;<sub>min</sub> = (&#x3c4;<sub>min</sub> &#x2212; 0.5) / 3
+          </MathBlock>
           <DocTable
             headers={['Grid', 'Body cells', 'Re (max)', 'Cd range', 'GPU VRAM']}
             rows={[
