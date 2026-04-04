@@ -1067,3 +1067,91 @@ def main(
         print(f"Timings: {result['timings']}")
     if result.get("error"):
         print(f"Error: {result['error']}")
+
+
+@app.function(
+    image=image,
+    gpu="A10G",
+    volumes={"/cache": build_cache},
+    timeout=3600,
+)
+def run_tests(grid: str = "256x128x128", duration: int = 120):
+    """Run LBM test suite + Ahmed body at larger grid on GPU.
+
+    Usage: modal run modal_worker.py::run_tests --grid 256x128x128
+    """
+    import subprocess
+    from pathlib import Path
+
+    # Rebuild from latest source
+    build_simulation.local()
+
+    source_dir = Path("/cache/source/simulation")
+    build_dir = Path("/cache/build")
+    test_bin = build_dir / "test_lbm"
+    sim_bin = build_dir / "3d_fluid_simulation_car"
+
+    # Build test binary if missing
+    if not test_bin.exists():
+        log.info("building test binary")
+        result = subprocess.run(
+            ["cmake", "--build", str(build_dir), "--target", "test_lbm", "-j4"],
+            capture_output=True, text=True,
+        )
+        if result.returncode != 0:
+            print(f"Test build failed: {result.stderr}")
+            return
+
+    # Run unit tests
+    print("=" * 60)
+    print("UNIT TESTS")
+    print("=" * 60)
+    result = subprocess.run(
+        [str(test_bin)],
+        cwd=str(source_dir),
+        capture_output=True, text=True,
+        timeout=600,
+    )
+    print(result.stdout)
+    if result.stderr:
+        print(result.stderr)
+
+    # Run Ahmed body simulation at requested grid size
+    print("=" * 60)
+    print(f"AHMED 25deg @ {grid} for {duration}s")
+    print("=" * 60)
+
+    # Start Xvfb
+    xvfb = subprocess.Popen(
+        ["Xvfb", ":99", "-screen", "0", "1920x1080x24"],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+    import time
+    time.sleep(2)
+
+    env = {**os.environ, "DISPLAY": ":99"}
+    cmd = [
+        str(sim_bin),
+        "--angle=25",
+        f"--grid={grid}",
+        f"--duration={duration}",
+    ]
+    result = subprocess.run(
+        cmd,
+        cwd=str(source_dir),
+        env=env,
+        capture_output=True, text=True,
+        timeout=duration * 60 + 300,
+    )
+
+    # Print key lines
+    for line in result.stdout.splitlines():
+        if any(kw in line for kw in [
+            "Reynolds", "tau:", "Cd calc", "Projected", "Blockage",
+            "Effective", "Drag Force", "avg=", "Cd_pressure",
+            "WARNING", "capped", "Ground", "charLength",
+        ]):
+            print(line)
+
+    xvfb.kill()
+    print("\nDone.")
