@@ -41,6 +41,18 @@ typedef struct {
     int periodicYZ;      // 0 = clamp, 1 = periodic y/z
 
     GLint collide_useMRTLoc;
+
+    // Z-slab chunking for large grids (SSBO > 128 MB)
+    int numChunks;       // number of Z-slabs (1 = no splitting)
+    int slabZ;           // owned Z-cells per slab
+    int haloZ;           // halo cells per side (1 for D3Q19)
+    GLint64 maxSSBOSize; // GL_MAX_SHADER_STORAGE_BLOCK_SIZE
+
+    GLint collide_zOffsetLoc;
+    GLint stream_zOffsetLoc;
+    GLint stream_fNewZOffsetLoc;
+    GLint stream_slabZLoc;
+    GLint force_zOffsetLoc;
 } LBMGrid;
 
 // Initialize LBM grid

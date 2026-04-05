@@ -20,7 +20,8 @@ layout(std430, binding = 5) buffer SolidMask {
     int solid[]; // 1 = solid (car), 0 = fluid
 };
 
-uniform ivec3 gridSize;
+uniform ivec3 gridSize;       // (sizeX, sizeY, slabZ) -- Z is slab height
+uniform int zOffset;           // global Z of this slab's first cell
 uniform float tau; // Relaxation time (viscosity related)
 uniform vec3 inletVelocity;
 uniform int useRegularized; // 0 = BGK, 1 = regularized
@@ -75,8 +76,14 @@ const float w[19] = float[19](1.0 / 3.0, // rest
 const int opposite[19] =
     int[19](0, 2, 1, 4, 3, 6, 5, 10, 9, 8, 7, 14, 13, 12, 11, 18, 17, 16, 15);
 
+// Slab-local index (for f/fNew -- bound to slab range)
 int idx3D(int x, int y, int z) {
     return x + y * gridSize.x + z * gridSize.x * gridSize.y;
+}
+
+// Global index (for velocity/solid -- bound to full grid)
+int idx3D_global(int x, int y, int z) {
+    return x + y * gridSize.x + (z + zOffset) * gridSize.x * gridSize.y;
 }
 
 int idxF(int x, int y, int z, int i) {
@@ -309,16 +316,16 @@ void main() {
     if (pos.x >= gridSize.x || pos.y >= gridSize.y || pos.z >= gridSize.z)
         return;
 
-    int cellIdx = idx3D(pos.x, pos.y, pos.z);
+    int globalIdx = idx3D_global(pos.x, pos.y, pos.z);
 
     // Check if this is a solid cell (car)
-    if (solid[cellIdx] == 1) {
+    if (solid[globalIdx] == 1) {
         // Bounce-back: reverse directions
         for (int i = 0; i < 19; i++) {
             f_new[idxF(pos.x, pos.y, pos.z, i)] =
                 f[idxF(pos.x, pos.y, pos.z, opposite[i])];
         }
-        velocity[cellIdx] = vec4(0.0, 0.0, 0.0, 1.0);
+        velocity[globalIdx] = vec4(0.0, 0.0, 0.0, 1.0);
         return;
     }
 
@@ -428,12 +435,12 @@ void main() {
             f[idxF(pos.x, pos.y, pos.z, i)] = fi_eq;
             f_new[idxF(pos.x, pos.y, pos.z, i)] = fi_eq;
         }
-        velocity[cellIdx] = vec4(u, rho);
+        velocity[globalIdx] = vec4(u, rho);
         return;
     }
 
     // Store velocity for particle advection
-    velocity[cellIdx] = vec4(u, rho);
+    velocity[globalIdx] = vec4(u, rho);
 
     // Effective relaxation time (may be modified by Smagorinsky)
     float tau_eff = tau;

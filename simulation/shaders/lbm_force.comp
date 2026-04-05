@@ -36,7 +36,8 @@ layout(std430, binding = 7) buffer BouzidiQ {
     float q_val[];
 };
 
-uniform ivec3 gridSize;
+uniform ivec3 gridSize;        // (sizeX, sizeY, slabZ) -- Z is slab height
+uniform int zOffset;           // global Z of this slab's first cell
 
 const ivec3 e[19] = ivec3[19](ivec3(0, 0, 0),
                               ivec3(1, 0, 0),
@@ -69,8 +70,14 @@ const float w[19] = float[19](
 const int opposite[19] = int[19](
     0, 2, 1, 4, 3, 6, 5, 10, 9, 8, 7, 14, 13, 12, 11, 18, 17, 16, 15);
 
+// Slab-local index (for f/fNew/q -- bound to slab range)
 int idx3D(int x, int y, int z) {
     return x + y * gridSize.x + z * gridSize.x * gridSize.y;
+}
+
+// Global index (for velocity/solid -- bound to full grid)
+int idx3D_global(int x, int y, int z) {
+    return x + y * gridSize.x + (z + zOffset) * gridSize.x * gridSize.y;
 }
 
 int idxF(int x, int y, int z, int i) {
@@ -90,13 +97,13 @@ void main() {
     if (pos.x >= gridSize.x || pos.y >= gridSize.y || pos.z >= gridSize.z)
         return;
 
-    int cellIdx = idx3D(pos.x, pos.y, pos.z);
+    int globalIdx = idx3D_global(pos.x, pos.y, pos.z);
 
-    if (solid[cellIdx] != 0)
+    if (solid[globalIdx] != 0)
         return;
 
     // Local velocity and density for equilibrium computation
-    vec4 vel = velocity[cellIdx];
+    vec4 vel = velocity[globalIdx];
     vec3 u = vel.xyz;
     float rho = vel.w;
 

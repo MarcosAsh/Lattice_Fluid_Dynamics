@@ -94,13 +94,31 @@ LBMGrid *LBM_Create(int sizeX, int sizeY, int sizeZ, float viscosity) {
            solidSize / (1024.0 * 1024.0),
            totalGPU / (1024.0 * 1024.0));
 
-    // Check if buffer exceeds SSBO limit. Try anyway -- some drivers
-    // report a conservative limit but actually support larger bindings.
-    if (maxSSBOSize > 0 && (GLint64)fSize > maxSSBOSize) {
-        printf("WARNING: f buffer (%.0f MB) exceeds reported "
-               "SSBO limit (%.0f MB). Attempting allocation anyway.\n",
-               fSize / (1024.0 * 1024.0),
-               maxSSBOSize / (1024.0 * 1024.0));
+    // Compute Z-slab chunking for SSBO binding limit
+    grid->maxSSBOSize = maxSSBOSize;
+    grid->haloZ = 1; // D3Q19 streaming reads at most 1 cell away
+    size_t fSliceBytes = (size_t)19 * sizeX * sizeY * sizeof(float);
+    if (maxSSBOSize > 0 && fSliceBytes > 0) {
+        int maxZPerChunk = (int)(maxSSBOSize / fSliceBytes);
+        if (maxZPerChunk >= sizeZ) {
+            grid->numChunks = 1;
+            grid->slabZ = sizeZ;
+        } else {
+            int effectiveZ = maxZPerChunk - 2 * grid->haloZ;
+            if (effectiveZ < 8)
+                effectiveZ = 8;
+            grid->numChunks = (sizeZ + effectiveZ - 1) / effectiveZ;
+            grid->slabZ = effectiveZ;
+            printf("SSBO slab split: %d chunks of %d Z-cells "
+                   "(limit %.0f MB, slice %.2f MB)\n",
+                   grid->numChunks,
+                   grid->slabZ,
+                   maxSSBOSize / (1024.0 * 1024.0),
+                   fSliceBytes / (1024.0 * 1024.0));
+        }
+    } else {
+        grid->numChunks = 1;
+        grid->slabZ = sizeZ;
     }
 
     // Validate dispatch size
@@ -272,17 +290,27 @@ LBMGrid *LBM_Create(int sizeX, int sizeY, int sizeZ, float viscosity) {
         glGetUniformLocation(grid->collideShader, "smagorinskyCs");
     grid->collide_useMRTLoc =
         glGetUniformLocation(grid->collideShader, "useMRT");
+    grid->collide_zOffsetLoc =
+        glGetUniformLocation(grid->collideShader, "zOffset");
 
     glUseProgram(grid->streamShader);
     grid->stream_gridSizeLoc =
         glGetUniformLocation(grid->streamShader, "gridSize");
     grid->stream_periodicYZLoc =
         glGetUniformLocation(grid->streamShader, "periodicYZ");
+    grid->stream_zOffsetLoc =
+        glGetUniformLocation(grid->streamShader, "zOffset");
+    grid->stream_fNewZOffsetLoc =
+        glGetUniformLocation(grid->streamShader, "fNewZOffset");
+    grid->stream_slabZLoc =
+        glGetUniformLocation(grid->streamShader, "slabZ");
 
     if (grid->forceShader) {
         glUseProgram(grid->forceShader);
         grid->force_gridSizeLoc =
             glGetUniformLocation(grid->forceShader, "gridSize");
+        grid->force_zOffsetLoc =
+            glGetUniformLocation(grid->forceShader, "zOffset");
     }
 
     printf("LBM initialized successfully\n");
@@ -694,15 +722,17 @@ void LBM_Step(LBMGrid *grid,
               float inletVelX,
               float inletVelY,
               float inletVelZ) {
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, grid->fBuffer);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, grid->fNewBuffer);
+    // Bind unsplit buffers once
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, grid->velocityBuffer);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, grid->solidBuffer);
 
-    // Collision step
+    size_t fSliceBytes =
+        (size_t)19 * grid->sizeX * grid->sizeY * sizeof(float);
+    int dispX = (grid->sizeX + 7) / 8;
+    int dispY = (grid->sizeY + 7) / 8;
+
+    // --- Collision: per-slab dispatch ---
     glUseProgram(grid->collideShader);
-    glUniform3i(
-        grid->collide_gridSizeLoc, grid->sizeX, grid->sizeY, grid->sizeZ);
     glUniform1f(grid->collide_tauLoc, grid->tau);
     glUniform3f(grid->collide_inletVelLoc, inletVelX, inletVelY, inletVelZ);
     glUniform1i(grid->collide_useRegularizedLoc, grid->useRegularized);
@@ -710,20 +740,81 @@ void LBM_Step(LBMGrid *grid,
     glUniform1f(grid->collide_smaCsLoc, grid->smagorinskyCs);
     glUniform1i(grid->collide_useMRTLoc, grid->useMRT);
 
-    glDispatchCompute(
-        (grid->sizeX + 7) / 8, (grid->sizeY + 7) / 8, (grid->sizeZ + 7) / 8);
+    for (int c = 0; c < grid->numChunks; c++) {
+        int zStart = c * grid->slabZ;
+        int zEnd = zStart + grid->slabZ;
+        if (zEnd > grid->sizeZ)
+            zEnd = grid->sizeZ;
+        int slabCells = zEnd - zStart;
+
+        if (grid->numChunks == 1) {
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, grid->fBuffer);
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, grid->fNewBuffer);
+        } else {
+            GLintptr off = (GLintptr)(zStart * fSliceBytes);
+            GLsizeiptr sz = (GLsizeiptr)(slabCells * fSliceBytes);
+            glBindBufferRange(
+                GL_SHADER_STORAGE_BUFFER, 2, grid->fBuffer, off, sz);
+            glBindBufferRange(
+                GL_SHADER_STORAGE_BUFFER, 3, grid->fNewBuffer, off, sz);
+        }
+
+        glUniform3i(
+            grid->collide_gridSizeLoc, grid->sizeX, grid->sizeY, slabCells);
+        glUniform1i(grid->collide_zOffsetLoc, zStart);
+
+        glDispatchCompute(dispX, dispY, (slabCells + 7) / 8);
+    }
     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
-    // Streaming step (with Bouzidi interpolated bounce-back)
+    // --- Streaming: per-slab dispatch with halo ---
     glUseProgram(grid->streamShader);
     glUniform3i(
         grid->stream_gridSizeLoc, grid->sizeX, grid->sizeY, grid->sizeZ);
     glUniform1i(grid->stream_periodicYZLoc, grid->periodicYZ);
 
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 7, grid->qBuffer);
+    for (int c = 0; c < grid->numChunks; c++) {
+        int zStart = c * grid->slabZ;
+        int zEnd = zStart + grid->slabZ;
+        if (zEnd > grid->sizeZ)
+            zEnd = grid->sizeZ;
+        int slabCells = zEnd - zStart;
 
-    glDispatchCompute(
-        (grid->sizeX + 7) / 8, (grid->sizeY + 7) / 8, (grid->sizeZ + 7) / 8);
+        int fNewZOff = 0;
+        if (grid->numChunks == 1) {
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, grid->fBuffer);
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, grid->fNewBuffer);
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 7, grid->qBuffer);
+        } else {
+            // f[] and q[]: slab-only range (write target)
+            GLintptr wOff = (GLintptr)(zStart * fSliceBytes);
+            GLsizeiptr wSz = (GLsizeiptr)(slabCells * fSliceBytes);
+            glBindBufferRange(
+                GL_SHADER_STORAGE_BUFFER, 2, grid->fBuffer, wOff, wSz);
+            glBindBufferRange(
+                GL_SHADER_STORAGE_BUFFER, 7, grid->qBuffer, wOff, wSz);
+
+            // fNew[]: slab + halo range (read source)
+            int rStart = zStart - grid->haloZ;
+            if (rStart < 0)
+                rStart = 0;
+            int rEnd = zEnd + grid->haloZ;
+            if (rEnd > grid->sizeZ)
+                rEnd = grid->sizeZ;
+            GLintptr rOff = (GLintptr)(rStart * fSliceBytes);
+            GLsizeiptr rSz = (GLsizeiptr)((rEnd - rStart) * fSliceBytes);
+            glBindBufferRange(
+                GL_SHADER_STORAGE_BUFFER, 3, grid->fNewBuffer, rOff, rSz);
+
+            fNewZOff = rStart;
+        }
+
+        glUniform1i(grid->stream_zOffsetLoc, zStart);
+        glUniform1i(grid->stream_fNewZOffsetLoc, fNewZOff);
+        glUniform1i(grid->stream_slabZLoc, slabCells);
+
+        glDispatchCompute(dispX, dispY, (slabCells + 7) / 8);
+    }
     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 }
 
@@ -764,20 +855,46 @@ void LBM_ComputeDragForceDecomposed(LBMGrid *grid,
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->forceBuffer);
     glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(zeros), zeros);
 
-    // Bind buffers for Mei-Luo-Shyy momentum exchange
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, grid->fBuffer);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, grid->fNewBuffer);
+    // Bind unsplit buffers
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, grid->velocityBuffer);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, grid->solidBuffer);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 6, grid->forceBuffer);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 7, grid->qBuffer);
 
-    // Run force computation
     glUseProgram(grid->forceShader);
-    glUniform3i(grid->force_gridSizeLoc, grid->sizeX, grid->sizeY, grid->sizeZ);
 
-    glDispatchCompute(
-        (grid->sizeX + 7) / 8, (grid->sizeY + 7) / 8, (grid->sizeZ + 7) / 8);
+    size_t fSliceBytes =
+        (size_t)19 * grid->sizeX * grid->sizeY * sizeof(float);
+    int dispX = (grid->sizeX + 7) / 8;
+    int dispY = (grid->sizeY + 7) / 8;
+
+    for (int c = 0; c < grid->numChunks; c++) {
+        int zStart = c * grid->slabZ;
+        int zEnd = zStart + grid->slabZ;
+        if (zEnd > grid->sizeZ)
+            zEnd = grid->sizeZ;
+        int slabCells = zEnd - zStart;
+
+        if (grid->numChunks == 1) {
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, grid->fBuffer);
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, grid->fNewBuffer);
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 7, grid->qBuffer);
+        } else {
+            GLintptr off = (GLintptr)(zStart * fSliceBytes);
+            GLsizeiptr sz = (GLsizeiptr)(slabCells * fSliceBytes);
+            glBindBufferRange(
+                GL_SHADER_STORAGE_BUFFER, 2, grid->fBuffer, off, sz);
+            glBindBufferRange(
+                GL_SHADER_STORAGE_BUFFER, 3, grid->fNewBuffer, off, sz);
+            glBindBufferRange(
+                GL_SHADER_STORAGE_BUFFER, 7, grid->qBuffer, off, sz);
+        }
+
+        glUniform3i(
+            grid->force_gridSizeLoc, grid->sizeX, grid->sizeY, slabCells);
+        glUniform1i(grid->force_zOffsetLoc, zStart);
+
+        glDispatchCompute(dispX, dispY, (slabCells + 7) / 8);
+    }
     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT |
                     GL_BUFFER_UPDATE_BARRIER_BIT);
 
