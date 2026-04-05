@@ -1151,6 +1151,7 @@ def run_tests(grid: str = "256x128x128", duration: int = 120):
     # Xvfb + Mesa software GL which has a 128MB SSBO limit.
     env = {k: v for k, v in os.environ.items() if k != "DISPLAY"}
     cmd = [
+        "stdbuf", "-oL",
         str(sim_bin),
         "--angle=25",
         f"--grid={grid}",
