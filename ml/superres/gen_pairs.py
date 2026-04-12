@@ -164,11 +164,15 @@ def parse_grid_dims(extent_str: str) -> tuple[int, int, int]:
     return nx, ny, nz
 
 
-def parse_vti(filepath: Path) -> tuple[np.ndarray, np.ndarray, tuple[int, int, int]]:
+def parse_vti(
+    filepath: Path,
+) -> tuple[np.ndarray, np.ndarray | None, np.ndarray, tuple[int, int, int]]:
     """Parse a VTI file written by writeVTI() in main.c.
 
-    Returns (velocity, solid, (nx, ny, nz)) where:
+    Returns (velocity, rho, solid, (nx, ny, nz)) where:
       velocity: float32 array of shape (nz, ny, nx, 3)  -- z-major ordering
+      rho:      float32 array of shape (nz, ny, nx), or None for VTI files
+                written before rho export was added
       solid:    int32 array of shape (nz, ny, nx)
       dims:     (nx, ny, nz) grid dimensions
 
@@ -186,13 +190,11 @@ def parse_vti(filepath: Path) -> tuple[np.ndarray, np.ndarray, tuple[int, int, i
     if marker_pos == -1:
         raise ValueError(f"No appended data marker in {filepath}")
 
-    xml_bytes = raw[:marker_pos + len(marker)]
     binary_blob = raw[marker_pos + len(marker):]
 
-    # Parse XML header to get grid dimensions
-    # We need to close off the XML cleanly for parsing. The XML section
-    # before the binary blob isn't well-formed on its own, so extract
-    # WholeExtent with a regex instead.
+    # Parse XML header to get grid dimensions and feature flags
+    # The XML section before the binary blob isn't well-formed on its
+    # own, so extract what we need with regex instead.
     xml_text = raw[:marker_pos].decode("ascii", errors="replace")
     extent_match = re.search(r'WholeExtent="([^"]+)"', xml_text)
     if not extent_match:
@@ -200,6 +202,8 @@ def parse_vti(filepath: Path) -> tuple[np.ndarray, np.ndarray, tuple[int, int, i
 
     nx, ny, nz = parse_grid_dims(extent_match.group(1))
     total = nx * ny * nz
+
+    has_rho = 'Name="rho"' in xml_text
 
     # Read velocity array: uint64 size prefix, then total*3 float32 values
     offset = 0
@@ -219,6 +223,24 @@ def parse_vti(filepath: Path) -> tuple[np.ndarray, np.ndarray, tuple[int, int, i
     ).reshape(nz, ny, nx, 3).copy()
     offset += vel_data_size
 
+    # Read density array (newer VTI files only): uint64 size + total f32
+    rho: np.ndarray | None = None
+    if has_rho:
+        rho_data_size = struct.unpack_from("<Q", binary_blob, offset)[0]
+        offset += 8
+
+        expected_rho_size = total * 4
+        if rho_data_size != expected_rho_size:
+            raise ValueError(
+                f"Density data size mismatch in {filepath}: "
+                f"header says {rho_data_size}, expected {expected_rho_size}"
+            )
+
+        rho = np.frombuffer(
+            binary_blob, dtype="<f4", count=total, offset=offset
+        ).reshape(nz, ny, nx).copy()
+        offset += rho_data_size
+
     # Read solid array: uint64 size prefix, then total int32 values
     solid_data_size = struct.unpack_from("<Q", binary_blob, offset)[0]
     offset += 8
@@ -234,23 +256,37 @@ def parse_vti(filepath: Path) -> tuple[np.ndarray, np.ndarray, tuple[int, int, i
         binary_blob, dtype="<i4", count=total, offset=offset
     ).reshape(nz, ny, nx).copy()
 
-    return velocity, solid, (nx, ny, nz)
+    return velocity, rho, solid, (nx, ny, nz)
 
 
 # ---------------------------------------------------------------------------
 # Downsampling and patch extraction
 # ---------------------------------------------------------------------------
 
-def compute_density(velocity: np.ndarray) -> np.ndarray:
-    """Approximate density from LBM velocity field.
+def compute_density(
+    velocity: np.ndarray, rho: np.ndarray | None = None
+) -> np.ndarray:
+    """Return the density channel used for super-res training.
 
-    In lattice Boltzmann, density is close to 1.0 everywhere for low-Mach
-    flows. The actual rho is tracked inside the GPU buffers but not exported
-    in the VTI. For super-resolution training we approximate rho = 1.0,
-    which is a reasonable baseline. A future iteration could export rho as
-    a separate DataArray in the VTI.
+    Modern VTI files written by the simulation now export rho as its own
+    DataArray (see writeVTI in main.c), and parse_vti returns it. In that
+    case we pass it through here unchanged. For VTI files captured before
+    the rho export was added, fall back to the low-Mach approximation
+    rho = 1.0 everywhere, which is the old behaviour.
     """
+    if rho is not None:
+        return rho.astype(np.float32, copy=False)
     return np.ones(velocity.shape[:3], dtype=np.float32)
+
+
+def downsample_2x_scalar(arr: np.ndarray) -> np.ndarray:
+    """Downsample a 3D scalar field (nz, ny, nx) by averaging 2x2x2 blocks."""
+    nz, ny, nx = arr.shape
+    assert nz % 2 == 0 and ny % 2 == 0 and nx % 2 == 0, (
+        f"Fine grid dims must be even for 2x downsampling, got {nx}x{ny}x{nz}"
+    )
+    blocked = arr.reshape(nz // 2, 2, ny // 2, 2, nx // 2, 2)
+    return blocked.mean(axis=(1, 3, 5)).astype(np.float32)
 
 
 def downsample_2x(velocity: np.ndarray, solid: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -287,6 +323,8 @@ def extract_patches(
     fine_vel: np.ndarray,
     fine_solid: np.ndarray,
     neighborhood: int = 3,
+    coarse_rho: np.ndarray | None = None,
+    fine_rho: np.ndarray | None = None,
 ) -> tuple[list[np.ndarray], list[np.ndarray]]:
     """Extract paired coarse/fine patches from aligned fields.
 
@@ -310,16 +348,16 @@ def extract_patches(
 
     cz, cy, cx, _ = coarse_vel.shape
 
-    # Precompute density channels
-    coarse_rho = compute_density(coarse_vel)
-    fine_rho = compute_density(fine_vel)
+    # Precompute density channels (use exported rho when available)
+    coarse_rho_ch = compute_density(coarse_vel, coarse_rho)
+    fine_rho_ch = compute_density(fine_vel, fine_rho)
 
     # Build 4-channel arrays: (z, y, x, 4)
     coarse_4ch = np.concatenate(
-        [coarse_vel, coarse_rho[..., np.newaxis]], axis=-1
+        [coarse_vel, coarse_rho_ch[..., np.newaxis]], axis=-1
     )
     fine_4ch = np.concatenate(
-        [fine_vel, fine_rho[..., np.newaxis]], axis=-1
+        [fine_vel, fine_rho_ch[..., np.newaxis]], axis=-1
     )
 
     coarse_patches = []
@@ -635,13 +673,16 @@ def process_pair(
 
     for vti_path in fine_vtk_files:
         try:
-            fine_vel, fine_solid, (fnx, fny, fnz) = parse_vti(vti_path)
+            fine_vel, fine_rho, fine_solid, (fnx, fny, fnz) = parse_vti(vti_path)
         except Exception as e:
             print(f"    WARN: Failed to parse {vti_path.name}: {e}")
             continue
 
         # Downsample fine field to get coarse
         coarse_vel, coarse_solid = downsample_2x(fine_vel, fine_solid)
+        coarse_rho = (
+            downsample_2x_scalar(fine_rho) if fine_rho is not None else None
+        )
 
         # Extract patches
         c_patches, f_patches = extract_patches(
@@ -650,6 +691,8 @@ def process_pair(
             fine_vel=fine_vel,
             fine_solid=fine_solid,
             neighborhood=neighborhood,
+            coarse_rho=coarse_rho,
+            fine_rho=fine_rho,
         )
 
         if c_patches:

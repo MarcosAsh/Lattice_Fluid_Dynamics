@@ -499,6 +499,15 @@ static void writeVTI(LBMGrid *grid, const char *path, int step) {
         return;
     }
 
+    // Appended-data offsets:
+    //   velocity: 0
+    //   rho:      sizeof(uint64_t) + 3*total*float32
+    //   solid:    2*sizeof(uint64_t) + 4*total*float32
+    size_t rhoOffset =
+        sizeof(uint64_t) + (size_t)total * 3 * sizeof(float);
+    size_t solidOffset =
+        rhoOffset + sizeof(uint64_t) + (size_t)total * sizeof(float);
+
     // VTI header
     fprintf(
         f,
@@ -508,10 +517,12 @@ static void writeVTI(LBMGrid *grid, const char *path, int step) {
         "  <ImageData WholeExtent=\"0 %d 0 %d 0 %d\""
         " Origin=\"0 0 0\" Spacing=\"1 1 1\">\n"
         "    <Piece Extent=\"0 %d 0 %d 0 %d\">\n"
-        "      <PointData Vectors=\"velocity\" Scalars=\"solid\">\n"
+        "      <PointData Vectors=\"velocity\" Scalars=\"rho\">\n"
         "        <DataArray type=\"Float32\" Name=\"velocity\""
         " NumberOfComponents=\"3\" format=\"appended\""
         " offset=\"0\"/>\n"
+        "        <DataArray type=\"Float32\" Name=\"rho\""
+        " format=\"appended\" offset=\"%lu\"/>\n"
         "        <DataArray type=\"Int32\" Name=\"solid\""
         " format=\"appended\" offset=\"%lu\"/>\n"
         "      </PointData>\n"
@@ -524,13 +535,21 @@ static void writeVTI(LBMGrid *grid, const char *path, int step) {
         nx,
         ny,
         nz,
-        (unsigned long)(sizeof(uint64_t) + (size_t)total * 3 * sizeof(float)));
+        (unsigned long)rhoOffset,
+        (unsigned long)solidOffset);
 
     // Velocity array (strip w component from vec4)
     uint64_t velDataSize = (uint64_t)total * 3 * sizeof(float);
     fwrite(&velDataSize, sizeof(uint64_t), 1, f);
     for (int i = 0; i < total; i++) {
         fwrite(&vel[i * 4], sizeof(float), 3, f);
+    }
+
+    // Density (rho) array -- 4th component of the velocity vec4
+    uint64_t rhoDataSize = (uint64_t)total * sizeof(float);
+    fwrite(&rhoDataSize, sizeof(uint64_t), 1, f);
+    for (int i = 0; i < total; i++) {
+        fwrite(&vel[i * 4 + 3], sizeof(float), 1, f);
     }
 
     // Solid array
