@@ -13,7 +13,6 @@
 
 #include "../lib/gl_context.h"
 #include "../lib/lbm.h"
-#include "../lib/fluid_cube.h"
 #include "../lib/particle_system.h"
 #include "../obj-file-loader/lib/model_loader.h"
 #include "../lib/render_model.h"
@@ -30,15 +29,6 @@ float g_offsetX = 0.0f;
 float g_offsetY = -0.1f;
 float g_offsetZ = -0.9f;
 float g_carRotationY = 360.0f;
-
-// Slider variables
-int sliderX = 100;
-int sliderY = 50;
-int sliderWidth = 200;
-int sliderHeight = 20;
-int handleWidth = 10;
-int handleX = 100;
-int isDragging = 0;
 
 // Camera rotation variables
 float cameraAngleY = 0.0f;
@@ -862,12 +852,7 @@ int main(int argc, char *argv[]) {
     Model carModel = loadOBJ(modelPath);
 
     if (carModel.vertexCount == 0) {
-        printf("Trying alternative path...\n");
-        carModel = loadOBJ("/home/marcos_ashton/3dFluidDynamicsInC/assets/"
-                           "3d-files/car-model.obj");
-    }
-    if (carModel.vertexCount == 0) {
-        printf("Trying another path...\n");
+        printf("Trying fallback path ../assets/...\n");
         carModel = loadOBJ("../assets/3d-files/car-model.obj");
     }
 
@@ -1443,13 +1428,6 @@ int main(int argc, char *argv[]) {
         createComputeShader("shaders/streamline_trace.comp");
 
     checkGLError("After streamline setup");
-
-    printf("Creating fluid cube...\n");
-    FluidCube *fluidCube = NULL;
-    if (carModel.vertexCount > 0) {
-        fluidCube = FluidCubeCreate(
-            WIDTH / 10, HEIGHT / 10, 20, 0.001f, 0.0f, 0.001f, &carModel);
-    }
 
     // Print GPU memory estimate
     {
@@ -2317,8 +2295,6 @@ int main(int argc, char *argv[]) {
     free(collGrid.cellCount);
     free(collGrid.triIndices);
     freeModel(&carModel);
-    if (fluidCube)
-        FluidCubeFree(fluidCube);
     if (lbmGrid)
         LBM_Free(lbmGrid);
     if (mlModel)
