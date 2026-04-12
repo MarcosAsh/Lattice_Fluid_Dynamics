@@ -24,6 +24,13 @@ endif()
 
 add_executable(3d_fluid_simulation_car
     src/main.c
+    src/cli.c
+    src/drag_metrics.c
+    src/event_handlers.c
+    src/gl_helpers.c
+    src/model_bounds.c
+    src/view_matrix.c
+    src/vti_export.c
     src/gl_context.c
     src/coloring.c
     src/fluid_cube.c
