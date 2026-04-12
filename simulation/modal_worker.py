@@ -1180,3 +1180,213 @@ def run_tests(grid: str = "256x128x128", duration: int = 120):
     finally:
         xvfb.kill()
     print("\nDone.")
+
+
+@app.function(
+    image=image,
+    gpu="A10G",
+    volumes={"/cache": build_cache},
+    timeout=14400,
+)
+def grid_sweep(
+    grids: str = "64x32x32,128x64x64,192x128x128",
+    duration: int = 15,
+    model: str = "ahmed25",
+    wind: float = 1.0,
+    reynolds: float = 0,
+) -> dict:
+    """Grid convergence sweep for Cd, per issue #155.
+
+    Runs the same Ahmed (or any OBJ) configuration at a list of
+    grid sizes, parses Cd_corr and effective Re from stdout, and
+    prints a CSV summary suitable for a convergence plot.
+
+    Usage:
+        modal run simulation/modal_worker.py::grid_sweep \
+            --grids=64x32x32,128x64x64,192x128x128 \
+            --duration=20
+    """
+    import re
+    import shutil
+    import statistics
+    import subprocess
+    import time as _time
+    from pathlib import Path
+
+    # Fresh build so we run the current commit.
+    build_dir = Path("/cache/build")
+    source_root = Path("/cache/source")
+    if build_dir.exists():
+        shutil.rmtree(build_dir)
+    if source_root.exists():
+        shutil.rmtree(source_root)
+    build_simulation.local()
+
+    commit = subprocess.run(
+        ["git", "log", "--oneline", "-1"],
+        cwd="/cache/source",
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    print(f"Built commit: {commit}")
+
+    source_dir = Path("/cache/source/simulation")
+    sim_bin = build_dir / "3d_fluid_simulation_car"
+    if not sim_bin.exists():
+        return {"error": "simulation binary missing after build"}
+
+    model_paths = {
+        "car": "assets/3d-files/car-model.obj",
+        "ahmed25": "assets/3d-files/ahmed_25deg_m.obj",
+        "ahmed35": "assets/3d-files/ahmed_35deg_m.obj",
+    }
+    model_path = model_paths.get(model, model_paths["ahmed25"])
+
+    xvfb = subprocess.Popen(
+        ["Xvfb", ":99", "-screen", "0", "1920x1080x24"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    _time.sleep(2)
+
+    # Unset DISPLAY so we use EGL (direct GPU) rather than Xvfb/Mesa
+    # SW rasterization, which has a 128MB SSBO limit.
+    egl_env = {k: v for k, v in os.environ.items() if k != "DISPLAY"}
+
+    grid_list = [g.strip() for g in grids.split(",") if g.strip()]
+    results = []
+
+    re_cd_corr = re.compile(r"Cd_corr=([0-9.+-eE]+)")
+    re_eff = re.compile(r"Effective Re\s*=\s*([0-9.+-eE]+)")
+    re_cap = re.compile(r"Re capped at\s*([0-9.+-eE]+)")
+    re_body = re.compile(
+        r"Body \(lattice\):\s*([0-9.]+)\s*x\s*([0-9.]+)\s*x\s*([0-9.]+)"
+    )
+    re_char = re.compile(r"Char length:\s*([0-9.+-eE]+)")
+
+    try:
+        for grid in grid_list:
+            print("=" * 60)
+            print(f"SWEEP: {model} wind={wind} grid={grid} duration={duration}s")
+            print("=" * 60)
+
+            cmd = [
+                "stdbuf", "-oL",
+                str(sim_bin),
+                f"--wind={wind}",
+                f"--grid={grid}",
+                f"--duration={duration}",
+                f"--model={model_path}",
+            ]
+            if reynolds > 0:
+                cmd.append(f"--reynolds={reynolds}")
+
+            t0 = _time.monotonic()
+            proc = subprocess.Popen(
+                cmd,
+                cwd=str(source_dir),
+                env=egl_env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+            )
+
+            cd_corr_samples: list[float] = []
+            effective_re: float | None = None
+            requested_re: float | None = None
+            re_clamped = False
+            body_cells = None
+            char_length = None
+            assert proc.stdout is not None
+            for line in proc.stdout:
+                print(line, end="", flush=True)
+
+                m = re_cd_corr.search(line)
+                if m:
+                    try:
+                        val = float(m.group(1))
+                        if math.isfinite(val):
+                            cd_corr_samples.append(val)
+                    except ValueError:
+                        pass
+
+                m = re_eff.search(line)
+                if m and effective_re is None:
+                    try:
+                        effective_re = float(m.group(1))
+                    except ValueError:
+                        pass
+
+                m = re_cap.search(line)
+                if m:
+                    re_clamped = True
+                    try:
+                        requested_re = float(m.group(1))
+                    except ValueError:
+                        pass
+
+                m = re_body.search(line)
+                if m and body_cells is None:
+                    body_cells = (
+                        float(m.group(1)),
+                        float(m.group(2)),
+                        float(m.group(3)),
+                    )
+
+                m = re_char.search(line)
+                if m and char_length is None:
+                    try:
+                        char_length = float(m.group(1))
+                    except ValueError:
+                        pass
+
+            proc.wait()
+            wall = _time.monotonic() - t0
+
+            # Use the second half of the samples as the "converged"
+            # window -- crude but effective for a sweep.
+            tail = cd_corr_samples[len(cd_corr_samples) // 2:]
+            cd_mean = statistics.fmean(tail) if tail else float("nan")
+            cd_std = (
+                statistics.pstdev(tail) if len(tail) > 1 else float("nan")
+            )
+
+            sx, sy, sz = [int(x) for x in grid.split("x")]
+            cells = sx * sy * sz
+
+            results.append(
+                {
+                    "grid": grid,
+                    "cells": cells,
+                    "body_cells_x": body_cells[0] if body_cells else None,
+                    "char_length": char_length,
+                    "effective_re": effective_re,
+                    "re_clamped": re_clamped,
+                    "requested_re": requested_re,
+                    "n_samples": len(cd_corr_samples),
+                    "cd_mean": cd_mean,
+                    "cd_std": cd_std,
+                    "wall_s": wall,
+                    "rc": proc.returncode,
+                }
+            )
+    finally:
+        xvfb.kill()
+
+    # Print CSV at the end so it's easy to copy out of the Modal log.
+    print("\n" + "=" * 60)
+    print("GRID SWEEP RESULTS (CSV)")
+    print("=" * 60)
+    print(
+        "grid,cells,body_cells_x,char_length,effective_re,re_clamped,"
+        "n_samples,cd_mean,cd_std,wall_s,rc"
+    )
+    for r in results:
+        print(
+            f"{r['grid']},{r['cells']},{r['body_cells_x']},"
+            f"{r['char_length']},{r['effective_re']},{r['re_clamped']},"
+            f"{r['n_samples']},{r['cd_mean']:.4f},{r['cd_std']:.4f},"
+            f"{r['wall_s']:.1f},{r['rc']}"
+        )
+
+    return {"commit": commit, "results": results}
