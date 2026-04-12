@@ -249,7 +249,7 @@ def _save_cache(cache_id: str, result: dict):
     gpu="A10G",
     volumes={"/cache": build_cache},
     secrets=[modal.Secret.from_name("aws-secret")],
-    timeout=1800,
+    timeout=5400,
 )
 def render_simulation(
     job_id: str,
@@ -386,7 +386,7 @@ def render_simulation(
 
         log.info("simulation starting", extra=ctx)
         t_sim = time.monotonic()
-        sim_timeout = duration * 120 + 300
+        sim_timeout = duration * 400 + 300
         proc = subprocess.Popen(
             cmd,
             cwd=str(source_dir),

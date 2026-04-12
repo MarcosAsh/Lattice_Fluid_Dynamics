@@ -30,6 +30,26 @@ Duration: 15s per run
 | car | 2.0 | 128x64x64 | 320 | 0.000 | 1396 | 87.3 | 67906 |
 | car | 3.0 | 128x64x64 | 480 | 0.000 | 1396 | 87.3 | 60243 |
 
+## Cd vs grid (Ahmed 25 deg, wind=1.0)
+
+Grid-convergence data from Modal runs on 2026-04-12, duration=8s.
+Cd_corr is the blockage-corrected value (Pope & Harper 1966).
+
+| Grid          | Requested Re | Effective Re | Cd      | Notes                          |
+|---------------|--------------|--------------|---------|--------------------------------|
+| 128x96x96     | 200          | ~125 clamped | 7.24    | tau=0.52 stability clamp hit   |
+| 128x96x96     | 500          | ~125 clamped | 7.22    | clamp makes --reynolds no-op   |
+| 192x128x128   | 200          | 200          | ~4-5    | not converged, 7 samples       |
+
+On the 128 grid the Ahmed body is ~16 cells across X, which forces
+tau to the stability floor and caps effective Re around 125. On the
+192 grid the body spans 57.6 cells, so viscosity can be set low
+enough to reach the requested Re without clamping. Cd drops with Re
+as expected in the viscous-dominated regime.
+
+See issue #155 for the full grid convergence study and #156 for
+Ahmed validation.
+
 ## Ahmed Body Comparison
 
 Published experimental Cd (Re > 10^5):
