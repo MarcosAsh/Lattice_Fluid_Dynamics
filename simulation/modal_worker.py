@@ -1014,6 +1014,8 @@ def main(
     collision: int = 1,
     duration: int = 5,
     model: str = "car",
+    reynolds: float = 0,
+    grid: str = "",
     build_only: bool = False,
     rebuild: bool = False,
 ):
@@ -1035,7 +1037,8 @@ def main(
     print(
         f"Job {job_id}: wind={wind}, viz={viz}, "
         f"collision={collision}, "
-        f"model={model}, {duration}s"
+        f"model={model}, re={reynolds}, grid={grid or 'default'}, "
+        f"{duration}s"
     )
 
     result = render_simulation.remote(
@@ -1045,6 +1048,8 @@ def main(
         collision_mode=collision,
         duration=duration,
         model=model,
+        reynolds=reynolds,
+        grid=grid or None,
     )
 
     print(f"Status: {result['status']}")
