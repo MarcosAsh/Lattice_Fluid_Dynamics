@@ -41,6 +41,7 @@ add_executable(3d_fluid_simulation_car
     src/lbm.c
     src/ml_predict.c
     src/superres.c
+    src/voxelize.c
     ${GLAD_SOURCES}
 )
 
@@ -101,3 +102,20 @@ target_link_directories(test_lbm PRIVATE
     ${GL_LIBRARY_DIRS}
 )
 add_test(NAME lbm_unit_tests COMMAND test_lbm)
+
+# Standalone voxelizer CLI: OBJ -> .voxbin for ML dataset pipelines
+add_executable(voxelize_obj
+    src/voxelize_main.c
+    src/voxelize.c
+    obj-file-loader/lib/model_loader.c
+)
+target_link_libraries(voxelize_obj m)
+
+# Voxelizer unit tests (no GL context needed)
+add_executable(test_voxelize
+    test/test_voxelize.c
+    src/voxelize.c
+    obj-file-loader/lib/model_loader.c
+)
+target_link_libraries(test_voxelize m)
+add_test(NAME voxelize_unit_tests COMMAND test_voxelize)
