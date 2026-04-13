@@ -30,6 +30,9 @@ jobs:
       - name: Smoke test
         run: ./build/3d_fluid_simulation_car --help
 
+      - name: Voxelize unit tests
+        run: ./build/test_voxelize
+
       - name: LBM unit tests
         run: |
           export MESA_GL_VERSION_OVERRIDE=4.3
