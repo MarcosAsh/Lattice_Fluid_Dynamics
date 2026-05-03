@@ -515,7 +515,11 @@ int main(int argc, char *argv[]) {
         lbmGrid->useMRT = 1;
         printf("MRT collision enabled\n");
 
-        LBM_InitializeFlow(lbmGrid, latticeVelocity, 0.0f, 0.0f);
+        if (!LBM_InitializeFlow(lbmGrid, latticeVelocity, 0.0f, 0.0f)) {
+            fprintf(stderr, "FATAL: LBM flow initialization failed\n");
+            LBM_Free(lbmGrid);
+            return 1;
+        }
 
         // Print effective Reynolds number
         {

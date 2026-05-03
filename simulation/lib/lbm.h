@@ -70,8 +70,8 @@ void LBM_SetSolidAABB(LBMGrid *grid,
                       float maxY,
                       float maxZ);
 
-// Initialize with uniform velocity
-void LBM_InitializeFlow(LBMGrid *grid, float ux, float uy, float uz);
+// Initialize with uniform velocity. Returns 1 on success, 0 on failure.
+int LBM_InitializeFlow(LBMGrid *grid, float ux, float uy, float uz);
 
 // Run one LBM step (collision + streaming)
 void LBM_Step(LBMGrid *grid, float inletVelX, float inletVelY, float inletVelZ);
