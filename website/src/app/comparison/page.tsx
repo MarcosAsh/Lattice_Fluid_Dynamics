@@ -10,9 +10,7 @@ function clamp(v: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, v));
 }
 
-// ---------------------------------------------------------------------------
 // Stat card
-// ---------------------------------------------------------------------------
 
 function StatCard({
   label,
@@ -74,9 +72,7 @@ function StatCard({
   );
 }
 
-// ---------------------------------------------------------------------------
 // Scatter chart: ML vs LBM for all historical results
-// ---------------------------------------------------------------------------
 
 function ComparisonChart({
   pairs,
@@ -204,9 +200,7 @@ function ComparisonChart({
   );
 }
 
-// ---------------------------------------------------------------------------
 // Sweep table: ML predictions across wind speeds for selected model
-// ---------------------------------------------------------------------------
 
 function SweepTable({
   model,
@@ -274,9 +268,7 @@ function SweepTable({
   );
 }
 
-// ---------------------------------------------------------------------------
 // Main page
-// ---------------------------------------------------------------------------
 
 export default function ComparisonPage() {
   const { status: mlStatus, predict: mlPredict } = useSurrogate();

@@ -22,9 +22,7 @@ ML_DIR = Path(__file__).parent
 MODEL_IDS = {0: "car", 1: "ahmed25", 2: "ahmed35"}
 
 
-# ---------------------------------------------------------------------------
 # Weight loading (matches weights_io.cpp LTWS format)
-# ---------------------------------------------------------------------------
 
 def load_weights(path: str) -> list[np.ndarray]:
     """Load parameter tensors from a LTWS binary file."""
@@ -55,9 +53,7 @@ def load_normalizer(path: str) -> tuple[np.ndarray, np.ndarray]:
     return mean, std
 
 
-# ---------------------------------------------------------------------------
 # Dataset loading (matches training_data.bin format)
-# ---------------------------------------------------------------------------
 
 def load_dataset(path: str) -> np.ndarray:
     """
@@ -76,9 +72,7 @@ def load_dataset(path: str) -> np.ndarray:
         return data.reshape(num_records, num_features)
 
 
-# ---------------------------------------------------------------------------
 # Model forward pass (numpy, matches train.cpp SurrogateModel)
-# ---------------------------------------------------------------------------
 
 def swish(x: np.ndarray) -> np.ndarray:
     sig = 1.0 / (1.0 + np.exp(-np.clip(x, -88, 88)))
@@ -120,9 +114,7 @@ def forward(x: np.ndarray, params: list[np.ndarray]) -> np.ndarray:
     return out
 
 
-# ---------------------------------------------------------------------------
 # Metrics
-# ---------------------------------------------------------------------------
 
 def compute_metrics(true: np.ndarray, pred: np.ndarray) -> dict:
     err = pred - true
@@ -151,9 +143,7 @@ def print_metrics(name: str, m: dict, indent: int = 0):
     print(f"{pad}  Mean pred = {m['mean_pred']:.6f}")
 
 
-# ---------------------------------------------------------------------------
 # Plots
-# ---------------------------------------------------------------------------
 
 def generate_plots(
     dataset: np.ndarray,
@@ -174,7 +164,7 @@ def generate_plots(
     colors = {0: "#e06c75", 1: "#61afef", 2: "#98c379"}
     labels = MODEL_IDS
 
-    # -- Cd: predicted vs true scatter --
+    # Cd: predicted vs true scatter
     fig, ax = plt.subplots(figsize=(6, 6))
     for mid in sorted(MODEL_IDS.keys()):
         mask = model_ids == mid
@@ -194,7 +184,7 @@ def generate_plots(
     fig.savefig(output_dir / "cd_scatter.png", dpi=150)
     plt.close(fig)
 
-    # -- Cl: predicted vs true scatter --
+    # Cl: predicted vs true scatter
     fig, ax = plt.subplots(figsize=(6, 6))
     for mid in sorted(MODEL_IDS.keys()):
         mask = model_ids == mid
@@ -214,7 +204,7 @@ def generate_plots(
     fig.savefig(output_dir / "cl_scatter.png", dpi=150)
     plt.close(fig)
 
-    # -- Error distribution histograms --
+    # Error distribution histograms
     fig, axes = plt.subplots(1, 2, figsize=(10, 4))
 
     axes[0].hist(cd_pred - cd_true, bins=30, color="#e06c75", edgecolor="white", alpha=0.8)
@@ -233,7 +223,7 @@ def generate_plots(
     fig.savefig(output_dir / "error_distribution.png", dpi=150)
     plt.close(fig)
 
-    # -- Per-model error boxplots --
+    # Per-model error boxplots
     fig, axes = plt.subplots(1, 2, figsize=(10, 4))
     cd_errors_by_model = []
     cl_errors_by_model = []
@@ -256,7 +246,7 @@ def generate_plots(
     fig.savefig(output_dir / "error_by_model.png", dpi=150)
     plt.close(fig)
 
-    # -- Cd error vs wind speed --
+    # Cd error vs wind speed
     fig, ax = plt.subplots(figsize=(8, 4))
     for mid in sorted(MODEL_IDS.keys()):
         mask = model_ids == mid
@@ -275,9 +265,7 @@ def generate_plots(
     print(f"\nPlots saved to {output_dir}/")
 
 
-# ---------------------------------------------------------------------------
 # Main
-# ---------------------------------------------------------------------------
 
 def main():
     parser = argparse.ArgumentParser(

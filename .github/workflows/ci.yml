@@ -49,6 +49,70 @@ jobs:
           cd simulation
           xvfb-run bash test/test_integration.sh
 
+  test-ml:
+    name: ML pipeline tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install numpy pyyaml requests torch --extra-index-url https://download.pytorch.org/whl/cpu
+
+      - name: FFD self-tests
+        run: python ml/shapeopt/ffd.py
+
+      - name: Smoke test shapeopt imports
+        working-directory: ml/shapeopt
+        run: |
+          python -c "
+          from train_shapeopt import ShapeOptSurrogate, SwiGLU, load_sobin
+          from optimize import ShapeOptSurrogate as OptModel
+          from gen_shapes import export_sobin, sample_id
+          from ffd import FFDLattice, load_obj, save_obj, compute_bbox
+          print('shapeopt imports OK')
+          "
+
+      - name: Smoke test superres imports
+        working-directory: ml/superres
+        run: |
+          python -c "
+          from gen_pairs import write_srbin, read_srbin, extract_patches, downsample_2x
+          from train_superres import *
+          print('superres imports OK')
+          "
+
+      - name: Validate .srbin round-trip
+        working-directory: ml/superres
+        run: |
+          python -c "
+          import numpy as np
+          import tempfile
+          from pathlib import Path
+          from gen_pairs import write_srbin, read_srbin
+
+          rng = np.random.default_rng(42)
+          n_patches = 16
+          coarse = [rng.standard_normal((3,3,3,4)).astype(np.float32) for _ in range(n_patches)]
+          fine = [rng.standard_normal((2,2,2,4)).astype(np.float32) for _ in range(n_patches)]
+
+          with tempfile.NamedTemporaryFile(suffix='.srbin', delete=False) as f:
+              path = Path(f.name)
+          write_srbin(path, coarse, fine)
+          coarse_out, fine_out = read_srbin(path)
+
+          assert coarse_out.shape == (n_patches, 3, 3, 3, 4), f'coarse shape: {coarse_out.shape}'
+          assert fine_out.shape == (n_patches, 2, 2, 2, 4), f'fine shape: {fine_out.shape}'
+          for i in range(n_patches):
+              assert np.allclose(coarse_out[i], coarse[i], atol=1e-7), f'coarse mismatch at {i}'
+              assert np.allclose(fine_out[i], fine[i], atol=1e-7), f'fine mismatch at {i}'
+          path.unlink()
+          print(f'srbin round-trip OK ({n_patches} patches)')
+          "
+
   build-website:
     name: Build website (Next.js)
     runs-on: ubuntu-latest

@@ -12,9 +12,7 @@
 
 'use client';
 
-// -----------------------------------------------------------------------
 // Binary format constants (must match ml/framework/src/weights_io.cpp)
-// -----------------------------------------------------------------------
 
 const MAGIC = 0x4c545753;
 const VERSION = 1;
@@ -30,9 +28,7 @@ const OUT = 2;
 
 const NUM_FFD = 108;
 
-// -----------------------------------------------------------------------
 // Math helpers
-// -----------------------------------------------------------------------
 
 function matvec(W: Float32Array, x: Float32Array, rows: number, cols: number): Float32Array {
   const y = new Float32Array(rows);
@@ -74,9 +70,7 @@ function swigluForward(
   return matvec(Wd, gate, embedDim, hiddenDim);
 }
 
-// -----------------------------------------------------------------------
 // Weight loading
-// -----------------------------------------------------------------------
 
 interface Weights {
   fc1W: Float32Array;
@@ -155,9 +149,7 @@ function parseNorm(buf: ArrayBuffer): Normalizer {
   };
 }
 
-// -----------------------------------------------------------------------
 // Forward pass
-// -----------------------------------------------------------------------
 
 export interface ShapeOptModel {
   weights: Weights;
@@ -201,9 +193,7 @@ function forward(w: Weights, x: Float32Array): { cd: number; cl: number } {
   return { cd: out[0], cl: out[1] };
 }
 
-// -----------------------------------------------------------------------
 // Public API
-// -----------------------------------------------------------------------
 
 export async function loadShapeOptSurrogate(): Promise<ShapeOptModel> {
   const [wBuf, nBuf] = await Promise.all([

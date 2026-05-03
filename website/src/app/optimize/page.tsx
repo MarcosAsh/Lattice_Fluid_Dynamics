@@ -22,9 +22,7 @@ function clamp(v: number, lo: number, hi: number) {
   return Math.max(lo, Math.min(hi, v));
 }
 
-// -----------------------------------------------------------------------
 // SPSA optimizer -- 2 forward passes per step regardless of dimension
-// -----------------------------------------------------------------------
 
 interface SPSAConfig {
   a: number;     // step size scale
@@ -92,9 +90,7 @@ function spsaStep(
   };
 }
 
-// -----------------------------------------------------------------------
 // Mini Cd-vs-iteration chart (inline SVG)
-// -----------------------------------------------------------------------
 
 function ConvergenceChart({ cdHistory }: { cdHistory: number[] }) {
   if (cdHistory.length < 2) return null;
@@ -178,9 +174,7 @@ function ConvergenceChart({ cdHistory }: { cdHistory: number[] }) {
   );
 }
 
-// -----------------------------------------------------------------------
 // Main page
-// -----------------------------------------------------------------------
 
 type RunStatus = 'idle' | 'loading-model' | 'running' | 'done' | 'error';
 

@@ -29,9 +29,7 @@ import yaml
 
 from ffd import FFDLattice, load_obj, save_obj, compute_bbox
 
-# ---------------------------------------------------------------------------
 # Paths
-# ---------------------------------------------------------------------------
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SHAPEOPT_DIR = Path(__file__).resolve().parent
@@ -51,18 +49,14 @@ SOBIN_MAGIC = 0x534F5054
 SOBIN_VERSION = 1
 
 
-# ---------------------------------------------------------------------------
 # Config
-# ---------------------------------------------------------------------------
 
 def load_config(config_path: str) -> dict:
     with open(config_path) as f:
         return yaml.safe_load(f)
 
 
-# ---------------------------------------------------------------------------
 # OBJ encoding
-# ---------------------------------------------------------------------------
 
 def obj_to_base64(vertices: np.ndarray, faces: np.ndarray) -> str:
     """Encode a mesh as a base64 OBJ string for the Modal endpoint."""
@@ -75,9 +69,7 @@ def obj_to_base64(vertices: np.ndarray, faces: np.ndarray) -> str:
     return base64.b64encode(buf.getvalue().encode("utf-8")).decode("ascii")
 
 
-# ---------------------------------------------------------------------------
 # Modal submission with async polling
-# ---------------------------------------------------------------------------
 
 def submit_job(endpoint: str, payload: dict, timeout: int = 30) -> str | None:
     """POST to the render endpoint. Returns a job_id on success, None on error."""
@@ -152,9 +144,7 @@ def run_simulation(endpoint: str, payload: dict) -> dict:
     return poll_result
 
 
-# ---------------------------------------------------------------------------
 # Sample tracking
-# ---------------------------------------------------------------------------
 
 def sample_id(model: str, idx: int) -> str:
     key = f"shapeopt_{model}_{idx}"
@@ -211,9 +201,7 @@ def save_results_row(sid: str, model: str, idx: int,
         ])
 
 
-# ---------------------------------------------------------------------------
 # Binary export (.sobin)
-# ---------------------------------------------------------------------------
 
 def export_sobin(results_file: Path, output_file: Path):
     """
@@ -277,9 +265,7 @@ def export_sobin(results_file: Path, output_file: Path):
     return len(records)
 
 
-# ---------------------------------------------------------------------------
 # Main pipeline
-# ---------------------------------------------------------------------------
 
 def run_sweep(config_path: str, endpoint: str, resume: bool = False):
     config = load_config(config_path)
@@ -462,9 +448,7 @@ def show_status():
         print(f"\n  Binary: {SOBIN_FILE} ({size_kb:.1f} KB)")
 
 
-# ---------------------------------------------------------------------------
 # CLI
-# ---------------------------------------------------------------------------
 
 def main():
     parser = argparse.ArgumentParser(

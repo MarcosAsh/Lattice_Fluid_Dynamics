@@ -32,9 +32,7 @@ from pathlib import Path
 import numpy as np
 import yaml
 
-# ---------------------------------------------------------------------------
 # Paths
-# ---------------------------------------------------------------------------
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SIM_BINARY = PROJECT_ROOT / "build" / "3d_fluid_simulation_car"
@@ -57,9 +55,7 @@ MODEL_OBJ_PATHS = {
 }
 
 
-# ---------------------------------------------------------------------------
 # Config types
-# ---------------------------------------------------------------------------
 
 @dataclass
 class PairConfig:
@@ -102,9 +98,7 @@ class PatchAccumulator:
         return len(self.coarse_inputs)
 
 
-# ---------------------------------------------------------------------------
 # YAML config loading
-# ---------------------------------------------------------------------------
 
 def load_config(config_path: str) -> dict:
     with open(config_path) as f:
@@ -130,9 +124,7 @@ def generate_pair_configs(config: dict) -> list[PairConfig]:
     return pairs
 
 
-# ---------------------------------------------------------------------------
 # VTI parsing
-# ---------------------------------------------------------------------------
 
 def parse_grid_dims(extent_str: str) -> tuple[int, int, int]:
     """Parse WholeExtent='0 NX 0 NY 0 NZ' into (NX, NY, NZ) cell counts.
@@ -259,9 +251,7 @@ def parse_vti(
     return velocity, rho, solid, (nx, ny, nz)
 
 
-# ---------------------------------------------------------------------------
 # Downsampling and patch extraction
-# ---------------------------------------------------------------------------
 
 def compute_density(
     velocity: np.ndarray, rho: np.ndarray | None = None
@@ -399,9 +389,7 @@ def extract_patches(
     return coarse_patches, fine_patches
 
 
-# ---------------------------------------------------------------------------
 # Simulation runner
-# ---------------------------------------------------------------------------
 
 def run_simulation(
     model: str,
@@ -531,9 +519,7 @@ def run_simulation_modal(
     return True, f"Downloaded {len(fields)} VTK files from Modal"
 
 
-# ---------------------------------------------------------------------------
 # .srbin I/O
-# ---------------------------------------------------------------------------
 
 def write_srbin(
     filepath: Path,
@@ -608,9 +594,7 @@ def read_srbin(filepath: Path) -> tuple[np.ndarray, np.ndarray]:
     )
 
 
-# ---------------------------------------------------------------------------
 # Manifest tracking
-# ---------------------------------------------------------------------------
 
 def load_manifest() -> dict:
     if MANIFEST_FILE.exists():
@@ -629,9 +613,7 @@ def load_completed_ids(manifest: dict) -> set[str]:
     return set(manifest.get("completed", {}).keys())
 
 
-# ---------------------------------------------------------------------------
 # Pipeline: process one pair config
-# ---------------------------------------------------------------------------
 
 def process_pair(
     pc: PairConfig,
@@ -712,9 +694,7 @@ def process_pair(
     )
 
 
-# ---------------------------------------------------------------------------
 # Main pipeline
-# ---------------------------------------------------------------------------
 
 def run_pipeline(config_path: str, resume: bool = False, use_modal: bool = False):
     config = load_config(config_path)
@@ -830,9 +810,7 @@ def save_stats(manifest: dict, accumulator: PatchAccumulator):
         print(f"  {model}: {ms['configs']} configs, {ms['patches']} patches")
 
 
-# ---------------------------------------------------------------------------
 # Status display
-# ---------------------------------------------------------------------------
 
 def show_status():
     """Show current state of data generation."""
@@ -899,9 +877,7 @@ def verify_srbin():
     print(f"  Coarse rho range: [{coarse[..., 3].min():.4f}, {coarse[..., 3].max():.4f}]")
 
 
-# ---------------------------------------------------------------------------
 # CLI
-# ---------------------------------------------------------------------------
 
 def main():
     parser = argparse.ArgumentParser(

@@ -22,9 +22,7 @@ import numpy as np
 from pathlib import Path
 
 
-# ---------------------------------------------------------------------------
 # Bernstein basis
-# ---------------------------------------------------------------------------
 
 def _binomial_coeffs(n):
     """Row n of Pascal's triangle, computed iteratively to avoid scipy."""
@@ -48,9 +46,7 @@ def _bernstein_basis(n, t):
     return basis
 
 
-# ---------------------------------------------------------------------------
 # FFDLattice
-# ---------------------------------------------------------------------------
 
 class FFDLattice:
     """Trivariate Bernstein FFD lattice for deforming 3D meshes."""
@@ -84,9 +80,7 @@ class FFDLattice:
         # Physical positions of undeformed control points
         self.control_points = self.bbox_min + self._param_grid * self.extent
 
-    # ------------------------------------------------------------------
     # Core deformation
-    # ------------------------------------------------------------------
 
     def deform(self, vertices, displacements):
         """
@@ -131,9 +125,7 @@ class FFDLattice:
 
         return deformed
 
-    # ------------------------------------------------------------------
     # Symmetry
-    # ------------------------------------------------------------------
 
     def enforce_symmetry(self, displacements, axis=1):
         """
@@ -191,9 +183,7 @@ class FFDLattice:
 
         return d.ravel()
 
-    # ------------------------------------------------------------------
     # Parameter counts
-    # ------------------------------------------------------------------
 
     def get_num_params(self):
         """Total displacement DOFs: nx * ny * nz * 3."""
@@ -217,9 +207,7 @@ class FFDLattice:
 
         return free
 
-    # ------------------------------------------------------------------
     # Clamping
-    # ------------------------------------------------------------------
 
     def clamp_displacements(self, displacements, max_fraction=0.15):
         """
@@ -241,9 +229,7 @@ class FFDLattice:
             np.clip(d[..., comp], -limits[comp], limits[comp], out=d[..., comp])
         return d.ravel()
 
-    # ------------------------------------------------------------------
     # Random sampling (Latin Hypercube)
-    # ------------------------------------------------------------------
 
     def sample_random(self, n_samples, max_fraction=0.15, symmetric=True):
         """
@@ -338,9 +324,7 @@ class FFDLattice:
         return d.ravel()
 
 
-# ---------------------------------------------------------------------------
 # OBJ I/O
-# ---------------------------------------------------------------------------
 
 def load_obj(path):
     """
@@ -424,9 +408,7 @@ def deform_obj(input_path, output_path, displacements, n_control=(4, 3, 3)):
     save_obj(output_path, deformed, faces)
 
 
-# ---------------------------------------------------------------------------
 # Self-tests
-# ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
     import sys
@@ -444,7 +426,7 @@ if __name__ == "__main__":
             print(f"  FAIL  {name}")
             failed += 1
 
-    # --- Unit cube vertices ---
+    # Unit cube vertices
     cube_verts = np.array([
         [0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0],
         [0, 0, 1], [1, 0, 1], [1, 1, 1], [0, 1, 1],
@@ -458,7 +440,7 @@ if __name__ == "__main__":
         [1, 2, 6], [1, 6, 5],
     ], dtype=np.int64)
 
-    # --- Test 1: Identity deformation ---
+    # Test 1: Identity deformation
     print("Test 1: Zero displacements preserve vertex positions")
     bbox_min, bbox_max = compute_bbox(cube_verts, padding=0.0)
     lattice = FFDLattice(bbox_min, bbox_max, n_control=(4, 3, 3))
@@ -467,7 +449,7 @@ if __name__ == "__main__":
     max_err = np.max(np.abs(deformed - cube_verts))
     check("max error < 1e-12", max_err < 1e-12)
 
-    # --- Test 2: Uniform translation ---
+    # Test 2: Uniform translation
     print("Test 2: Uniform displacement translates all vertices equally")
     lattice2 = FFDLattice(bbox_min, bbox_max, n_control=(2, 2, 2))
     shift = np.zeros((2, 2, 2, 3))
@@ -478,14 +460,14 @@ if __name__ == "__main__":
     max_err2 = np.max(np.abs(deformed2 - expected))
     check("uniform X shift matches", max_err2 < 1e-12)
 
-    # --- Test 3: Parameter counts ---
+    # Test 3: Parameter counts
     print("Test 3: Parameter counts")
     lattice3 = FFDLattice([0, 0, 0], [1, 1, 1], n_control=(4, 3, 3))
     check("total params = 4*3*3*3 = 108", lattice3.get_num_params() == 108)
     # ny=3: half=1 paired, 1 midplane. Free = 4*1*3*3 + 4*1*3*2 = 36 + 24 = 60
     check("free params after Y-symmetry = 60", lattice3.get_num_free_params() == 60)
 
-    # --- Test 4: Symmetry enforcement ---
+    # Test 4: Symmetry enforcement
     print("Test 4: Symmetry enforcement")
     rng = np.random.default_rng(42)
     raw = rng.standard_normal(lattice3.get_num_params()) * 0.01
@@ -504,7 +486,7 @@ if __name__ == "__main__":
     mid_y_zero = np.allclose(sym_4d[:, 1, :, 1], 0.0)
     check("midplane y displacement = 0", mid_y_zero)
 
-    # --- Test 5: Clamping ---
+    # Test 5: Clamping
     print("Test 5: Displacement clamping")
     big_disp = np.ones(lattice3.get_num_params()) * 10.0
     clamped = lattice3.clamp_displacements(big_disp, max_fraction=0.15)
@@ -516,7 +498,7 @@ if __name__ == "__main__":
             within = False
     check("all components within limits", within)
 
-    # --- Test 6: OBJ round-trip ---
+    # Test 6: OBJ round-trip
     print("Test 6: OBJ I/O round-trip")
     with tempfile.NamedTemporaryFile(suffix=".obj", delete=False, mode="w") as tmp:
         tmp_path = tmp.name
@@ -526,7 +508,7 @@ if __name__ == "__main__":
     check("faces survive round-trip", np.array_equal(loaded_f, cube_faces))
     Path(tmp_path).unlink()
 
-    # --- Test 7: deform_obj convenience ---
+    # Test 7: deform_obj convenience
     print("Test 7: deform_obj end-to-end")
     with tempfile.NamedTemporaryFile(suffix=".obj", delete=False, mode="w") as src:
         src_path = src.name
@@ -544,7 +526,7 @@ if __name__ == "__main__":
     Path(src_path).unlink()
     Path(dst_path).unlink()
 
-    # --- Test 8: LHS sampling shape ---
+    # Test 8: LHS sampling shape
     print("Test 8: Latin Hypercube Sampling")
     samples = lattice3.sample_random(10, max_fraction=0.15, symmetric=True)
     check("LHS output shape (10, 108)", samples.shape == (10, 108))
@@ -557,7 +539,7 @@ if __name__ == "__main__":
             break
     check("all LHS samples are symmetric", sym_ok)
 
-    # --- Test 9: Bernstein partition of unity ---
+    # Test 9: Bernstein partition of unity
     print("Test 9: Bernstein basis partition of unity")
     t_vals = np.linspace(0, 1, 50)
     for deg in [2, 3, 5]:
@@ -565,6 +547,6 @@ if __name__ == "__main__":
         sums = basis.sum(axis=1)
         check(f"degree {deg} sums to 1", np.allclose(sums, 1.0, atol=1e-14))
 
-    # --- Summary ---
+    # Summary
     print(f"\n{passed} passed, {failed} failed")
     sys.exit(1 if failed else 0)
