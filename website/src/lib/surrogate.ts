@@ -11,9 +11,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 
-// -----------------------------------------------------------------------
 // Binary format constants (must match ml/framework/src/weights_io.cpp)
-// -----------------------------------------------------------------------
 
 const MAGIC = 0x4c545753;
 const VERSION = 1;
@@ -34,9 +32,7 @@ const MODEL_IDS: Record<string, number> = {
   ahmed35: 2,
 };
 
-// -----------------------------------------------------------------------
 // Math helpers
-// -----------------------------------------------------------------------
 
 function matvec(W: Float32Array, x: Float32Array, rows: number, cols: number): Float32Array {
   const y = new Float32Array(rows);
@@ -78,9 +74,7 @@ function swigluForward(
   return matvec(Wd, gate, embedDim, hiddenDim);
 }
 
-// -----------------------------------------------------------------------
 // Weight loading
-// -----------------------------------------------------------------------
 
 interface Weights {
   fc1W: Float32Array;
@@ -158,9 +152,7 @@ function parseNorm(buf: ArrayBuffer): Normalizer {
   };
 }
 
-// -----------------------------------------------------------------------
 // Forward pass
-// -----------------------------------------------------------------------
 
 export interface Prediction {
   cd: number;
@@ -195,9 +187,7 @@ function forward(w: Weights, norm: Normalizer, windSpeed: number, reynolds: numb
   return { cd: out[0], cl: out[1] };
 }
 
-// -----------------------------------------------------------------------
 // React hook
-// -----------------------------------------------------------------------
 
 export type ModelStatus = 'idle' | 'loading' | 'ready' | 'error';
 

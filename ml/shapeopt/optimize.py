@@ -34,9 +34,7 @@ MODEL_OBJ_PATHS = {
 }
 
 
-# ---------------------------------------------------------------------------
 # Model definition (must match train_shapeopt.py)
-# ---------------------------------------------------------------------------
 
 class SwiGLU(torch.nn.Module):
     def __init__(self, in_dim: int, hidden_dim: int):
@@ -66,9 +64,7 @@ class ShapeOptSurrogate(torch.nn.Module):
         return self.fc3(h)
 
 
-# ---------------------------------------------------------------------------
 # Modal submission helpers (same pattern as gen_shapes.py)
-# ---------------------------------------------------------------------------
 
 def obj_to_base64(vertices: np.ndarray, faces: np.ndarray) -> str:
     buf = io.StringIO()
@@ -115,9 +111,7 @@ def submit_and_poll(endpoint: str, payload: dict,
     return {"status": "error", "error": f"Timed out after {timeout}s"}
 
 
-# ---------------------------------------------------------------------------
 # Optimization
-# ---------------------------------------------------------------------------
 
 def optimize(args):
     # Load base mesh
@@ -292,9 +286,7 @@ def optimize(args):
             print(f"{step:6d}  {cd:10.6f}  {cl:10.6f}  {md:12.6f}")
 
 
-# ---------------------------------------------------------------------------
 # CLI
-# ---------------------------------------------------------------------------
 
 def main():
     parser = argparse.ArgumentParser(

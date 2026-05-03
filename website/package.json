@@ -10,7 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "next": "^16.2.3",
+    "next": "^16.2.2",
     "react": "19.2.0",
     "react-dom": "19.2.0"
   },
@@ -24,9 +24,9 @@
     "@vitejs/plugin-react": "^6.0.1",
     "eslint": "^9",
     "eslint-config-next": "^16.2.2",
-    "jsdom": "^29.1.1",
+    "jsdom": "^29.0.1",
     "tailwindcss": "^4",
     "typescript": "^6",
-    "vitest": "^4.1.4"
+    "vitest": "^4.1.2"
   }
 }

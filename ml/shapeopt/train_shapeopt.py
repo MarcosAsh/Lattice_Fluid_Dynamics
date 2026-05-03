@@ -26,9 +26,7 @@ LTWS_MAGIC = 0x4C545753
 LTWS_VERSION = 1
 
 
-# ---------------------------------------------------------------------------
 # Dataset loading (.sobin)
-# ---------------------------------------------------------------------------
 
 def load_sobin(path: str) -> tuple[np.ndarray, np.ndarray]:
     """
@@ -58,9 +56,7 @@ def load_sobin(path: str) -> tuple[np.ndarray, np.ndarray]:
     return displacements, outputs
 
 
-# ---------------------------------------------------------------------------
 # SwiGLU building block
-# ---------------------------------------------------------------------------
 
 class SwiGLU(nn.Module):
     """
@@ -83,9 +79,7 @@ class SwiGLU(nn.Module):
         return self.w_down(F.silu(self.w_gate(x)) * self.w_up(x))
 
 
-# ---------------------------------------------------------------------------
 # Surrogate model
-# ---------------------------------------------------------------------------
 
 class ShapeOptSurrogate(nn.Module):
     """
@@ -115,9 +109,7 @@ class ShapeOptSurrogate(nn.Module):
         return self.fc3(h)
 
 
-# ---------------------------------------------------------------------------
 # LTWS export (matches ml/superres/export_weights.py)
-# ---------------------------------------------------------------------------
 
 def export_ltws(state_dict: dict, output_path: str):
     """
@@ -162,9 +154,7 @@ def save_normalizer(means: np.ndarray, stds: np.ndarray, output_path: str):
     print(f"Saved normalizer ({len(means)} dims) to {output_path}")
 
 
-# ---------------------------------------------------------------------------
 # Training loop
-# ---------------------------------------------------------------------------
 
 def train(args):
     print(f"Loading dataset: {args.data}")
@@ -337,9 +327,7 @@ def train(args):
     save_normalizer(feat_mean, feat_std, str(norm_path))
 
 
-# ---------------------------------------------------------------------------
 # CLI
-# ---------------------------------------------------------------------------
 
 def main():
     parser = argparse.ArgumentParser(

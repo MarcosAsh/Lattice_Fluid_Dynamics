@@ -59,9 +59,7 @@ struct MLPredictor {
     float fc3_b[OUT_DIM];        // [2 x 1]
 };
 
-// --------------------------------------------------------------------
 // Helpers
-// --------------------------------------------------------------------
 
 // Read one parameter blob from the file and copy into dst.
 // Validates ndim, shape, and total element count.
@@ -142,9 +140,7 @@ static void swiglu_forward(const float *Wg, const float *Wu,
     matvec(Wd, tmp_gate, out, embed_dim, hidden_dim);
 }
 
-// --------------------------------------------------------------------
 // Public API
-// --------------------------------------------------------------------
 
 MLPredictor *ML_Load(const char *weights_path,
                      const char *norm_path) {
@@ -153,7 +149,7 @@ MLPredictor *ML_Load(const char *weights_path,
     if (!m)
         return NULL;
 
-    // -- Load normalizer --
+    // Load normalizer
     FILE *nf = fopen(norm_path, "rb");
     if (!nf) {
         fprintf(stderr, "ml_predict: cannot open %s\n", norm_path);
@@ -169,7 +165,7 @@ MLPredictor *ML_Load(const char *weights_path,
     }
     fclose(nf);
 
-    // -- Load weights --
+    // Load weights
     FILE *wf = fopen(weights_path, "rb");
     if (!wf) {
         fprintf(stderr, "ml_predict: cannot open %s\n",

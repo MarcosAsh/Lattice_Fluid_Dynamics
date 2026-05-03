@@ -731,7 +731,7 @@ void LBM_Step(LBMGrid *grid,
     int dispX = (grid->sizeX + 7) / 8;
     int dispY = (grid->sizeY + 7) / 8;
 
-    // --- Collision: per-slab dispatch ---
+    // Collision: per-slab dispatch
     glUseProgram(grid->collideShader);
     glUniform1f(grid->collide_tauLoc, grid->tau);
     glUniform3f(grid->collide_inletVelLoc, inletVelX, inletVelY, inletVelZ);
@@ -767,7 +767,7 @@ void LBM_Step(LBMGrid *grid,
     }
     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 
-    // --- Streaming: per-slab dispatch with halo ---
+    // Streaming: per-slab dispatch with halo
     glUseProgram(grid->streamShader);
     glUniform3i(
         grid->stream_gridSizeLoc, grid->sizeX, grid->sizeY, grid->sizeZ);

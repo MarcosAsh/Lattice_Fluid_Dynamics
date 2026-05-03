@@ -23,9 +23,7 @@
 #include <string>
 #include <vector>
 
-// ---------------------------------------------------------------------------
 // Dataset loading
-// ---------------------------------------------------------------------------
 
 struct Sample {
     float wind_speed;
@@ -78,9 +76,7 @@ struct Dataset {
     }
 };
 
-// ---------------------------------------------------------------------------
 // Normalization: z-score per feature
-// ---------------------------------------------------------------------------
 
 struct Normalizer {
     float mean[3];
@@ -118,9 +114,7 @@ struct Normalizer {
     }
 };
 
-// ---------------------------------------------------------------------------
 // Pack samples into [features x batch] tensors
-// ---------------------------------------------------------------------------
 
 static std::shared_ptr<ADTensor> pack_inputs(
     const std::vector<Sample>& samples,
@@ -150,12 +144,10 @@ static std::shared_ptr<ADTensor> pack_targets(
     return make_ad(t);
 }
 
-// ---------------------------------------------------------------------------
 // Model: MLP with SwiGLU activations
 //   Linear(3, 256) -> SwiGLU(256, 512)
 //   -> Linear(256, 128) -> SwiGLU(128, 256)
 //   -> Linear(128, 2)
-// ---------------------------------------------------------------------------
 
 struct SurrogateModel {
     ADLinear fc1{3, 256};
@@ -171,9 +163,7 @@ struct SurrogateModel {
     }
 };
 
-// ---------------------------------------------------------------------------
 // Evaluate on a set of indices, return mean L1 error for Cd and Cl
-// ---------------------------------------------------------------------------
 
 static void evaluate(SurrogateModel& model,
                      const std::vector<Sample>& samples,
@@ -194,9 +184,7 @@ static void evaluate(SurrogateModel& model,
     *cl_mae = cl_err / B;
 }
 
-// ---------------------------------------------------------------------------
 // main
-// ---------------------------------------------------------------------------
 
 int main(int argc, char* argv[]) {
     std::string data_path = "dataset/training_data.bin";
