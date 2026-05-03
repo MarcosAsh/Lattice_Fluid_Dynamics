@@ -51,7 +51,7 @@ LBMGrid *LBM_Create(int sizeX, int sizeY, int sizeZ, float viscosity) {
     grid->sizeX = sizeX;
     grid->sizeY = sizeY;
     grid->sizeZ = sizeZ;
-    grid->totalCells = sizeX * sizeY * sizeZ;
+    grid->totalCells = (int)((size_t)sizeX * sizeY * sizeZ);
 
     grid->tau = 0.5f + 3.0f * viscosity;
     if (grid->tau < 0.52f)
@@ -1149,16 +1149,11 @@ void LBM_SetSolidMesh(LBMGrid *grid,
                     for (int t = 0; t < numTriangles; t++) {
                         if (triBounds) {
                             TriBounds tb = triBounds[t];
-                            // Quick reject: skip triangles far from ray
-                            float rxMin = fminf(wx, wx + dx);
-                            float rxMax = fmaxf(wx, wx + dx);
-                            float ryMin = fminf(wy, wy + dy);
-                            float ryMax = fmaxf(wy, wy + dy);
-                            float rzMin = fminf(wz, wz + dz);
-                            float rzMax = fmaxf(wz, wz + dz);
-                            if (rxMax < tb.minY || ryMax < tb.maxY) {
-                            } // wrong fields
-                            // Use simple distance check instead
+                            if (wy < tb.minY || wy > tb.maxY ||
+                                wz < tb.minZ || wz > tb.maxZ ||
+                                wx > tb.maxX) {
+                                continue;
+                            }
                         }
 
                         float *tri = &triangles[t * 12];
