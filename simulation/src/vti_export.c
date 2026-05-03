@@ -81,22 +81,32 @@ void writeVTI(LBMGrid *grid, const char *path, int step) {
 
     // Velocity array (strip w component from vec4)
     uint64_t velDataSize = (uint64_t)total * 3 * sizeof(float);
-    fwrite(&velDataSize, sizeof(uint64_t), 1, f);
-    for (int i = 0; i < total; i++) {
-        fwrite(&vel[i * 4], sizeof(float), 3, f);
+    int writeOk = 1;
+    writeOk = writeOk && fwrite(&velDataSize, sizeof(uint64_t), 1, f) == 1;
+    for (int i = 0; i < total && writeOk; i++) {
+        writeOk = fwrite(&vel[i * 4], sizeof(float), 3, f) == 3;
     }
 
     // Density (rho) array -- 4th component of the velocity vec4
     uint64_t rhoDataSize = (uint64_t)total * sizeof(float);
-    fwrite(&rhoDataSize, sizeof(uint64_t), 1, f);
-    for (int i = 0; i < total; i++) {
-        fwrite(&vel[i * 4 + 3], sizeof(float), 1, f);
+    writeOk = writeOk && fwrite(&rhoDataSize, sizeof(uint64_t), 1, f) == 1;
+    for (int i = 0; i < total && writeOk; i++) {
+        writeOk = fwrite(&vel[i * 4 + 3], sizeof(float), 1, f) == 1;
     }
 
     // Solid array
     uint64_t solidDataSize = (uint64_t)total * sizeof(int);
-    fwrite(&solidDataSize, sizeof(uint64_t), 1, f);
-    fwrite(solid, sizeof(int), total, f);
+    writeOk = writeOk && fwrite(&solidDataSize, sizeof(uint64_t), 1, f) == 1;
+    writeOk = writeOk &&
+              fwrite(solid, sizeof(int), total, f) == (size_t)total;
+
+    if (!writeOk) {
+        fprintf(stderr, "VTK: write error for %s\n", filename);
+        fclose(f);
+        free(vel);
+        free(solid);
+        return;
+    }
 
     fprintf(f, "\n  </AppendedData>\n</VTKFile>\n");
     fclose(f);

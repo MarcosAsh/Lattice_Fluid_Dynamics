@@ -667,21 +667,22 @@ float LBM_ComputeProjectedArea(LBMGrid *grid, int axis) {
     return (float)count;
 }
 
-void LBM_InitializeFlow(LBMGrid *grid, float ux, float uy, float uz) {
+int LBM_InitializeFlow(LBMGrid *grid, float ux, float uy, float uz) {
     float rho = 1.0f;
 
     float *fData = (float *)malloc(19 * grid->totalCells * sizeof(float));
     float *velData = (float *)malloc(4 * grid->totalCells * sizeof(float));
 
     if (!fData || !velData) {
-        printf("ERROR: Failed to allocate CPU buffers for LBM init "
-               "(need %.1f MB)\n",
-               (19 * grid->totalCells * sizeof(float) +
-                4 * grid->totalCells * sizeof(float)) /
-                   (1024.0 * 1024.0));
+        fprintf(stderr,
+                "ERROR: Failed to allocate CPU buffers for LBM init "
+                "(need %.1f MB)\n",
+                (19 * grid->totalCells * sizeof(float) +
+                 4 * grid->totalCells * sizeof(float)) /
+                    (1024.0 * 1024.0));
         free(fData);
         free(velData);
-        return;
+        return 0;
     }
 
     for (int idx = 0; idx < grid->totalCells; idx++) {
@@ -716,6 +717,7 @@ void LBM_InitializeFlow(LBMGrid *grid, float ux, float uy, float uz) {
     free(velData);
 
     printf("LBM flow initialized: u=(%.3f, %.3f, %.3f)\n", ux, uy, uz);
+    return 1;
 }
 
 void LBM_Step(LBMGrid *grid,

@@ -69,7 +69,8 @@ fi
 # Test 5: --superres graceful fallback without weights
 echo "test: --superres graceful fallback without weights"
 SR_OUTPUT=$($BINARY --wind=1.0 --duration=2 --grid=32x16x16 \
-    --model=$MODEL --output=$OUTDIR --superres 2>&1)
+    --model=$MODEL --output=$OUTDIR --superres \
+    --sr-weights=/nonexistent/weights.bin 2>&1)
 if echo "$SR_OUTPUT" | grep -q "falling back to native resolution"; then
     pass "superres fallback works"
 else
