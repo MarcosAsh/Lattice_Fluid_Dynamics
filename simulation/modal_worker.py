@@ -190,8 +190,21 @@ def build_simulation() -> str:
             f"No executable. Got: {[f.name for f in files]}"
         )
 
+    # Stamp the commit this binary was built from so render_simulation can
+    # spot a stale cache without parsing the binary or its --help output.
+    built_sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repo_dir,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    (build_dir / "version.txt").write_text(built_sha)
+
     build_cache.commit()
-    log.info("build complete", extra={"path": str(executable)})
+    log.info(
+        "build complete",
+        extra={"path": str(executable), "sha": built_sha[:7]},
+    )
     return str(executable)
 
 
@@ -207,6 +220,31 @@ def _get_code_version() -> str:
         return result.stdout.strip() or "unknown"
     except Exception:
         return "unknown"
+
+
+def _cached_binary_sha() -> str | None:
+    """Commit the cached binary was built from, or None if unknown."""
+    version_file = Path("/cache/build/version.txt")
+    if version_file.exists():
+        return version_file.read_text().strip() or None
+    return None
+
+
+def _remote_head_sha() -> str | None:
+    """Latest master commit on the remote, queried without fetching the
+    tree. Returns None if the remote can't be reached."""
+    try:
+        result = subprocess.run(
+            ["git", "ls-remote", "origin", "refs/heads/master"],
+            cwd="/cache/source",
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        line = result.stdout.strip()
+        return line.split()[0] if line else None
+    except Exception:
+        return None
 
 
 def _cache_key(
@@ -314,23 +352,34 @@ def render_simulation(
         )
         source_dir = Path("/cache/source/simulation")
 
-        # Build check
+        # Build check: rebuild when the binary is missing, has no recorded
+        # version, or was built from an older commit than master. If the
+        # remote is unreachable, keep using the cached binary rather than
+        # failing the render.
         t_build = time.monotonic()
         if not executable.exists():
             log.info("binary missing, building", extra=ctx)
             build_simulation.local()
         else:
-            help_out = subprocess.run(
-                [str(executable), "--help"],
-                capture_output=True,
-                text=True,
-            )
-            help_text = (help_out.stdout or "") + (
-                help_out.stderr or ""
-            )
-            if "--model" not in help_text:
-                log.info("binary outdated, rebuilding", extra=ctx)
+            built = _cached_binary_sha()
+            remote = _remote_head_sha()
+            if built is None:
+                log.info("binary version unknown, rebuilding", extra=ctx)
                 build_simulation.local()
+            elif remote and remote != built:
+                log.info(
+                    "binary stale, rebuilding",
+                    extra={
+                        **ctx,
+                        "built": built[:7],
+                        "remote": remote[:7],
+                    },
+                )
+                build_simulation.local()
+            elif remote is None:
+                log.warning(
+                    "remote unreachable, using cached binary", extra=ctx
+                )
         timings["build_check"] = time.monotonic() - t_build
 
         if not executable.exists():
