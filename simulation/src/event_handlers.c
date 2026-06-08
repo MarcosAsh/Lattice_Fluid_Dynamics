@@ -101,49 +101,40 @@ void handle_sdl_event(const SDL_Event *event,
             break;
         case SDLK_2:
             *collisionMode = 2;
-            printf(
-                "Collision: Per-Triangle (accurate) - %d triangles\n",
-                numTriangles);
+            printf("Collision: Per-Triangle (accurate) - %d triangles\n",
+                   numTriangles);
             break;
         case SDLK_3:
             *visualizationMode = 0;
-            printf("Visualization: %s\n",
-                   vizModeNames[*visualizationMode]);
+            printf("Visualization: %s\n", vizModeNames[*visualizationMode]);
             break;
         case SDLK_4:
             *visualizationMode = 1;
-            printf("Visualization: %s\n",
-                   vizModeNames[*visualizationMode]);
+            printf("Visualization: %s\n", vizModeNames[*visualizationMode]);
             break;
         case SDLK_5:
             *visualizationMode = 2;
-            printf("Visualization: %s\n",
-                   vizModeNames[*visualizationMode]);
+            printf("Visualization: %s\n", vizModeNames[*visualizationMode]);
             break;
         case SDLK_6:
             *visualizationMode = 3;
-            printf("Visualization: %s\n",
-                   vizModeNames[*visualizationMode]);
+            printf("Visualization: %s\n", vizModeNames[*visualizationMode]);
             break;
         case SDLK_7:
             *visualizationMode = 4;
-            printf("Visualization: %s\n",
-                   vizModeNames[*visualizationMode]);
+            printf("Visualization: %s\n", vizModeNames[*visualizationMode]);
             break;
         case SDLK_8:
             *visualizationMode = 5;
-            printf("Visualization: %s\n",
-                   vizModeNames[*visualizationMode]);
+            printf("Visualization: %s\n", vizModeNames[*visualizationMode]);
             break;
         case SDLK_9:
             *visualizationMode = 6;
-            printf("Visualization: %s\n",
-                   vizModeNames[*visualizationMode]);
+            printf("Visualization: %s\n", vizModeNames[*visualizationMode]);
             break;
         case SDLK_v:
             *visualizationMode = (*visualizationMode + 1) % numVizModes;
-            printf("Visualization: %s\n",
-                   vizModeNames[*visualizationMode]);
+            printf("Visualization: %s\n", vizModeNames[*visualizationMode]);
             break;
         case SDLK_UP:
             *windSpeed += 0.5f;
