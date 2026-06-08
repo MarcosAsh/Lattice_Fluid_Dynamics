@@ -29,6 +29,7 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
     opts->useMRT = 0;
     opts->vtkOutputPath[0] = '\0';
     opts->vtkInterval = 100;
+    opts->vtkStats = 0;
     opts->useSuperRes = 0;
     strncpy(opts->srWeightsPath,
             "assets/sr_model.bin",
@@ -54,6 +55,7 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
         {"mrt", no_argument, 0, 'M'},
         {"vtk-output", required_argument, 0, 'V'},
         {"vtk-interval", required_argument, 0, 'I'},
+        {"vtk-stats", no_argument, 0, 'T'},
         {"superres", no_argument, 0, 'R'},
         {"sr-weights", required_argument, 0, 'W'},
         {"help", no_argument, 0, 'h'},
@@ -151,6 +153,9 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
             if (opts->vtkInterval < 1)
                 opts->vtkInterval = 1;
             break;
+        case 'T':
+            opts->vtkStats = 1;
+            break;
         case 'R':
             opts->useSuperRes = 1;
             break;
@@ -185,6 +190,8 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
             printf("  --vtk-output=PATH     Directory for VTK field dumps\n");
             printf("  --vtk-interval=N      Frames between VTK dumps "
                    "(default: 100)\n");
+            printf("  --vtk-stats           Add time-averaged velocity, "
+                   "RMS and TKE to VTK output\n");
             printf("  --superres            Enable 2x super-resolution "
                    "upscaling\n");
             printf("  --sr-weights=PATH     Super-resolution weights "

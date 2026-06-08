@@ -16,6 +16,7 @@ typedef struct {
     int useMRT;
     char vtkOutputPath[256];
     int vtkInterval;
+    int vtkStats;
     int useSuperRes;
     char srWeightsPath[256];
     char srNormPath[256];

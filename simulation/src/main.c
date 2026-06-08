@@ -102,6 +102,7 @@ int main(int argc, char *argv[]) {
     strncpy(vtkOutputPath, opts.vtkOutputPath, sizeof(vtkOutputPath));
     vtkOutputPath[sizeof(vtkOutputPath) - 1] = '\0';
     int vtkInterval = opts.vtkInterval;
+    int vtkStats = opts.vtkStats;
     int useSuperRes = opts.useSuperRes;
     char srWeightsPath[256];
     strncpy(srWeightsPath, opts.srWeightsPath, sizeof(srWeightsPath));
@@ -902,6 +903,15 @@ int main(int argc, char *argv[]) {
     int clCount = 0;
     float *clSeries = (float *)malloc(clCapacity * sizeof(float));
 
+    // Time-averaged turbulence statistics for VTK export (--vtk-stats).
+    VTKStats *vtkStatsAcc = NULL;
+    if (vtkStats && strlen(vtkOutputPath) > 0 && lbmGrid) {
+        vtkStatsAcc = VTKStats_Create(lbmSizeX * lbmSizeY * lbmSizeZ);
+        if (vtkStatsAcc)
+            printf("VTK stats: time-averaging velocity for "
+                   "mean/RMS/TKE export\n");
+    }
+
     while (running) {
         if (!paused || stepOnce)
             frameCount++;
@@ -956,9 +966,15 @@ int main(int argc, char *argv[]) {
                 SR_Upscale(srUpscaler, LBM_GetVelocityBuffer(lbmGrid));
             }
 
+            // Accumulate turbulence statistics once the startup ramp is
+            // over, so the time-averaged fields exclude the transient.
+            if (vtkStatsAcc && frameCount >= rampFrames) {
+                VTKStats_Accumulate(vtkStatsAcc, lbmGrid);
+            }
+
             // VTK field dump at specified interval
             if (strlen(vtkOutputPath) > 0 && frameCount % vtkInterval == 0) {
-                writeVTI(lbmGrid, vtkOutputPath, frameCount);
+                writeVTI(lbmGrid, vtkStatsAcc, vtkOutputPath, frameCount);
             }
         }
 
@@ -1429,6 +1445,8 @@ int main(int argc, char *argv[]) {
     free(collGrid.cellCount);
     free(collGrid.triIndices);
     freeModel(&carModel);
+    if (vtkStatsAcc)
+        VTKStats_Free(vtkStatsAcc);
     if (lbmGrid)
         LBM_Free(lbmGrid);
     if (mlModel)
