@@ -398,9 +398,19 @@ void main() {
 
         float randY = fract(sin(seed1 * 43758.5453)) - 0.5;
         float randZ = fract(sin(seed2 * 12345.6789)) - 0.5;
+        float randX = fract(sin(seed1 * 7331.137)); // 0..1
 
-        p.position = vec3(-4.0, randY * 2.0 * tunnelY, randZ * 2.0 * tunnelZ);
-        p.velocity = vec3(0.2 + fract(sin(seed1 * 9876.54321)) * 0.15, 0.0, 0.0);
+        // Spread re-entry across an upstream band instead of a single
+        // plane at x=-4, so recycled particles form a continuous stream
+        // rather than pulsing sheets when a batch exits together.
+        p.position = vec3(-4.0 - randX * 1.0,
+                          randY * 2.0 * tunnelY,
+                          randZ * 2.0 * tunnelZ);
+        // Start near the freestream speed so particles don't bunch up at
+        // the inlet and then accelerate (which reads as density waves).
+        p.velocity = vec3(max(wind.x, 0.2) *
+                          (0.9 + fract(sin(seed1 * 9876.54321)) * 0.2),
+                          0.0, 0.0);
         p.life = 1.0;
     }
 
