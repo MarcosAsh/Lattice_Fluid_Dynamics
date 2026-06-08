@@ -72,7 +72,7 @@ image = (
     .pip_install("requests", "fastapi[standard]", "boto3")
     # The base image ships only Mesa's EGL vendor json (50_mesa.json), so
     # GLVND can't find the NVIDIA driver and EGL falls back to swrast (CPU)
-    # even on a GPU container. Write the NVIDIA ICD so the A10G is usable.
+    # even on a GPU container. Write the NVIDIA ICD so the GPU is usable.
     .run_commands(
         "mkdir -p /usr/share/glvnd/egl_vendor.d",
         "printf '%s' "
@@ -261,7 +261,7 @@ def _save_cache(cache_id: str, result: dict):
 
 @app.function(
     image=image,
-    gpu="A10G",
+    gpu="A100",
     volumes={"/cache": build_cache},
     secrets=[modal.Secret.from_name("aws-secret")],
     timeout=5400,
@@ -796,13 +796,13 @@ def health() -> dict:
     return {
         "status": "ok",
         "grid": GRID,
-        "gpu": "A10G",
+        "gpu": "A100",
     }
 
 
 @app.function(
     image=image,
-    gpu="A10G",
+    gpu="A100",
     volumes={"/cache": build_cache},
     secrets=[modal.Secret.from_name("aws-secret")],
     timeout=1800,
@@ -885,7 +885,7 @@ def force_rebuild() -> str:
 
 @app.function(
     image=image.pip_install("numpy"),
-    gpu="A10G",
+    gpu="A100",
     volumes={"/cache": build_cache},
     timeout=1800,
 )
@@ -1199,7 +1199,7 @@ def run_tests(grid: str = "256x128x128", duration: int = 120):
 
 @app.function(
     image=image,
-    gpu="A10G",
+    gpu="A100",
     volumes={"/cache": build_cache},
     timeout=14400,
 )
