@@ -4,6 +4,21 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* Warn loudly if we ended up on a software rasterizer -- this is
+ * the usual reason a "GPU" render is actually running on the CPU. */
+static void warn_if_software_renderer(void) {
+    const char *renderer = (const char *)glGetString(GL_RENDERER);
+    if (!renderer)
+        return;
+    if (strstr(renderer, "llvmpipe") || strstr(renderer, "softpipe") ||
+        strstr(renderer, "swrast") || strstr(renderer, "SWR") ||
+        strstr(renderer, "Software")) {
+        printf("\n*** WARNING: software rendering (%s). "
+               "The GPU is NOT being used. ***\n\n",
+               renderer);
+    }
+}
+
 /* ---- SDL path (interactive) ---- */
 
 #include <SDL2/SDL.h>
@@ -143,6 +158,7 @@ static GLContext *headless_sdl_fallback(int w, int h) {
     printf("  OpenGL: %s\n", glGetString(GL_VERSION));
     printf("  Renderer: %s\n",
            glGetString(GL_RENDERER));
+    warn_if_software_renderer();
     return ctx;
 }
 
@@ -164,17 +180,49 @@ static EGLDisplay get_egl_device_display(void) {
     PFNEGLGETPLATFORMDISPLAYEXTPROC getPlatformDisplay =
         (PFNEGLGETPLATFORMDISPLAYEXTPROC)
             eglGetProcAddress("eglGetPlatformDisplayEXT");
+    PFNEGLQUERYDEVICESTRINGEXTPROC queryDeviceString =
+        (PFNEGLQUERYDEVICESTRINGEXTPROC)
+            eglGetProcAddress("eglQueryDeviceStringEXT");
 
     if (queryDevices && getPlatformDisplay) {
-        EGLDeviceEXT devices[8];
+        EGLDeviceEXT devices[16];
         EGLint numDevices = 0;
-        if (queryDevices(8, devices, &numDevices) &&
+        if (queryDevices(16, devices, &numDevices) &&
             numDevices > 0) {
             printf("EGL: found %d device(s)\n",
                    numDevices);
+
+            /* Pick a real GPU, not Mesa's software device.
+             * Hardware devices advertise a DRM render node
+             * (EGL_EXT_device_drm); llvmpipe/swrast do not.
+             * Picking devices[0] blindly can land on the CPU
+             * rasterizer when both are enumerated. */
+            int chosen = -1;
+            for (EGLint i = 0; i < numDevices; i++) {
+                const char *exts =
+                    queryDeviceString
+                        ? queryDeviceString(devices[i],
+                                            EGL_EXTENSIONS)
+                        : NULL;
+                printf("  device %d: %s\n", i,
+                       exts ? exts : "(no extension string)");
+                if (chosen < 0 && exts &&
+                    strstr(exts, "EGL_EXT_device_drm")) {
+                    chosen = i;
+                }
+            }
+            if (chosen < 0) {
+                printf("EGL: no DRM/hardware device found, "
+                       "using device 0 (may be software)\n");
+                chosen = 0;
+            } else {
+                printf("EGL: selected hardware device %d\n",
+                       chosen);
+            }
+
             EGLDisplay d = getPlatformDisplay(
                 EGL_PLATFORM_DEVICE_EXT,
-                devices[0], NULL);
+                devices[chosen], NULL);
             if (d != EGL_NO_DISPLAY)
                 return d;
             printf("EGL: platform display failed\n");
@@ -299,6 +347,7 @@ GLContext *GLContext_CreateHeadless(int w, int h) {
     printf("  OpenGL: %s\n", glGetString(GL_VERSION));
     printf("  Renderer: %s\n",
            glGetString(GL_RENDERER));
+    warn_if_software_renderer();
     return ctx;
 }
 

@@ -70,10 +70,25 @@ image = (
         "ffmpeg",
     )
     .pip_install("requests", "fastapi[standard]", "boto3")
+    # The base image ships only Mesa's EGL vendor json (50_mesa.json), so
+    # GLVND can't find the NVIDIA driver and EGL falls back to swrast (CPU)
+    # even on a GPU container. Write the NVIDIA ICD so the A10G is usable.
+    .run_commands(
+        "mkdir -p /usr/share/glvnd/egl_vendor.d",
+        "printf '%s' "
+        "'{\"file_format_version\":\"1.0.0\","
+        "\"ICD\":{\"library_path\":\"libEGL_nvidia.so.0\"}}' "
+        "> /usr/share/glvnd/egl_vendor.d/10_nvidia.json",
+    )
     .env(
         {
             "NVIDIA_DRIVER_CAPABILITIES": "all",
             "DISPLAY": ":99",
+            # Force GLVND to load NVIDIA's EGL vendor driver instead of
+            # Mesa's software one, so headless rendering uses the GPU.
+            "__EGL_VENDOR_LIBRARY_FILENAMES": (
+                "/usr/share/glvnd/egl_vendor.d/10_nvidia.json"
+            ),
         }
     )
 )
