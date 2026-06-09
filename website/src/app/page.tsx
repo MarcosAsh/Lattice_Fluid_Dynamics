@@ -437,7 +437,7 @@ export default function Home() {
                 <h2 className="text-xs font-semibold text-ctp-overlay1 uppercase tracking-wider mb-2">
                   Examples
                 </h2>
-                <div className="grid grid-cols-3 gap-2 mb-4">
+                <div className="grid grid-cols-3 gap-2 mb-4" data-testid="demo-gallery">
                   {DEMOS.map((demo) => (
                     <button
                       key={demo.params.model}
