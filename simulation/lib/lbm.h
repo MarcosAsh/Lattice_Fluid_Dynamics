@@ -44,6 +44,15 @@ typedef struct {
     float turbulenceIntensity; // inlet TI fraction (0 = uniform inlet)
     int stepCount;             // total LBM steps taken (drives inlet noise)
 
+    // Time-averaged force accumulation: when enabled, LBM_Step
+    // dispatches the force shader every step into the (uncleared)
+    // force buffer, and LBM_ComputeDragForce* returns the mean over
+    // all steps since the last readback instead of an instantaneous
+    // snapshot. Kills the sample-to-sample momentum-exchange noise
+    // that dominates Cd on coarse grids.
+    int forceAveraging;  // 0 = instantaneous (default), 1 = accumulate
+    int forceAccumCount; // steps accumulated since last readback
+
     GLint collide_useMRTLoc;
     GLint collide_useEntropicLoc;
     GLint collide_turbIntensityLoc;
@@ -86,6 +95,9 @@ void LBM_Step(LBMGrid *grid, float inletVelX, float inletVelY, float inletVelZ);
 
 // Get velocity buffer for particle shader to sample
 GLuint LBM_GetVelocityBuffer(LBMGrid *grid);
+
+// Enable/disable per-step force accumulation (time-averaged drag).
+void LBM_SetForceAveraging(LBMGrid *grid, int enable);
 
 // Compute drag force on solid (momentum exchange)
 void LBM_ComputeDragForce(LBMGrid *grid,

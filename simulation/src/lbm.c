@@ -5,6 +5,8 @@
 #include <string.h>
 #include <math.h>
 
+static void dispatchForceShader(LBMGrid *grid);
+
 // D3Q19 weights for initialization
 static const float w[19] = {1.0f / 3.0f,
                             1.0f / 18.0f,
@@ -277,6 +279,8 @@ LBMGrid *LBM_Create(int sizeX, int sizeY, int sizeZ, float viscosity) {
     grid->periodicYZ = 0;
     grid->turbulenceIntensity = 0.0f;
     grid->stepCount = 0;
+    grid->forceAveraging = 0;
+    grid->forceAccumCount = 0;
 
     // Get uniform locations
     glUseProgram(grid->collideShader);
@@ -834,6 +838,17 @@ void LBM_Step(LBMGrid *grid,
         glDispatchCompute(dispX, dispY, (slabCells + 7) / 8);
     }
     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+
+    // Accumulate the instantaneous boundary force into the force
+    // buffer every step so Cd readbacks average over the whole
+    // sampling window instead of one noisy snapshot.
+    if (grid->forceAveraging && grid->forceShader) {
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 6, grid->forceBuffer);
+        glUseProgram(grid->forceShader);
+        dispatchForceShader(grid);
+        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+        grid->forceAccumCount++;
+    }
 }
 
 GLuint LBM_GetVelocityBuffer(LBMGrid *grid) {
@@ -848,38 +863,14 @@ void LBM_ComputeDragForce(LBMGrid *grid,
         grid, forceX, forceY, forceZ, NULL, NULL, NULL);
 }
 
-void LBM_ComputeDragForceDecomposed(LBMGrid *grid,
-                                    float *forceX,
-                                    float *forceY,
-                                    float *forceZ,
-                                    float *pressureX,
-                                    float *pressureY,
-                                    float *pressureZ) {
-    *forceX = 0.0f;
-    *forceY = 0.0f;
-    *forceZ = 0.0f;
-    if (pressureX)
-        *pressureX = 0.0f;
-    if (pressureY)
-        *pressureY = 0.0f;
-    if (pressureZ)
-        *pressureZ = 0.0f;
+void LBM_SetForceAveraging(LBMGrid *grid, int enable) {
+    grid->forceAveraging = enable ? 1 : 0;
+}
 
-    if (!grid->forceShader)
-        return;
-
-    // Clear force buffer (7 ints: total xyz, count, pressure xyz)
-    int zeros[7] = {0, 0, 0, 0, 0, 0, 0};
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->forceBuffer);
-    glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(zeros), zeros);
-
-    // Bind unsplit buffers
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, grid->velocityBuffer);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, grid->solidBuffer);
-    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 6, grid->forceBuffer);
-
-    glUseProgram(grid->forceShader);
-
+// Dispatch the force shader over all slabs. Caller must have the
+// program active, gridSize/zOffset uniforms available, and buffers
+// 4 (velocity), 5 (solid), 6 (force) bound.
+static void dispatchForceShader(LBMGrid *grid) {
     size_t fSliceBytes =
         (size_t)19 * grid->sizeX * grid->sizeY * sizeof(float);
     int dispX = (grid->sizeX + 7) / 8;
@@ -913,6 +904,47 @@ void LBM_ComputeDragForceDecomposed(LBMGrid *grid,
 
         glDispatchCompute(dispX, dispY, (slabCells + 7) / 8);
     }
+}
+
+void LBM_ComputeDragForceDecomposed(LBMGrid *grid,
+                                    float *forceX,
+                                    float *forceY,
+                                    float *forceZ,
+                                    float *pressureX,
+                                    float *pressureY,
+                                    float *pressureZ) {
+    *forceX = 0.0f;
+    *forceY = 0.0f;
+    *forceZ = 0.0f;
+    if (pressureX)
+        *pressureX = 0.0f;
+    if (pressureY)
+        *pressureY = 0.0f;
+    if (pressureZ)
+        *pressureZ = 0.0f;
+
+    if (!grid->forceShader)
+        return;
+
+    // Number of force-shader dispatches the readback will average
+    // over. With accumulation active the buffer already holds the
+    // running sum from LBM_Step; otherwise take one snapshot now.
+    int samples = grid->forceAccumCount;
+    if (samples == 0) {
+        // Clear force buffer (7 ints: total xyz, count, pressure xyz)
+        int zeros[7] = {0, 0, 0, 0, 0, 0, 0};
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->forceBuffer);
+        glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(zeros), zeros);
+
+        // Bind unsplit buffers
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, grid->velocityBuffer);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, grid->solidBuffer);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 6, grid->forceBuffer);
+
+        glUseProgram(grid->forceShader);
+        dispatchForceShader(grid);
+        samples = 1;
+    }
     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT |
                     GL_BUFFER_UPDATE_BARRIER_BIT);
 
@@ -921,16 +953,24 @@ void LBM_ComputeDragForceDecomposed(LBMGrid *grid,
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->forceBuffer);
     glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(results), results);
 
-    // Convert back from int (scaled by 10000)
-    *forceX = results[0] / 10000.0f;
-    *forceY = results[1] / 10000.0f;
-    *forceZ = results[2] / 10000.0f;
+    // Restart the accumulation window
+    if (grid->forceAccumCount > 0) {
+        int zeros[7] = {0, 0, 0, 0, 0, 0, 0};
+        glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(zeros), zeros);
+        grid->forceAccumCount = 0;
+    }
+
+    // Convert back from int (scaled by 10000), averaged over the window
+    float inv = 1.0f / (10000.0f * (float)samples);
+    *forceX = results[0] * inv;
+    *forceY = results[1] * inv;
+    *forceZ = results[2] * inv;
     if (pressureX)
-        *pressureX = results[4] / 10000.0f;
+        *pressureX = results[4] * inv;
     if (pressureY)
-        *pressureY = results[5] / 10000.0f;
+        *pressureY = results[5] * inv;
     if (pressureZ)
-        *pressureZ = results[6] / 10000.0f;
+        *pressureZ = results[6] * inv;
 }
 
 float LBM_ComputeDragCoefficient(LBMGrid *grid,
