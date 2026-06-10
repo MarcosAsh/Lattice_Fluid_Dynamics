@@ -1,0 +1,2 @@
+grid,cells,nx,cd_mean,cd_std,cd_relstd,cd_final,cl_final,re_eff,sim_seconds,video_url
+128x64x64,524288,128,3.808540740740741,1.8513261743668368,0.4860985612055613,3.846,0.0,144.0,200.49,https://fluid-sim-renders.s3.eu-west-2.amazonaws.com/renders/gridconv-ahmed25_re144entropic-128x64x64.mp4

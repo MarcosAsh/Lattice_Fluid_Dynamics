@@ -61,6 +61,7 @@ def sweep(
     grids: str = DEFAULT_GRIDS,
     collision: int = 2,
     reynolds: float = 0,
+    entropic: bool = False,
     tag: str = "",
 ):
     OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -87,6 +88,7 @@ def sweep(
             model=model,
             reynolds=reynolds,
             grid=grid,
+            entropic=entropic,
         )
         print(f"  spawned {grid} ({duration}s)")
 

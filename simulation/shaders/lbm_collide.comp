@@ -123,12 +123,16 @@ const ivec2 turbWave[8] = ivec2[8](ivec2(1, 0), ivec2(0, 1), ivec2(1, 1),
 const float turbFreq[8] = float[8](0.0131, 0.0257, 0.0389, 0.0521,
                                    0.0673, 0.0827, 0.0971, 0.1123);
 
-// Fixed random phases, one set per velocity component (x: +0, y: +2.1,
-// z: +4.2 offsets decorrelate the components).
+// Fixed random base phases. Each velocity component c adds a
+// per-mode increment of c * (pi/4) * n: the pairwise correlation
+// between components is then sum_n cos(delta * n) / N over a full
+// period of the increment, which is exactly zero for 8 modes. (A
+// constant per-component offset does NOT decorrelate -- it gives
+// correlation cos(offset) ~ -0.5.)
 const float turbPhase[8] = float[8](0.937, 2.481, 4.106, 5.733,
                                     1.252, 3.871, 0.414, 5.092);
 
-float turbNoise(float y, float z, float phaseShift) {
+float turbNoise(float y, float z, int component) {
     float ky = 2.0 * 3.14159265 / float(gridSize.y);
     float kz = 2.0 * 3.14159265 / float(fullGridZ);
     float t = float(timestep);
@@ -137,7 +141,8 @@ float turbNoise(float y, float z, float phaseShift) {
     for (int n = 0; n < NUM_TURB_MODES; n++) {
         float arg = float(turbWave[n].x) * ky * y +
                     float(turbWave[n].y) * kz * z +
-                    turbFreq[n] * t + turbPhase[n] + phaseShift;
+                    turbFreq[n] * t + turbPhase[n] +
+                    float(component) * 0.78539816 * float(n);
         s += sin(arg);
     }
     // RMS of N unit sinusoids with random phases = sqrt(N/2)
@@ -406,14 +411,16 @@ void main() {
 
         // Inlet turbulence injection: superpose synthetic fluctuations so
         // the inlet matches a wind tunnel's residual turbulence instead of
-        // a perfectly uniform stream. Phase offsets decorrelate components.
+        // a perfectly uniform stream. Note the Zou-He reconstruction below
+        // omits the transverse momentum correction terms, so the achieved
+        // uy/uz are approximate; the streamwise component is exact.
         if (turbulenceIntensity > 0.0) {
             float U = length(inletVelocity);
             float gy = float(pos.y);
             float gz = float(pos.z + zOffset);
-            ux += turbulenceIntensity * U * turbNoise(gy, gz, 0.0);
-            uy += turbulenceIntensity * U * turbNoise(gy, gz, 2.1);
-            uz += turbulenceIntensity * U * turbNoise(gy, gz, 4.2);
+            ux += turbulenceIntensity * U * turbNoise(gy, gz, 0);
+            uy += turbulenceIntensity * U * turbNoise(gy, gz, 1);
+            uz += turbulenceIntensity * U * turbNoise(gy, gz, 2);
         }
 
         // Compute density from Zou-He constraint

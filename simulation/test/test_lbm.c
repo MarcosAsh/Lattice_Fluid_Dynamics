@@ -580,9 +580,12 @@ static void test_force_averaging(void) {
     LBM_SetSolidAABB(grid, -0.3f, -0.15f, -0.15f, 0.3f, 0.15f, 0.15f);
     LBM_InitializeFlow(grid, U, 0.0f, 0.0f);
 
-    /* Develop the flow, then take an instantaneous snapshot */
+    /* Develop the flow, then take an instantaneous snapshot. The
+     * glFinish drains the 2000 queued dispatches first -- without it
+     * the snapshot read has (rarely) returned zero on Mesa iris. */
     for (int i = 0; i < 2000; i++)
         LBM_Step(grid, U, 0.0f, 0.0f);
+    glFinish();
 
     float ix, iy, iz;
     LBM_ComputeDragForce(grid, &ix, &iy, &iz);

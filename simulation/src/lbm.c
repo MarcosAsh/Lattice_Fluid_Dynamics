@@ -943,6 +943,11 @@ void LBM_ComputeDragForceDecomposed(LBMGrid *grid,
         int zeros[7] = {0, 0, 0, 0, 0, 0, 0};
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->forceBuffer);
         glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(zeros), zeros);
+        // Make the clear visible to the dispatch below. Spec-wise this
+        // is implicit, but a zero force readback has been observed
+        // (rarely) on Mesa iris without it when many compute dispatches
+        // are still in flight.
+        glMemoryBarrier(GL_BUFFER_UPDATE_BARRIER_BIT);
 
         // Bind unsplit buffers
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, grid->velocityBuffer);
