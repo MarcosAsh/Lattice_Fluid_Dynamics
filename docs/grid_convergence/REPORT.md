@@ -103,9 +103,26 @@ density (pass 5, `re144sponge2`, commit 132031b) absorbed it:
 | 256  | 3.33 (4.2%)    | not yet run        |             |
 
 The 128-grid anomaly disappears entirely once the resonance is
-absorbed: 3.54 / 3.58 / 3.33 is a plausible monotone-ish convergence
-sequence for the first time. Remaining to-dos: a 256 run with the
-equilibrium sponge for a consistent triplet, then Richardson.
+absorbed. The full sponge-on triplet (last-quarter means +/-
+standard error of the mean):
+
+| Grid        | Cd               | relStd |
+|-------------|------------------|--------|
+| 64x32x32    | 3.508 +/- 0.016  | 16%    |
+| 128x64x64   | 3.527 +/- 0.081  | 17%    |
+| 256x128x128 | 3.334 +/- 0.009  | 0.92%  |
+
+The 256 result meets the relStd < 1% target, and its mean matches
+all five independent 256 runs this study produced (3.333 across two
+binaries and three solver configurations) -- the sponge absorbs the
+resonance without shifting the physics.
+
+Richardson extrapolation remains formally invalid: 64 and 128 agree
+within error rather than converging monotonically, i.e. those grids
+are not yet in the asymptotic range (the body's boundary layer is
+equally unresolved at both). A valid extrapolation needs a
+128/256/512 triplet; 512x256x256 (33.5M cells) fits through the
+existing Z-slab chunking and is the natural follow-up.
 
 ## Findings
 
