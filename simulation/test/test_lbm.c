@@ -404,8 +404,14 @@ static void test_sphere_cd_re100(void) {
     printf("test: sphere Cd at Re=100 matches Clift et al. reference\n");
 
     /* 128x64x64, sphere D=1.0 world -> 16 lattice cells.
-     * Re=100, tau=0.524. Cd reference: 1.09 (Clift et al. 1978). */
-    float U = 0.05f;
+     * Re=100, tau=0.548. Cd reference: 1.09 (Clift et al. 1978).
+     * U=0.1 keeps tau well off the 0.5 stability floor: at tau=0.524
+     * the flow state is chaotic in the last digits, so different GL
+     * shader compilers (llvmpipe vs hardware) settle on wildly
+     * different Cd (observed 2.1-5.5 for identical source). At
+     * tau=0.548 the box test reproduces within ~1% across
+     * platforms. */
+    float U = 0.1f;
     float diameter = 1.0f;
 
     float scaleX = 128.0f / 8.0f;
@@ -433,7 +439,7 @@ static void test_sphere_cd_re100(void) {
 
     LBM_InitializeFlow(grid, U, 0.0f, 0.0f);
 
-    /* Run 4000 steps: ~2.5 flow-throughs at U=0.05 on 128-cell domain.
+    /* Run 4000 steps: ~3 flow-throughs at U=0.1 on 128-cell domain.
      * Cd should be converged by then at Re=100. */
     int nSteps = 4000;
     for (int i = 0; i < nSteps; i++)
@@ -441,16 +447,15 @@ static void test_sphere_cd_re100(void) {
 
     float Cd = LBM_ComputeDragCoefficient(grid, U, projArea);
 
-    /* Reference: Cd=1.09 at Re=100 (Clift, Grace & Weber). On a
-     * 16-cell-diameter staircase sphere at tau=0.524 (near the
-     * stability floor) the solver runs hot in the viscous regime --
-     * observed Cd ~2.1 across builds -- so the upper bound is
-     * loose. This test catches gross regressions (Cd blowing up to
-     * 5+ or collapsing to 0), not quantitative accuracy. See #152
-     * for the grid-ceiling analysis. */
-    printf("  Cd = %.3f  (reference: 1.09, tol loose)\n", Cd);
-    ASSERT(Cd > 0.5f, "sphere Cd > 0.5 (lower bound)");
-    ASSERT(Cd < 3.5f, "sphere Cd < 3.5 (upper bound)");
+    /* Reference: Cd=1.09 at Re=100 (Clift, Grace & Weber). A
+     * 16-cell-diameter staircase sphere at tau=0.548 gives Cd ~1.37
+     * reproducibly (the discretization runs slightly hot in the
+     * viscous regime). Bounds allow for compiler-level float
+     * variation across GL implementations while still catching
+     * real force-computation regressions. */
+    printf("  Cd = %.3f  (reference: 1.09)\n", Cd);
+    ASSERT(Cd > 0.8f, "sphere Cd > 0.8 (lower bound)");
+    ASSERT(Cd < 2.0f, "sphere Cd < 2.0 (upper bound)");
 
     LBM_Free(grid);
 }
