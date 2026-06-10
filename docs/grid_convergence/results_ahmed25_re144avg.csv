@@ -1,0 +1,4 @@
+grid,cells,nx,cd_mean,cd_std,cd_relstd,cd_final,cl_final,re_eff,sim_seconds,video_url
+64x32x32,65536,64,3.6349,1.9653079094352846,0.5406772977070303,3.4562,-0.0006000000000000001,144.0,81.75,https://fluid-sim-renders.s3.eu-west-2.amazonaws.com/renders/gridconv-ahmed25_re144avg-64x32x32.mp4
+128x64x64,524288,128,5.145370370370371,3.5193554454920686,0.6839848625393978,5.611999999999999,-0.0004,144.0,207.27,https://fluid-sim-renders.s3.eu-west-2.amazonaws.com/renders/gridconv-ahmed25_re144avg-128x64x64.mp4
+256x128x128,4194304,256,3.333283333333333,0.14163259492237104,0.04249041583294881,3.3741999999999996,0.0126,144.0,1128.83,https://fluid-sim-renders.s3.eu-west-2.amazonaws.com/renders/gridconv-ahmed25_re144avg-256x128x128.mp4
