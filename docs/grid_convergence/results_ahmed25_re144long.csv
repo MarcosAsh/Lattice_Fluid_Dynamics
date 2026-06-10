@@ -1,0 +1,2 @@
+grid,cells,nx,cd_mean,cd_std,cd_relstd,cd_final,cl_final,re_eff,sim_seconds,video_url
+192x64x64,786432,192,5.036666666666667,0.1126612753476676,0.022368221445599124,5.055400000000001,0.0002,144.0,242.43,https://fluid-sim-renders.s3.eu-west-2.amazonaws.com/renders/gridconv-ahmed25_re144long-192x64x64.mp4

@@ -64,6 +64,49 @@ What the averaging revealed:
   unsteadiness and would need longer time-averaging windows (longer
   runs), not denser sampling.
 
+## Diagnosis: streamwise acoustic resonance
+
+DFT of the pass-2 Cd series shows the dominant oscillation on every
+grid sits exactly at the domain's acoustic standing-wave frequency
+cs/2Lx (Zou-He velocity inlet and fixed-density outlet are both
+reflective, so the domain is a resonator):
+
+| Grid | Dominant Cd peak / acoustic f1 | Resonance power |
+|------|--------------------------------|-----------------|
+| 64   | 1.00-1.02x                     | 128             |
+| 128  | 1.00x (+ 2x harmonic)          | 237             |
+| 256  | ~3x (weak)                     | 17              |
+
+Because Cd is computed from |fx|, an oscillation larger than the mean
+force gets rectified and inflates the apparent Cd -- this is why the
+128 grid read ~5.0-5.9 in every pass while its neighbours agreed on
+~3.3-3.8.
+
+Supporting evidence: an entropic-collision run at 128 (extra
+dissipation in under-resolved regions) pulled the mean to 3.81 and
+halved the scatter. A 192x64x64 "stretched domain" run is NOT usable
+as evidence: model scale is tied to grid dimensions (scaleX =
+sizeX/8), so that run simulated a 1.5x-elongated body. Treat
+`results_ahmed25_re144long.csv` as geometry-confounded.
+
+## Pass 4-5: sponge layer
+
+A viscosity-ramp sponge (pass 4, `re144sponge`) changed nothing --
+viscous damping scales with k^2 and the fundamental mode has
+wavelength 2Lx. Adding equilibrium relaxation toward the reference
+density (pass 5, `re144sponge2`, commit 132031b) absorbed it:
+
+| Grid | no sponge      | equilibrium sponge | mean shift  |
+|------|----------------|--------------------|-------------|
+| 64   | 3.76 (71%)     | 3.54 (22%)         | -0.2        |
+| 128  | 5.49 (67%)     | 3.58 (24%)         | -1.9 (!)    |
+| 256  | 3.33 (4.2%)    | not yet run        |             |
+
+The 128-grid anomaly disappears entirely once the resonance is
+absorbed: 3.54 / 3.58 / 3.33 is a plausible monotone-ish convergence
+sequence for the first time. Remaining to-dos: a 256 run with the
+equilibrium sponge for a consistent triplet, then Richardson.
+
 ## Findings
 
 - **256x128x128 is the first resolution that produces a converged,

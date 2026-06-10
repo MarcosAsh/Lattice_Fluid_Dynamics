@@ -1298,6 +1298,16 @@ int main(int argc, char *argv[]) {
             }
         } // end skipRendering
 
+        // The force accumulator has been integrating since step 0, so
+        // flush it one sampling interval before Cd sampling begins.
+        // Otherwise the first sample is a mean over the whole startup
+        // transient instead of its own window.
+        if (frameCount == cdStartFrame - CD_SAMPLE_INTERVAL &&
+            frameCount >= 0 && lbmGrid && useLBM) {
+            float dx, dy, dz;
+            LBM_ComputeDragForce(lbmGrid, &dx, &dy, &dz);
+        }
+
         // Compute and display drag coefficient every 20 frames
         // once the flow has developed (cdStartFrame computed above).
         if (frameCount >= cdStartFrame &&
