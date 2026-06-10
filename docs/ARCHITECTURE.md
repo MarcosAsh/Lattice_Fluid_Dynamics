@@ -28,9 +28,10 @@ lbm.c / lbm.h  LBM grid creation, solid voxelization, Cd/Cl computation
 for each substep (5x per frame):
     lbm_collide.comp   f -> f_new   (boundary conditions + collision)
     lbm_stream.comp    f_new -> f   (propagate distributions)
+    lbm_force.comp     accumulate boundary force (when averaging is on)
 
 particle_lbm.comp      sample velocity field, move particles
-lbm_force.comp         compute drag/lift (every 60 frames)
+force readback         window-averaged drag/lift every 20 frames
 render particles       draw as GL_POINTS with color modes
 ```
 
