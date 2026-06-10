@@ -100,6 +100,7 @@ int main(int argc, char *argv[]) {
     int useMRT = opts.useMRT;
     int useEntropic = opts.useEntropic;
     float turbulenceIntensity = opts.turbulenceIntensity;
+    int spongeCells = opts.spongeCells;
     char vtkOutputPath[256];
     strncpy(vtkOutputPath, opts.vtkOutputPath, sizeof(vtkOutputPath));
     vtkOutputPath[sizeof(vtkOutputPath) - 1] = '\0';
@@ -541,6 +542,16 @@ int main(int argc, char *argv[]) {
         // convergence study).
         LBM_SetForceAveraging(lbmGrid, 1);
         printf("Force averaging enabled (Cd sampled as window mean)\n");
+
+        // Outlet sponge: without it the Zou-He inlet and the
+        // fixed-density outlet form a streamwise acoustic resonator
+        // whose standing wave dominates Cd on coarse grids (#155
+        // spectral analysis: Cd oscillates at exactly cs/2Lx).
+        lbmGrid->spongeCells =
+            (spongeCells < 0) ? gridX / 8 : spongeCells;
+        if (lbmGrid->spongeCells > 0)
+            printf("Outlet sponge enabled: %d cells (tau ramps to %.1f)\n",
+                   lbmGrid->spongeCells, lbmGrid->spongeTauMax);
 
         if (!LBM_InitializeFlow(lbmGrid, latticeVelocity, 0.0f, 0.0f)) {
             fprintf(stderr, "FATAL: LBM flow initialization failed\n");

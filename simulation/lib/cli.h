@@ -16,6 +16,7 @@ typedef struct {
     int useMRT;
     int useEntropic;
     float turbulenceIntensity;
+    int spongeCells; // -1 = auto (sizeX/8), 0 = off
     char vtkOutputPath[256];
     int vtkInterval;
     int vtkStats;

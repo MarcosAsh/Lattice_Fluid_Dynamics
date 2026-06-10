@@ -281,6 +281,8 @@ LBMGrid *LBM_Create(int sizeX, int sizeY, int sizeZ, float viscosity) {
     grid->stepCount = 0;
     grid->forceAveraging = 0;
     grid->forceAccumCount = 0;
+    grid->spongeCells = 0;
+    grid->spongeTauMax = 1.8f;
 
     // Get uniform locations
     glUseProgram(grid->collideShader);
@@ -305,6 +307,10 @@ LBMGrid *LBM_Create(int sizeX, int sizeY, int sizeZ, float viscosity) {
         glGetUniformLocation(grid->collideShader, "timestep");
     grid->collide_fullGridZLoc =
         glGetUniformLocation(grid->collideShader, "fullGridZ");
+    grid->collide_spongeCellsLoc =
+        glGetUniformLocation(grid->collideShader, "spongeCells");
+    grid->collide_spongeTauMaxLoc =
+        glGetUniformLocation(grid->collideShader, "spongeTauMax");
     grid->collide_zOffsetLoc =
         glGetUniformLocation(grid->collideShader, "zOffset");
 
@@ -760,6 +766,8 @@ void LBM_Step(LBMGrid *grid,
     glUniform1f(grid->collide_turbIntensityLoc, grid->turbulenceIntensity);
     glUniform1i(grid->collide_timestepLoc, grid->stepCount);
     glUniform1i(grid->collide_fullGridZLoc, grid->sizeZ);
+    glUniform1i(grid->collide_spongeCellsLoc, grid->spongeCells);
+    glUniform1f(grid->collide_spongeTauMaxLoc, grid->spongeTauMax);
     grid->stepCount++;
 
     for (int c = 0; c < grid->numChunks; c++) {

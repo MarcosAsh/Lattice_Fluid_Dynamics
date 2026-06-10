@@ -32,6 +32,8 @@ uniform float smagorinskyCs; // Smagorinsky constant (typically 0.1)
 uniform float turbulenceIntensity; // inlet TI fraction (0 = uniform inlet)
 uniform int timestep; // global LBM step counter (for inlet perturbation)
 uniform int fullGridZ; // full domain Z extent (gridSize.z is only the slab)
+uniform int spongeCells;     // outlet sponge width in cells (0 = off)
+uniform float spongeTauMax;  // relaxation time at the outlet end of sponge
 
 // D3Q19 lattice velocities
 const ivec3 e[19] = ivec3[19](ivec3(0, 0, 0),   // 0: rest
@@ -535,6 +537,21 @@ void main() {
         tau_eff = 0.5 * (
             tau + sqrt(tau * tau + 18.0 * Cs2 * Pi_norm / (rho + 1e-10))
         );
+    }
+
+    // Outlet sponge layer: ramp viscosity up over the last spongeCells
+    // so outgoing pressure waves are absorbed instead of reflecting
+    // off the fixed-density outlet. Without it the domain acts as a
+    // streamwise acoustic resonator (standing wave at cs/2Lx) that
+    // dominates the drag signal on coarse grids. Quadratic ramp keeps
+    // the impedance change gradual to avoid reflections off the
+    // sponge itself.
+    if (spongeCells > 0) {
+        int xStart = gridSize.x - spongeCells;
+        if (pos.x >= xStart) {
+            float s = float(pos.x - xStart + 1) / float(spongeCells);
+            tau_eff = mix(tau_eff, spongeTauMax, s * s);
+        }
     }
 
     float omega = 1.0 / tau_eff;

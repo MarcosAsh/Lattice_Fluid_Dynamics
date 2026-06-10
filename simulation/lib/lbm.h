@@ -53,11 +53,17 @@ typedef struct {
     int forceAveraging;  // 0 = instantaneous (default), 1 = accumulate
     int forceAccumCount; // steps accumulated since last readback
 
+    // Outlet sponge layer (acoustic damping zone)
+    int spongeCells;     // width in cells before the outlet (0 = off)
+    float spongeTauMax;  // relaxation time at the outlet end
+
     GLint collide_useMRTLoc;
     GLint collide_useEntropicLoc;
     GLint collide_turbIntensityLoc;
     GLint collide_timestepLoc;
     GLint collide_fullGridZLoc;
+    GLint collide_spongeCellsLoc;
+    GLint collide_spongeTauMaxLoc;
 
     // Z-slab chunking for large grids (SSBO > 128 MB)
     int numChunks;       // number of Z-slabs (1 = no splitting)

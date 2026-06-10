@@ -29,6 +29,7 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
     opts->useMRT = 0;
     opts->useEntropic = 0;
     opts->turbulenceIntensity = 0.0f;
+    opts->spongeCells = -1;
     opts->vtkOutputPath[0] = '\0';
     opts->vtkInterval = 100;
     opts->vtkStats = 0;
@@ -57,6 +58,7 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
         {"mrt", no_argument, 0, 'M'},
         {"entropic", no_argument, 0, 'E'},
         {"turbulence", required_argument, 0, 't'},
+        {"sponge", required_argument, 0, 'P'},
         {"vtk-output", required_argument, 0, 'V'},
         {"vtk-interval", required_argument, 0, 'I'},
         {"vtk-stats", no_argument, 0, 'T'},
@@ -158,6 +160,11 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
             if (opts->turbulenceIntensity > 0.3f)
                 opts->turbulenceIntensity = 0.3f;
             break;
+        case 'P':
+            opts->spongeCells = atoi(optarg);
+            if (opts->spongeCells < 0)
+                opts->spongeCells = -1;
+            break;
         case 'V':
             strncpy(opts->vtkOutputPath, optarg, sizeof(opts->vtkOutputPath) - 1);
             opts->vtkOutputPath[sizeof(opts->vtkOutputPath) - 1] = '\0';
@@ -207,6 +214,9 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
             printf("  -t, --turbulence=TI   Inlet turbulence intensity "
                    "0-0.3 (default: 0,\n"
                    "                        wind tunnels are ~0.01-0.02)\n");
+            printf("  --sponge=CELLS        Outlet acoustic sponge width "
+                   "(default: auto =\n"
+                   "                        gridX/8, 0 disables)\n");
             printf("  --vtk-output=PATH     Directory for VTK field dumps\n");
             printf("  --vtk-interval=N      Frames between VTK dumps "
                    "(default: 100)\n");
