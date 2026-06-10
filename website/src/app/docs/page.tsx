@@ -133,8 +133,9 @@ npm ci && npm run dev
           <ol className="list-decimal list-inside text-sm text-ctp-subtext1 space-y-2 mb-4 ml-2">
             <li>
               <strong className="text-ctp-text">Collision</strong> -- relax
-              distribution functions toward equilibrium (BGK or regularized
-              operator, with optional Smagorinsky SGS turbulence model)
+              distribution functions toward equilibrium (MRT by default;
+              BGK, regularized, and entropic operators available, with
+              optional Smagorinsky SGS turbulence model)
             </li>
             <li>
               <strong className="text-ctp-text">Streaming</strong> -- propagate
@@ -162,6 +163,17 @@ npm ci && npm run dev
             surface along every lattice link, then applies quadratic or linear
             interpolation during streaming. This gives second-order wall accuracy
             without refining the grid.
+          </P>
+          <P>
+            Two refinements keep the inflow and outflow physical. The inlet can
+            inject synthetic turbulence (random Fourier modes at a configurable
+            intensity) to mimic the 1-2% residual turbulence of a real wind
+            tunnel. Before the outlet, a sponge layer over the last eighth of
+            the domain ramps viscosity up and relaxes densities toward the
+            reference state, so outgoing pressure waves are absorbed instead
+            of reflecting -- without it, the inlet and outlet form a
+            streamwise acoustic resonator whose standing wave contaminates
+            the drag signal on coarse grids.
           </P>
         </Section>
 
@@ -208,6 +220,9 @@ npm ci && npm run dev
               ['-r, --reynolds=RE', '0', 'Target Reynolds number (0 = derive from wind)'],
               ['-s, --scale=S', '0.05', 'Model scale factor'],
               ['-S, --smagorinsky=CS', '0.1', 'Smagorinsky constant (0-0.5)'],
+              ['-E, --entropic', 'off', 'Entropic collision (replaces MRT + Smagorinsky)'],
+              ['-t, --turbulence=TI', '0', 'Inlet turbulence intensity (0-0.3)'],
+              ['--sponge=CELLS', 'gridX/8', 'Outlet acoustic sponge width (0 disables)'],
               ['-v, --viz=MODE', '1', 'Visualization mode (0-7)'],
               ['-c, --collision=MODE', '2', 'Collision: 0=off, 1=AABB, 2=mesh, 3=voxel'],
             ]}
@@ -398,6 +413,21 @@ void main() {
           </P>
 
           <h3 className="text-base font-semibold mb-3 mt-8">
+            Entropic Collision
+          </h3>
+          <P>
+            As an alternative to MRT, the entropic LBM
+            (<InlineCode>--entropic</InlineCode>) enforces the discrete
+            H-theorem each step: the relaxation is written as
+            f&apos; = f + &#x3b1;&#x3b2;(f<sup>eq</sup> &#x2212; f) and &#x3b1; is
+            solved per cell (Newton-Raphson, 2-3 iterations) so that the
+            entropy H = &#x2211; f<sub>i</sub> ln(f<sub>i</sub>/w<sub>i</sub>)
+            never decreases. In under-resolved regions &#x3b1; drops below the
+            BGK value of 2, adding exactly enough local dissipation to keep the
+            scheme stable -- no eddy-viscosity constant to tune.
+          </P>
+
+          <h3 className="text-base font-semibold mb-3 mt-8">
             Drag Computation
           </h3>
           <P>
@@ -413,7 +443,11 @@ void main() {
           <P>
             where f<sub>i</sub>* is the post-collision distribution heading
             toward the wall and f<sub>i&#x0304;</sub> is the Bouzidi-reflected
-            distribution coming back. The drag and lift coefficients are then:
+            distribution coming back. The force is accumulated on the GPU every
+            LBM step and each reported sample is the mean over its full
+            sampling window, which suppresses the discretization noise that
+            dominates instantaneous momentum-exchange snapshots on coarse
+            grids. The drag and lift coefficients are then:
           </P>
           <MathBlock>
             C<sub>d</sub> = F<sub>x</sub> / (&#xbd;&#x3c1;U&#xb2;A)

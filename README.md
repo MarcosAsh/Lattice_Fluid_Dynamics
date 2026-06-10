@@ -30,6 +30,8 @@ Key solver features:
 - D3Q19 lattice with BGK, regularized, MRT, and entropic collision operators
 - Smagorinsky subgrid-scale turbulence model
 - Synthetic inlet turbulence injection (random Fourier modes, configurable intensity)
+- Outlet sponge layer that absorbs acoustic reflections off the pressure outlet
+- GPU-accumulated, window-averaged drag forces (low-noise Cd on coarse grids)
 - Bouzidi interpolated bounce-back for second-order wall accuracy
 - Pressure/friction drag decomposition via equilibrium splitting
 - Dimensionless time (t*, flow-throughs, CFL) reporting
