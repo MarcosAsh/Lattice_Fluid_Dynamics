@@ -404,13 +404,17 @@ static void test_sphere_cd_re100(void) {
     printf("test: sphere Cd at Re=100 matches Clift et al. reference\n");
 
     /* 128x64x64, sphere D=1.0 world -> 16 lattice cells.
-     * Re=100, tau=0.548. Cd reference: 1.09 (Clift et al. 1978).
-     * U=0.1 keeps tau well off the 0.5 stability floor: at tau=0.524
-     * the flow state is chaotic in the last digits, so different GL
+     * Re=100, tau=0.548, MRT collision. Cd reference: 1.09
+     * (Clift et al. 1978).
+     * Both choices are needed for cross-platform reproducibility:
+     * U=0.1 keeps tau off the 0.5 stability floor, and MRT damps
+     * the ghost modes that BGK leaves free-running. Under BGK the
+     * flow state is chaotic in the last digits, so different GL
      * shader compilers (llvmpipe vs hardware) settle on wildly
-     * different Cd (observed 2.1-5.5 for identical source). At
-     * tau=0.548 the box test reproduces within ~1% across
-     * platforms. */
+     * different Cd (observed 1.4-6.5 for identical source), while
+     * the MRT box test reproduces to 4 decimals across platforms.
+     * MRT is also what production runs (main.c enables it by
+     * default). */
     float U = 0.1f;
     float diameter = 1.0f;
 
@@ -429,6 +433,8 @@ static void test_sphere_cd_re100(void) {
         printf("  SKIP: could not create 128x64x64 grid\n");
         return;
     }
+
+    grid->useMRT = 1;
 
     LBM_SetSolidSphere(grid, 0.0f, 0.0f, 0.0f, diameter / 2.0f);
 
@@ -551,6 +557,62 @@ static void test_box_cd_convergence(void) {
     LBM_Free(grid);
 }
 
+static void test_force_averaging(void) {
+    printf("test: averaged force matches instantaneous at steady state\n");
+
+    /* Same box config as the convergence test: Re=50, tau=0.548,
+     * MRT + Smagorinsky. At steady state the window-averaged force
+     * must agree with an instantaneous snapshot; if the averaging
+     * path mis-counts dispatches or fails to reset the accumulator,
+     * the two diverge by the window length (~100x). */
+    float U = 0.05f;
+    float viscosity = (U * 16.0f) / 50.0f;
+
+    LBMGrid *grid = LBM_Create(128, 64, 64, viscosity);
+    if (!grid) {
+        printf("  SKIP: could not create grid\n");
+        return;
+    }
+
+    grid->useMRT = 1;
+    grid->useSmagorinsky = 1;
+    grid->smagorinskyCs = 0.1f;
+    LBM_SetSolidAABB(grid, -0.3f, -0.15f, -0.15f, 0.3f, 0.15f, 0.15f);
+    LBM_InitializeFlow(grid, U, 0.0f, 0.0f);
+
+    /* Develop the flow, then take an instantaneous snapshot */
+    for (int i = 0; i < 2000; i++)
+        LBM_Step(grid, U, 0.0f, 0.0f);
+
+    float ix, iy, iz;
+    LBM_ComputeDragForce(grid, &ix, &iy, &iz);
+    printf("  instantaneous: fx=%.6f\n", ix);
+
+    /* Accumulate over a 200-step window and read the mean */
+    LBM_SetForceAveraging(grid, 1);
+    for (int i = 0; i < 200; i++)
+        LBM_Step(grid, U, 0.0f, 0.0f);
+
+    float ax, ay, az;
+    LBM_ComputeDragForce(grid, &ax, &ay, &az);
+    printf("  averaged (200 steps): fx=%.6f\n", ax);
+
+    ASSERT(ax > 0.0f, "averaged force positive");
+    ASSERT(fabsf(ax - ix) / fabsf(ix) < 0.10f,
+           "averaged force within 10%% of instantaneous at steady state");
+
+    /* Readback must reset the window: a second read with no new
+     * steps accumulated falls back to a fresh snapshot, not stale
+     * or double-counted sums. */
+    float rx, ry, rz;
+    LBM_ComputeDragForce(grid, &rx, &ry, &rz);
+    printf("  post-reset snapshot: fx=%.6f\n", rx);
+    ASSERT(fabsf(rx - ix) / fabsf(ix) < 0.10f,
+           "post-reset snapshot consistent");
+
+    LBM_Free(grid);
+}
+
 static void test_ground_plane(void) {
     printf("test: ground plane marks cells and doesn't crash\n");
     LBMGrid *grid = LBM_Create(32, 16, 16, 0.1f);
@@ -647,6 +709,7 @@ int main(void) {
         test_mrt_flow_step();
         test_mrt_smagorinsky_step();
         test_box_cd_convergence();
+        test_force_averaging();
         test_ground_plane();
         test_sphere_cd_re100();
     } else {
