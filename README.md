@@ -27,8 +27,9 @@ The core fluid solver. Particles are advected through a 3D velocity field comput
 - `obj-file-loader/` -- lightweight Wavefront OBJ parser
 
 Key solver features:
-- D3Q19 lattice with BGK, regularized, and MRT collision operators
+- D3Q19 lattice with BGK, regularized, MRT, and entropic collision operators
 - Smagorinsky subgrid-scale turbulence model
+- Synthetic inlet turbulence injection (random Fourier modes, configurable intensity)
 - Bouzidi interpolated bounce-back for second-order wall accuracy
 - Pressure/friction drag decomposition via equilibrium splitting
 - Dimensionless time (t*, flow-throughs, CFL) reporting

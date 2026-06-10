@@ -14,6 +14,8 @@ typedef struct {
     int gridX, gridY, gridZ;
     float smagorinskyCs;
     int useMRT;
+    int useEntropic;
+    float turbulenceIntensity;
     char vtkOutputPath[256];
     int vtkInterval;
     int vtkStats;

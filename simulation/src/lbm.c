@@ -271,9 +271,12 @@ LBMGrid *LBM_Create(int sizeX, int sizeY, int sizeZ, float viscosity) {
 
     grid->useRegularized = 0;
     grid->useMRT = 0;
+    grid->useEntropic = 0;
     grid->useSmagorinsky = 0;
     grid->smagorinskyCs = 0.1f;
     grid->periodicYZ = 0;
+    grid->turbulenceIntensity = 0.0f;
+    grid->stepCount = 0;
 
     // Get uniform locations
     glUseProgram(grid->collideShader);
@@ -290,6 +293,14 @@ LBMGrid *LBM_Create(int sizeX, int sizeY, int sizeZ, float viscosity) {
         glGetUniformLocation(grid->collideShader, "smagorinskyCs");
     grid->collide_useMRTLoc =
         glGetUniformLocation(grid->collideShader, "useMRT");
+    grid->collide_useEntropicLoc =
+        glGetUniformLocation(grid->collideShader, "useEntropic");
+    grid->collide_turbIntensityLoc =
+        glGetUniformLocation(grid->collideShader, "turbulenceIntensity");
+    grid->collide_timestepLoc =
+        glGetUniformLocation(grid->collideShader, "timestep");
+    grid->collide_fullGridZLoc =
+        glGetUniformLocation(grid->collideShader, "fullGridZ");
     grid->collide_zOffsetLoc =
         glGetUniformLocation(grid->collideShader, "zOffset");
 
@@ -741,6 +752,11 @@ void LBM_Step(LBMGrid *grid,
     glUniform1i(grid->collide_useSmagorinskyLoc, grid->useSmagorinsky);
     glUniform1f(grid->collide_smaCsLoc, grid->smagorinskyCs);
     glUniform1i(grid->collide_useMRTLoc, grid->useMRT);
+    glUniform1i(grid->collide_useEntropicLoc, grid->useEntropic);
+    glUniform1f(grid->collide_turbIntensityLoc, grid->turbulenceIntensity);
+    glUniform1i(grid->collide_timestepLoc, grid->stepCount);
+    glUniform1i(grid->collide_fullGridZLoc, grid->sizeZ);
+    grid->stepCount++;
 
     for (int c = 0; c < grid->numChunks; c++) {
         int zStart = c * grid->slabZ;

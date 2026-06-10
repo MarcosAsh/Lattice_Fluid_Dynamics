@@ -26,8 +26,12 @@ uniform float tau; // Relaxation time (viscosity related)
 uniform vec3 inletVelocity;
 uniform int useRegularized; // 0 = BGK, 1 = regularized
 uniform int useMRT; // 0 = off, 1 = MRT collision
+uniform int useEntropic; // 0 = off, 1 = entropic (ELBM) collision
 uniform int useSmagorinsky; // 0 = off, 1 = Smagorinsky SGS
 uniform float smagorinskyCs; // Smagorinsky constant (typically 0.1)
+uniform float turbulenceIntensity; // inlet TI fraction (0 = uniform inlet)
+uniform int timestep; // global LBM step counter (for inlet perturbation)
+uniform int fullGridZ; // full domain Z extent (gridSize.z is only the slab)
 
 // D3Q19 lattice velocities
 const ivec3 e[19] = ivec3[19](ivec3(0, 0, 0),   // 0: rest
@@ -98,6 +102,44 @@ float feq(int i, float rho, vec3 u) {
 
     return w[i] * rho *
            (1.0 + eu / cs2 + (eu * eu) / (2.0 * cs2 * cs2) - u2 / (2.0 * cs2));
+}
+
+// Inlet turbulence: random Fourier modes (Kraichnan-style synthetic
+// turbulence). Superposes NUM_TURB_MODES sinusoids with fixed pseudo-random
+// wavenumbers, frequencies and phases over the inlet plane (y, z, t).
+// Wavenumbers are integer multiples of 2*pi/L so the perturbation is
+// periodic across the inlet, consistent with the periodic y/z boundaries.
+// Amplitude sqrt(2/N) per mode gives unit RMS for the sum, so the result
+// scales directly by TI * U_inf.
+const int NUM_TURB_MODES = 8;
+
+// Per-mode (my, mz) integer wavenumbers and angular frequency (rad/step).
+// Frequencies are incommensurate so the signal never exactly repeats.
+const ivec2 turbWave[8] = ivec2[8](ivec2(1, 0), ivec2(0, 1), ivec2(1, 1),
+                                   ivec2(2, 1), ivec2(1, 2), ivec2(2, 3),
+                                   ivec2(3, 2), ivec2(3, 3));
+const float turbFreq[8] = float[8](0.0131, 0.0257, 0.0389, 0.0521,
+                                   0.0673, 0.0827, 0.0971, 0.1123);
+
+// Fixed random phases, one set per velocity component (x: +0, y: +2.1,
+// z: +4.2 offsets decorrelate the components).
+const float turbPhase[8] = float[8](0.937, 2.481, 4.106, 5.733,
+                                    1.252, 3.871, 0.414, 5.092);
+
+float turbNoise(float y, float z, float phaseShift) {
+    float ky = 2.0 * 3.14159265 / float(gridSize.y);
+    float kz = 2.0 * 3.14159265 / float(fullGridZ);
+    float t = float(timestep);
+
+    float s = 0.0;
+    for (int n = 0; n < NUM_TURB_MODES; n++) {
+        float arg = float(turbWave[n].x) * ky * y +
+                    float(turbWave[n].y) * kz * z +
+                    turbFreq[n] * t + turbPhase[n] + phaseShift;
+        s += sin(arg);
+    }
+    // RMS of N unit sinusoids with random phases = sqrt(N/2)
+    return s * sqrt(2.0 / float(NUM_TURB_MODES));
 }
 
 // MRT (Multiple Relaxation Time)
@@ -360,6 +402,18 @@ void main() {
         float uy = inletVelocity.y;
         float uz = inletVelocity.z;
 
+        // Inlet turbulence injection: superpose synthetic fluctuations so
+        // the inlet matches a wind tunnel's residual turbulence instead of
+        // a perfectly uniform stream. Phase offsets decorrelate components.
+        if (turbulenceIntensity > 0.0) {
+            float U = length(inletVelocity);
+            float gy = float(pos.y);
+            float gz = float(pos.z + zOffset);
+            ux += turbulenceIntensity * U * turbNoise(gy, gz, 0.0);
+            uy += turbulenceIntensity * U * turbNoise(gy, gz, 2.1);
+            uz += turbulenceIntensity * U * turbNoise(gy, gz, 4.2);
+        }
+
         // Compute density from Zou-He constraint
         float rho_in = (knowns_0 + 2.0 * knowns_neg) / (1.0 - ux);
 
@@ -615,6 +669,70 @@ void main() {
         for (int i = 0; i < 19; i++)
             f_new[idxF(pos.x, pos.y, pos.z, i)] = fi_out[i];
 
+    } else if (useEntropic == 1) {
+        // Entropic LBM (Karlin et al. 1999, Ansumali & Karlin 2002).
+        // BGK over-relaxation rewritten as f' = f + alpha*beta*(feq - f)
+        // with beta = 1/(2*tau). Plain BGK is alpha = 2 (the "mirror
+        // state"). ELBM instead picks alpha as the non-trivial root of
+        //     H(f + alpha*(feq - f)) = H(f)
+        // where H = sum_i f_i * ln(f_i / w_i) is the discrete entropy.
+        // This enforces the H-theorem every step: in under-resolved
+        // regions alpha drops below 2, adding exactly enough local
+        // dissipation to keep entropy from decreasing, so the scheme
+        // stays stable without Smagorinsky or per-cell resets.
+
+        float fi[19];
+        float dlt[19];
+        float H0 = 0.0;
+        for (int i = 0; i < 19; i++) {
+            fi[i] = max(f[idxF(pos.x, pos.y, pos.z, i)], 1e-10);
+            dlt[i] = feq(i, rho, u) - fi[i];
+            H0 += fi[i] * log(fi[i] / w[i]);
+        }
+
+        // Newton-Raphson for alpha, seeded at the BGK mirror state.
+        // Converges in 2-3 iterations for well-resolved cells.
+        float alpha = 2.0;
+        for (int iter = 0; iter < 5; iter++) {
+            float G = -H0;
+            float dG = 0.0;
+            bool positive = true;
+            for (int i = 0; i < 19; i++) {
+                float fp = fi[i] + alpha * dlt[i];
+                if (fp <= 1e-10) {
+                    positive = false;
+                    break;
+                }
+                float l = log(fp / w[i]);
+                G += fp * l;
+                dG += dlt[i] * (l + 1.0);
+            }
+            if (!positive) {
+                // Candidate state left the positivity domain: back off
+                // and retry from a smaller alpha.
+                alpha *= 0.5;
+                continue;
+            }
+            if (abs(dG) < 1e-12)
+                break;
+            float dAlpha = G / dG;
+            alpha -= dAlpha;
+            if (abs(dAlpha) < 1e-6)
+                break;
+        }
+
+        // alpha hovers near 2 in resolved flow; anything far outside
+        // that range means the Newton solve failed, so clamp rather
+        // than inject a wild relaxation parameter.
+        if (isnan(alpha) || isinf(alpha))
+            alpha = 2.0;
+        alpha = clamp(alpha, 0.2, 2.2);
+
+        float beta = 0.5 * omega; // = 1/(2*tau_eff), nu = cs2*(tau-0.5)
+        for (int i = 0; i < 19; i++) {
+            f_new[idxF(pos.x, pos.y, pos.z, i)] =
+                fi[i] + alpha * beta * dlt[i];
+        }
     } else {
         // Standard BGK (SRT) collision
         for (int i = 0; i < 19; i++) {
