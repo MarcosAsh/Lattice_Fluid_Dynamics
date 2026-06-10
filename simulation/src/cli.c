@@ -27,6 +27,8 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
     opts->gridZ = 64;
     opts->smagorinskyCs = 0.1f;
     opts->useMRT = 0;
+    opts->useEntropic = 0;
+    opts->turbulenceIntensity = 0.0f;
     opts->vtkOutputPath[0] = '\0';
     opts->vtkInterval = 100;
     opts->vtkStats = 0;
@@ -53,6 +55,8 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
         {"grid", required_argument, 0, 'g'},
         {"smagorinsky", required_argument, 0, 'S'},
         {"mrt", no_argument, 0, 'M'},
+        {"entropic", no_argument, 0, 'E'},
+        {"turbulence", required_argument, 0, 't'},
         {"vtk-output", required_argument, 0, 'V'},
         {"vtk-interval", required_argument, 0, 'I'},
         {"vtk-stats", no_argument, 0, 'T'},
@@ -65,7 +69,7 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
 
     int opt;
     while ((opt = getopt_long(
-                argc, argv, "w:v:c:d:o:m:a:r:s:g:S:Mh", long_options, NULL)) !=
+                argc, argv, "w:v:c:d:o:m:a:r:s:g:S:Mt:Eh", long_options, NULL)) !=
            -1) {
         switch (opt) {
         case 'w':
@@ -144,6 +148,16 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
         case 'M':
             opts->useMRT = 1;
             break;
+        case 'E':
+            opts->useEntropic = 1;
+            break;
+        case 't':
+            opts->turbulenceIntensity = atof(optarg);
+            if (opts->turbulenceIntensity < 0.0f)
+                opts->turbulenceIntensity = 0.0f;
+            if (opts->turbulenceIntensity > 0.3f)
+                opts->turbulenceIntensity = 0.3f;
+            break;
         case 'V':
             strncpy(opts->vtkOutputPath, optarg, sizeof(opts->vtkOutputPath) - 1);
             opts->vtkOutputPath[sizeof(opts->vtkOutputPath) - 1] = '\0';
@@ -187,6 +201,12 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
             printf("  -S, --smagorinsky=CS  Smagorinsky constant 0-0.5 "
                    "(default: 0.1)\n");
             printf("  -M, --mrt             Enable MRT collision operator\n");
+            printf("  -E, --entropic        Entropic (ELBM) collision: "
+                   "H-theorem stability,\n"
+                   "                        replaces MRT and Smagorinsky\n");
+            printf("  -t, --turbulence=TI   Inlet turbulence intensity "
+                   "0-0.3 (default: 0,\n"
+                   "                        wind tunnels are ~0.01-0.02)\n");
             printf("  --vtk-output=PATH     Directory for VTK field dumps\n");
             printf("  --vtk-interval=N      Frames between VTK dumps "
                    "(default: 100)\n");

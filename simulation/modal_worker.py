@@ -255,6 +255,8 @@ def _cache_key(
     reynolds: float,
     duration: int,
     grid: str,
+    turbulence: float = 0.0,
+    entropic: bool = False,
 ) -> str:
     """Hash render params + code version to check for cached results."""
     import hashlib
@@ -262,7 +264,8 @@ def _cache_key(
     version = _get_code_version()
     key = (
         f"{model}_{wind_speed}_{viz_mode}_"
-        f"{collision_mode}_{reynolds}_{duration}_{grid}_{version}"
+        f"{collision_mode}_{reynolds}_{duration}_{grid}_{version}_"
+        f"{turbulence}_{int(entropic)}"
     )
     return hashlib.md5(key.encode()).hexdigest()[:12]
 
@@ -315,6 +318,8 @@ def render_simulation(
     reynolds: float = 0,
     superres: bool = False,
     grid: str | None = None,
+    turbulence: float = 0.0,
+    entropic: bool = False,
 ) -> dict:
     timings = {}
     t0 = time.monotonic()
@@ -338,6 +343,7 @@ def render_simulation(
             model, wind_speed, viz_mode,
             collision_mode, reynolds,
             duration, GRID,
+            turbulence, entropic,
         )
         cached = _check_cache(cache_id)
         if cached:
@@ -447,6 +453,10 @@ def render_simulation(
             cmd.append(f"--reynolds={reynolds}")
         if superres:
             cmd.append("--superres")
+        if turbulence > 0:
+            cmd.append(f"--turbulence={turbulence}")
+        if entropic:
+            cmd.append("--entropic")
 
         log.info("simulation starting", extra=ctx)
         t_sim = time.monotonic()
@@ -758,6 +768,7 @@ def render_simulation(
                 model, wind_speed, viz_mode,
                 collision_mode, reynolds,
                 duration, GRID,
+                turbulence, entropic,
             )
             _save_cache(cid, result)
 
@@ -1080,6 +1091,8 @@ def main(
     model: str = "car",
     reynolds: float = 0,
     grid: str = "",
+    turbulence: float = 0.0,
+    entropic: bool = False,
     build_only: bool = False,
     rebuild: bool = False,
 ):
@@ -1114,6 +1127,8 @@ def main(
         model=model,
         reynolds=reynolds,
         grid=grid or None,
+        turbulence=turbulence,
+        entropic=entropic,
     )
 
     print(f"Status: {result['status']}")

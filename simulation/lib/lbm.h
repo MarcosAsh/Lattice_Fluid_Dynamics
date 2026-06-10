@@ -36,11 +36,19 @@ typedef struct {
 
     int useRegularized;  // 0 = BGK, 1 = regularized
     int useMRT;          // 0 = off, 1 = MRT collision operator
+    int useEntropic;     // 0 = off, 1 = entropic (ELBM) collision
     int useSmagorinsky;  // 0 = off, 1 = Smagorinsky SGS
     float smagorinskyCs; // Smagorinsky constant
     int periodicYZ;      // 0 = clamp, 1 = periodic y/z
 
+    float turbulenceIntensity; // inlet TI fraction (0 = uniform inlet)
+    int stepCount;             // total LBM steps taken (drives inlet noise)
+
     GLint collide_useMRTLoc;
+    GLint collide_useEntropicLoc;
+    GLint collide_turbIntensityLoc;
+    GLint collide_timestepLoc;
+    GLint collide_fullGridZLoc;
 
     // Z-slab chunking for large grids (SSBO > 128 MB)
     int numChunks;       // number of Z-slabs (1 = no splitting)

@@ -16,7 +16,7 @@ lbm.c / lbm.h  LBM grid creation, solid voxelization, Cd/Cl computation
 
 | Shader              | Purpose                                      |
 |---------------------|----------------------------------------------|
-| lbm_collide.comp    | D3Q19 collision (BGK or regularized), BCs    |
+| lbm_collide.comp    | D3Q19 collision (BGK, regularized, MRT, or entropic), BCs, inlet turbulence |
 | lbm_stream.comp     | Streaming step (pull from neighbors)         |
 | lbm_force.comp      | Momentum exchange for drag/lift forces       |
 | particle_lbm.comp   | Particle advection using LBM velocity field  |

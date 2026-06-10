@@ -98,6 +98,8 @@ int main(int argc, char *argv[]) {
     int gridX = opts.gridX, gridY = opts.gridY, gridZ = opts.gridZ;
     float smagorinskyCs = opts.smagorinskyCs;
     int useMRT = opts.useMRT;
+    int useEntropic = opts.useEntropic;
+    float turbulenceIntensity = opts.turbulenceIntensity;
     char vtkOutputPath[256];
     strncpy(vtkOutputPath, opts.vtkOutputPath, sizeof(vtkOutputPath));
     vtkOutputPath[sizeof(vtkOutputPath) - 1] = '\0';
@@ -515,6 +517,22 @@ int main(int argc, char *argv[]) {
         // low tau, which is typical for external aero grids.
         lbmGrid->useMRT = 1;
         printf("MRT collision enabled\n");
+
+        // Entropic LBM replaces both MRT and Smagorinsky: the
+        // H-theorem constraint supplies the stabilizing dissipation
+        // locally, so no eddy-viscosity tuning is needed.
+        if (useEntropic) {
+            lbmGrid->useEntropic = 1;
+            lbmGrid->useMRT = 0;
+            lbmGrid->useSmagorinsky = 0;
+            printf("Entropic LBM enabled (replaces MRT + Smagorinsky)\n");
+        }
+
+        if (turbulenceIntensity > 0.0f) {
+            lbmGrid->turbulenceIntensity = turbulenceIntensity;
+            printf("Inlet turbulence injection: TI=%.1f%%\n",
+                   turbulenceIntensity * 100.0f);
+        }
 
         if (!LBM_InitializeFlow(lbmGrid, latticeVelocity, 0.0f, 0.0f)) {
             fprintf(stderr, "FATAL: LBM flow initialization failed\n");
