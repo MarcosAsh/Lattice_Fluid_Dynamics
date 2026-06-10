@@ -210,6 +210,14 @@ def build_simulation() -> str:
 
 def _get_code_version() -> str:
     """Get the git short hash from the cached source."""
+    # Prefer the remote head: the cache check runs before the
+    # build/pull step, so the local checkout may be one or more
+    # commits behind the binary that is about to be built. Keying on
+    # the stale local sha serves cached results from old code after
+    # every push.
+    remote = _remote_head_sha()
+    if remote:
+        return remote[:7]
     try:
         result = subprocess.run(
             ["git", "rev-parse", "--short", "HEAD"],
@@ -762,15 +770,11 @@ def render_simulation(
             },
         }
 
-        # Cache for future identical requests
+        # Cache for future identical requests, under the same key the
+        # lookup used (recomputing here could disagree if the remote
+        # was unreachable for one of the two calls).
         if model != "custom":
-            cid = _cache_key(
-                model, wind_speed, viz_mode,
-                collision_mode, reynolds,
-                duration, grid or GRID,
-                turbulence, entropic,
-            )
-            _save_cache(cid, result)
+            _save_cache(cache_id, result)
 
         return result
 
