@@ -758,4 +758,25 @@ void main() {
             f_new[idxF(pos.x, pos.y, pos.z, i)] = fi - omega * (fi - fi_eq);
         }
     }
+
+    // Sponge stage 2: relax post-collision distributions toward the
+    // equilibrium at reference density (rho=1) with the local
+    // velocity. The viscosity ramp above only damps short waves
+    // (viscous dissipation scales with k^2); the domain's fundamental
+    // standing wave has wavelength 2*Lx and passes through it almost
+    // untouched. Relaxing the density deviation directly absorbs
+    // pressure waves at any wavelength while leaving the velocity
+    // field (vorticity leaving through the outlet) mostly alone.
+    if (spongeCells > 0) {
+        int xStart = gridSize.x - spongeCells;
+        if (pos.x >= xStart) {
+            float s = float(pos.x - xStart + 1) / float(spongeCells);
+            float sigma = 0.3 * s * s;
+            for (int i = 0; i < 19; i++) {
+                int fidx = idxF(pos.x, pos.y, pos.z, i);
+                float target = feq(i, 1.0, u);
+                f_new[fidx] = mix(f_new[fidx], target, sigma);
+            }
+        }
+    }
 }
