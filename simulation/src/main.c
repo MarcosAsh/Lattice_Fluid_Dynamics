@@ -534,6 +534,14 @@ int main(int argc, char *argv[]) {
                    turbulenceIntensity * 100.0f);
         }
 
+        // Average the boundary force over every LBM step between Cd
+        // samples instead of taking instantaneous snapshots. On
+        // coarse grids the snapshot noise dominates the drag signal
+        // (observed ~60-70% relStd at 64-128 grids in the #155
+        // convergence study).
+        LBM_SetForceAveraging(lbmGrid, 1);
+        printf("Force averaging enabled (Cd sampled as window mean)\n");
+
         if (!LBM_InitializeFlow(lbmGrid, latticeVelocity, 0.0f, 0.0f)) {
             fprintf(stderr, "FATAL: LBM flow initialization failed\n");
             LBM_Free(lbmGrid);
