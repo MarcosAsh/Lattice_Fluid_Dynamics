@@ -342,7 +342,7 @@ def render_simulation(
         cache_id = _cache_key(
             model, wind_speed, viz_mode,
             collision_mode, reynolds,
-            duration, GRID,
+            duration, grid or GRID,
             turbulence, entropic,
         )
         cached = _check_cache(cache_id)
@@ -767,7 +767,7 @@ def render_simulation(
             cid = _cache_key(
                 model, wind_speed, viz_mode,
                 collision_mode, reynolds,
-                duration, GRID,
+                duration, grid or GRID,
                 turbulence, entropic,
             )
             _save_cache(cid, result)
