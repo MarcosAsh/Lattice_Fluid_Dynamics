@@ -1,8 +1,9 @@
 # Grid convergence study: Ahmed body 25 deg (#155)
 
-Two passes run on Modal A100, 2026-06-10, commit 6a7d5f3.
+Three passes run on Modal A100, 2026-06-10 (passes 1-2 on commit
+6a7d5f3, pass 3 on 78e0e71 with force averaging).
 Raw Cd series in `raw_*.json`, summary tables in `results_*.csv`,
-figure in `convergence_ahmed25_re144.png`.
+figures in `convergence_ahmed25_re144*.png`.
 
 ## Pass 1: issue spec as written (30 s per grid, auto Re)
 
@@ -31,6 +32,37 @@ each); the 32 grid was dropped (body is ~8 cells, unusable).
 | 64x32x32    | 3.56 +/- 2.39          | 67%    | 32            |
 | 128x64x64   | 5.44 +/- 3.62          | 66%    | 24            |
 | 256x128x128 | 3.33 +/- 0.13          | 3.8%   | 16            |
+
+## Pass 3: window-averaged force sampling
+
+Same protocol as pass 2, with the solver change from 78e0e71: each Cd
+sample is the mean boundary force over every LBM step in its sampling
+window (~100 steps) instead of one instantaneous snapshot.
+
+| Grid        | Cd (last-quarter mean) | relStd | lag-1 autocorr |
+|-------------|------------------------|--------|----------------|
+| 64x32x32    | 3.64 +/- 1.72          | 47%    | -0.95          |
+| 128x64x64   | 5.00 +/- 3.45          | 69%    | ~0             |
+| 256x128x128 | 3.33 +/- 0.11          | 3.4%   | -0.13          |
+
+What the averaging revealed:
+
+- The coarse-grid scatter is **not sampling noise**. If it were
+  uncorrelated snapshot noise, a 100-step mean would have cut it
+  ~10x; it barely moved. The fluctuation is physical (or numerical)
+  unsteadiness with timescales at or beyond the sampling window.
+- The 64 grid's averaged Cd alternates high/low between consecutive
+  windows (lag-1 autocorrelation -0.95): a coherent oscillation with
+  a period of ~2 sampling windows (~200 steps), aliased by the
+  sampling. Worth a spectral look before trusting any Cd from this
+  resolution.
+- The 256-grid mean is **rock solid across passes and binaries**:
+  3.3328 (snapshot sampling) vs 3.3333 (averaged sampling). Cd = 3.33
+  +/- 0.11 at Re = 144 is the reference value this study produces.
+- The relStd < 1% target is not reachable by better sampling alone at
+  these grids; the residual 3-4% on the 256 grid is real wake
+  unsteadiness and would need longer time-averaging windows (longer
+  runs), not denser sampling.
 
 ## Findings
 
