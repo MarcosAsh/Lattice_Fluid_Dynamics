@@ -28,11 +28,20 @@ from geometry import DESCRIPTOR_NAMES, N_DESCRIPTORS, encode  # noqa: E402
 
 # Dataset model name -> OBJ, mirroring simulation/modal_worker.py.
 ASSETS = Path(__file__).resolve().parents[2] / "simulation" / "assets" / "3d-files"
+MESH_DIR = Path(__file__).resolve().parent / "meshes"
 MODEL_OBJS = {
     "car": ASSETS / "car-model.obj",
     "ahmed25": ASSETS / "ahmed_25deg_m.obj",
     "ahmed35": ASSETS / "ahmed_35deg_m.obj",
 }
+
+
+def obj_for(model):
+    """Resolve a dataset model name to its OBJ: a reference model or, failing
+    that, a generated mesh under meshes/ (see generate_meshes.py)."""
+    if model in MODEL_OBJS:
+        return MODEL_OBJS[model]
+    return MESH_DIR / f"{model}.obj"
 
 FLOW_FEATURES = ["reynolds"]
 TARGET_NAMES = ["cd", "cl"]
@@ -47,8 +56,8 @@ def load_dataset(results_csv, voxel_res):
 
     def descriptors(model):
         if model not in cache:
-            obj = MODEL_OBJS.get(model)
-            if obj is None or not obj.exists():
+            obj = obj_for(model)
+            if not obj.exists():
                 raise FileNotFoundError(f"No OBJ for model '{model}' ({obj})")
             cache[model] = encode(str(obj), voxel_res)["descriptors"]
         return cache[model]
