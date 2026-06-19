@@ -1,10 +1,11 @@
 """
 Train the any-OBJ Cd/Cl surrogate (Phase 1: descriptor MLP).
 
-Each training row becomes [geometry descriptors, wind_speed, reynolds] -> [Cd, Cl],
-so the model reads geometry directly instead of a model-id label. Descriptors
-come from geometry.encode; inputs and targets are z-score normalized and the
-normalizer is saved next to the weights.
+Each training row becomes [geometry descriptors, reynolds] -> [Cd, Cl], so the
+model reads geometry directly instead of a model-id label. Reynolds is the only
+flow input: Cd at fixed Re is independent of the lattice velocity, so wind_speed
+carries no signal. Descriptors come from geometry.encode; inputs and targets are
+z-score normalized and the normalizer is saved next to the weights.
 
 Usage:
     python train.py                                  # dataset/v2/results.csv
@@ -33,7 +34,7 @@ MODEL_OBJS = {
     "ahmed35": ASSETS / "ahmed_35deg_m.obj",
 }
 
-FLOW_FEATURES = ["wind_speed", "reynolds"]
+FLOW_FEATURES = ["reynolds"]
 TARGET_NAMES = ["cd", "cl"]
 N_INPUTS = N_DESCRIPTORS + len(FLOW_FEATURES)
 N_TARGETS = len(TARGET_NAMES)
@@ -52,13 +53,19 @@ def load_dataset(results_csv, voxel_res):
             cache[model] = encode(str(obj), voxel_res)["descriptors"]
         return cache[model]
 
-    feats, targets, used = [], [], set()
+    feats, targets, used, seen = [], [], set(), set()
     with open(results_csv) as f:
         for row in csv.DictReader(f):
             if not row.get("cd_value") or not row.get("cl_value"):
                 continue
-            flow = [float(row["wind_speed"]), float(row["reynolds"])]
-            feats.append(np.concatenate([descriptors(row["model"]), flow]))
+            # Old data swept wind_speed, which we no longer use; collapse the
+            # resulting duplicate (model, Re) rows to one.
+            key = (row["model"], float(row["reynolds"]))
+            if key in seen:
+                continue
+            seen.add(key)
+            x = np.concatenate([descriptors(row["model"]), [float(row["reynolds"])]])
+            feats.append(x)
             targets.append([float(row["cd_value"]), float(row["cl_value"])])
             used.add(row["model"])
 
