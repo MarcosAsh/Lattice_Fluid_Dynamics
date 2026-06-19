@@ -51,7 +51,8 @@ DEFAULT_DATA = Path(__file__).resolve().parents[1] / "dataset" / "v2" / "results
 
 
 def load_dataset(results_csv, voxel_res):
-    """Read a data-gen results CSV into (X, Y) arrays and the models used."""
+    """Read a data-gen results CSV into (X, Y, row_models): feature and target
+    arrays plus the geometry name behind each row."""
     cache = {}
 
     def descriptors(model):
@@ -62,7 +63,7 @@ def load_dataset(results_csv, voxel_res):
             cache[model] = encode(str(obj), voxel_res)["descriptors"]
         return cache[model]
 
-    feats, targets, used, seen = [], [], set(), set()
+    feats, targets, row_models, seen = [], [], [], set()
     with open(results_csv) as f:
         for row in csv.DictReader(f):
             if not row.get("cd_value") or not row.get("cl_value"):
@@ -76,12 +77,12 @@ def load_dataset(results_csv, voxel_res):
             x = np.concatenate([descriptors(row["model"]), [float(row["reynolds"])]])
             feats.append(x)
             targets.append([float(row["cd_value"]), float(row["cl_value"])])
-            used.add(row["model"])
+            row_models.append(row["model"])
 
     if not feats:
         raise ValueError(f"No usable rows in {results_csv}")
     return (np.asarray(feats, np.float32),
-            np.asarray(targets, np.float32), sorted(used))
+            np.asarray(targets, np.float32), row_models)
 
 
 def zscore(arr):
@@ -106,7 +107,8 @@ class SurrogateNet(nn.Module):
 
 def train(args):
     data_path = Path(args.data).resolve()
-    X, Y, used = load_dataset(data_path, args.voxel_res)
+    X, Y, row_models = load_dataset(data_path, args.voxel_res)
+    used = sorted(set(row_models))
     print(f"{data_path}: {len(X)} samples ({', '.join(used)}), "
           f"{N_INPUTS} inputs -> {TARGET_NAMES}")
 
