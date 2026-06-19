@@ -1,12 +1,19 @@
 """
 Training data generation pipeline for the Cd surrogate model.
 
-Submits parameter sweeps to the Modal render endpoint, collects results,
-and saves them as CSV + binary dataset files.
+Spawns simulation runs on the deployed Modal GPU worker (`fluid-sim`
+app), collects force-averaged Cd/Cl series, and saves them as CSV +
+binary dataset files.
+
+Protocol follows the grid convergence study (#155,
+docs/grid_convergence/REPORT.md): 256x128x128 grid, 120 s per run,
+sponge layer on (solver default), Cd taken as the mean over the last
+quarter of the series.
 
 Usage:
     python data_gen.py --config sweep_config.yaml
     python data_gen.py --config sweep_config.yaml --resume
+    python data_gen.py --pilot    # anchor run, checks Cd against 3.333
     python data_gen.py --status
 """
 
@@ -23,16 +30,38 @@ from concurrent.futures import as_completed
 from dataclasses import dataclass
 from pathlib import Path
 
-import requests
+import modal
 import yaml
 
 _csv_lock = threading.Lock()
 
-DATASET_DIR = Path(__file__).parent / "dataset"
+MODAL_APP = "fluid-sim"
+MODAL_FUNCTION = "render_simulation"
+
+# Reference point from the grid convergence study (#155): ahmed25 at
+# Re 144 on the 256 grid with the equilibrium sponge converged to
+# Cd = 3.334 +/- 0.009 across five independent runs.
+ANCHOR_MODEL = "ahmed25"
+ANCHOR_WIND = 1.0
+ANCHOR_RE = 144.0
+ANCHOR_CD = 3.333
+ANCHOR_TOL = 0.15
+
+DATASET_DIR = Path(__file__).parent / "dataset" / "v2"
 MANIFEST_FILE = DATASET_DIR / "manifest.csv"
 RESULTS_FILE = DATASET_DIR / "results.csv"
 BINARY_FILE = DATASET_DIR / "training_data.bin"
 STATS_FILE = DATASET_DIR / "stats.json"
+
+
+def set_dataset_dir(path: Path):
+    """Point all output files at the configured dataset directory."""
+    global DATASET_DIR, MANIFEST_FILE, RESULTS_FILE, BINARY_FILE, STATS_FILE
+    DATASET_DIR = path
+    MANIFEST_FILE = DATASET_DIR / "manifest.csv"
+    RESULTS_FILE = DATASET_DIR / "results.csv"
+    BINARY_FILE = DATASET_DIR / "training_data.bin"
+    STATS_FILE = DATASET_DIR / "stats.json"
 
 
 @dataclass
@@ -43,10 +72,17 @@ class RunConfig:
     duration: int
     viz_mode: int
     collision_mode: int
+    grid: str
+    # When set, the OBJ is uploaded to the worker as a custom mesh instead of
+    # selecting a baked-in model by name. `model` then holds its display name.
+    obj_path: str | None = None
 
     @property
     def run_id(self) -> str:
-        key = f"{self.model}_{self.wind_speed}_{self.reynolds}"
+        key = (
+            f"{self.model}_{self.wind_speed}_{self.reynolds}_"
+            f"{self.grid}_{self.duration}"
+        )
         return hashlib.md5(key.encode()).hexdigest()[:12]
 
 
@@ -60,6 +96,10 @@ class RunResult:
     status: str
     error: str | None = None
     converged: bool = False
+    cd_relstd: float | None = None
+    effective_re: float | None = None
+    flow_throughs: float | None = None
+    cfl: float | None = None
 
 
 def load_sweep_config(config_path: str) -> dict:
@@ -68,7 +108,12 @@ def load_sweep_config(config_path: str) -> dict:
 
 
 def generate_run_configs(config: dict) -> list[RunConfig]:
-    """Build the full list of parameter combinations."""
+    """Build the full list of parameter combinations.
+
+    `models` are baked-in model names. `meshes_dir` (optional, relative to ml/)
+    adds every *.obj it contains as a custom mesh uploaded to the worker, named
+    by file stem.
+    """
     runs = []
     ws = config["wind_speeds"]
     wind_speeds = []
@@ -77,17 +122,25 @@ def generate_run_configs(config: dict) -> list[RunConfig]:
         wind_speeds.append(round(v, 2))
         v += ws["step"]
 
-    for model in config["models"]:
+    # (display_name, obj_path) pairs; obj_path None means a baked-in model.
+    bodies = [(m, None) for m in config.get("models", [])]
+    if config.get("meshes_dir"):
+        mesh_dir = Path(__file__).parent / config["meshes_dir"]
+        bodies += [(p.stem, str(p)) for p in sorted(mesh_dir.glob("*.obj"))]
+
+    for name, obj_path in bodies:
         for wind_speed in wind_speeds:
             for reynolds in config["reynolds_numbers"]:
                 runs.append(
                     RunConfig(
-                        model=model,
+                        model=name,
+                        obj_path=obj_path,
                         wind_speed=wind_speed,
                         reynolds=float(reynolds),
                         duration=config["duration"],
                         viz_mode=config.get("viz_mode", 1),
-                        collision_mode=config.get("collision_mode", 1),
+                        collision_mode=config.get("collision_mode", 2),
+                        grid=config.get("grid", "256x128x128"),
                     )
                 )
     return runs
@@ -106,43 +159,24 @@ def load_completed_runs() -> set[str]:
     return completed
 
 
-def submit_run(run: RunConfig, endpoint: str, timeout: int = 600) -> RunResult:
-    """Submit a single simulation run to Modal."""
-    payload = {
-        "job_id": f"datagen_{run.run_id}",
-        "wind_speed": run.wind_speed,
-        "viz_mode": run.viz_mode,
-        "collision_mode": run.collision_mode,
-        "duration": run.duration,
-        "model": run.model,
-        "reynolds": run.reynolds,
-    }
+def tail_stats(series: list[float], fraction: float):
+    """Mean, std and relative std over the trailing fraction of a series."""
+    if not series:
+        return None
+    n = max(1, int(len(series) * fraction))
+    tail = series[-n:]
+    mean = sum(tail) / len(tail)
+    std = (sum((x - mean) ** 2 for x in tail) / len(tail)) ** 0.5
+    rel = std / abs(mean) if abs(mean) > 1e-9 else float("inf")
+    return mean, std, rel
 
-    try:
-        resp = requests.post(endpoint, json=payload, timeout=timeout)
-        resp.raise_for_status()
-        data = resp.json()
 
-        if data.get("status") == "complete":
-            return RunResult(
-                config=run,
-                cd_value=data.get("cd_value"),
-                cl_value=data.get("cl_value"),
-                cd_series=data.get("cd_series", []),
-                cl_series=data.get("cl_series", []),
-                status="complete",
-            )
-        else:
-            return RunResult(
-                config=run,
-                cd_value=None,
-                cl_value=None,
-                cd_series=[],
-                cl_series=[],
-                status="error",
-                error=data.get("error", "unknown"),
-            )
-    except Exception as e:
+def submit_run(
+    run: RunConfig, render_fn, timeout: int = 2400
+) -> RunResult:
+    """Spawn a single simulation run on Modal and wait for the result."""
+
+    def _error(msg: str) -> RunResult:
         return RunResult(
             config=run,
             cd_value=None,
@@ -150,19 +184,55 @@ def submit_run(run: RunConfig, endpoint: str, timeout: int = 600) -> RunResult:
             cd_series=[],
             cl_series=[],
             status="error",
-            error=str(e),
+            error=msg,
         )
+
+    kwargs = dict(
+        job_id=f"datagen_{run.run_id}",
+        wind_speed=run.wind_speed,
+        viz_mode=run.viz_mode,
+        collision_mode=run.collision_mode,
+        duration=run.duration,
+        reynolds=run.reynolds,
+        grid=run.grid,
+    )
+    if run.obj_path:
+        import base64
+
+        kwargs["model"] = "custom"
+        kwargs["obj_data"] = base64.b64encode(
+            Path(run.obj_path).read_bytes()
+        ).decode()
+    else:
+        kwargs["model"] = run.model
+
+    try:
+        call = render_fn.spawn(**kwargs)
+        data = call.get(timeout=timeout)
+    except TimeoutError:
+        return _error(f"No result after {timeout}s")
+    except Exception as e:
+        return _error(str(e))
+
+    if data.get("status") != "complete":
+        return _error(data.get("error", "unknown"))
+
+    return RunResult(
+        config=run,
+        cd_value=None,  # filled in by check_quality from the series tail
+        cl_value=None,
+        cd_series=data.get("cd_series", []),
+        cl_series=data.get("cl_series", []),
+        status="complete",
+        effective_re=data.get("effective_re"),
+        flow_throughs=data.get("flow_throughs"),
+        cfl=data.get("cfl"),
+    )
 
 
 def check_quality(result: RunResult, quality_config: dict) -> RunResult:
-    """Flag bad data points."""
-    if result.status != "complete" or result.cd_value is None:
-        return result
-
-    cd = result.cd_value
-    if cd < quality_config["cd_min"] or cd > quality_config["cd_max"]:
-        result.status = "flagged"
-        result.error = f"Cd={cd:.4f} outside valid range"
+    """Compute tail-averaged Cd/Cl and flag bad data points."""
+    if result.status != "complete":
         return result
 
     if len(result.cd_series) < quality_config["min_cd_samples"]:
@@ -170,18 +240,32 @@ def check_quality(result: RunResult, quality_config: dict) -> RunResult:
         result.error = f"Only {len(result.cd_series)} Cd samples"
         return result
 
-    # Check convergence: std dev of last N values relative to mean.
-    # For near-zero means, fall back to absolute std dev check.
-    window = quality_config["convergence_window"]
+    # The worker's own cd_value is a last-5-sample mean; recompute over
+    # the last quarter of the series to match the convergence protocol.
+    fraction = quality_config.get("tail_fraction", 0.25)
+    cd_stats = tail_stats(result.cd_series, fraction)
+    cl_stats = tail_stats(result.cl_series, fraction)
+    result.cd_value, _, result.cd_relstd = cd_stats
+    if cl_stats:
+        result.cl_value = cl_stats[0]
+
+    cd = result.cd_value
+    if cd < quality_config["cd_min"] or cd > quality_config["cd_max"]:
+        result.status = "flagged"
+        result.error = f"Cd={cd:.4f} outside valid range"
+        return result
+
+    # A requested Re above the grid's cap clamps to the cap, so the run
+    # duplicates another parameter point under a different label.
+    req = result.config.reynolds
+    eff = result.effective_re
+    if req > 0 and eff is not None and abs(eff - req) > 0.01 * req:
+        result.status = "flagged"
+        result.error = f"Re clamped: requested {req:g}, effective {eff:g}"
+        return result
+
     threshold = quality_config["convergence_threshold"]
-    if len(result.cd_series) >= window:
-        tail = result.cd_series[-window:]
-        mean = sum(tail) / len(tail)
-        std = (sum((x - mean) ** 2 for x in tail) / len(tail)) ** 0.5
-        if abs(mean) > 1e-6:
-            result.converged = (std / abs(mean)) < threshold
-        else:
-            result.converged = std < 1e-6
+    result.converged = result.cd_relstd < threshold
 
     return result
 
@@ -202,10 +286,15 @@ def save_manifest_row(result: RunResult):
                         "model",
                         "wind_speed",
                         "reynolds",
+                        "grid",
                         "duration",
                         "status",
                         "cd_value",
+                        "cd_relstd",
                         "cl_value",
+                        "effective_re",
+                        "flow_throughs",
+                        "cfl",
                         "converged",
                         "error",
                     ]
@@ -216,10 +305,15 @@ def save_manifest_row(result: RunResult):
                     result.config.model,
                     result.config.wind_speed,
                     result.config.reynolds,
+                    result.config.grid,
                     result.config.duration,
                     result.status,
                     f"{result.cd_value:.6f}" if result.cd_value is not None else "",
+                    f"{result.cd_relstd:.4f}" if result.cd_relstd is not None else "",
                     f"{result.cl_value:.6f}" if result.cl_value is not None else "",
+                    result.effective_re if result.effective_re is not None else "",
+                    result.flow_throughs if result.flow_throughs is not None else "",
+                    result.cfl if result.cfl is not None else "",
                     result.converged,
                     result.error or "",
                 ]
@@ -293,11 +387,16 @@ def export_binary_dataset():
         for row in reader:
             if not row["cd_value"] or not row["cl_value"]:
                 continue
+            # The legacy binary only encodes the three baked-in models by id;
+            # custom meshes have no id, so leave them out (they feed the
+            # descriptor-based any-OBJ trainer via results.csv instead).
+            if row["model"] not in model_ids:
+                continue
             records.append(
                 (
                     float(row["wind_speed"]),
                     float(row["reynolds"]),
-                    model_ids.get(row["model"], -1.0),
+                    model_ids[row["model"]],
                     float(row["cd_value"]),
                     float(row["cl_value"]),
                 )
@@ -375,23 +474,29 @@ def compute_stats():
     return stats
 
 
-def run_sweep(config_path: str, endpoint: str, resume: bool = False):
+def get_render_function():
+    """Look up the deployed render function on Modal."""
+    return modal.Function.from_name(MODAL_APP, MODAL_FUNCTION)
+
+
+def run_sweep(config: dict, resume: bool = False, limit: int = 0):
     """Run the full parameter sweep."""
-    config = load_sweep_config(config_path)
     runs = generate_run_configs(config)
     completed = load_completed_runs() if resume else set()
     quality = config.get(
         "quality",
         {
-            "cd_max": 10.0,
+            "cd_max": 15.0,
             "cd_min": 0.0,
-            "min_cd_samples": 5,
-            "convergence_window": 5,
+            "min_cd_samples": 20,
+            "tail_fraction": 0.25,
             "convergence_threshold": 0.05,
         },
     )
 
     pending = [r for r in runs if r.run_id not in completed]
+    if limit:
+        pending = pending[:limit]
     done = len(completed)
     todo = len(pending)
     print(f"Total: {len(runs)}, done: {done}, pending: {todo}")
@@ -400,6 +505,7 @@ def run_sweep(config_path: str, endpoint: str, resume: bool = False):
         print("Nothing to do.")
         return
 
+    render_fn = get_render_function()
     max_workers = config.get("max_concurrent", 4)
     retry_limit = config.get("retry_limit", 3)
     delay = config.get("delay_between_batches", 2.0)
@@ -410,7 +516,7 @@ def run_sweep(config_path: str, endpoint: str, resume: bool = False):
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         futures = {}
         for run in pending:
-            fut = pool.submit(submit_run, run, endpoint)
+            fut = pool.submit(submit_run, run, render_fn)
             futures[fut] = (run, 0)  # (config, attempt)
 
         while futures:
@@ -423,7 +529,7 @@ def run_sweep(config_path: str, endpoint: str, resume: bool = False):
                 if result.status == "error" and attempt < retry_limit:
                     print(f"  Retry {run_cfg.run_id} (attempt {attempt + 1})")
                     time.sleep(delay)
-                    new_fut = pool.submit(submit_run, run_cfg, endpoint)
+                    new_fut = pool.submit(submit_run, run_cfg, render_fn)
                     futures[new_fut] = (run_cfg, attempt + 1)
                 else:
                     save_manifest_row(result)
@@ -436,14 +542,17 @@ def run_sweep(config_path: str, endpoint: str, resume: bool = False):
                         print(
                             f"  [{success + failed}/{len(pending)}] "
                             f"{run_cfg.model} ws={run_cfg.wind_speed} "
-                            f"-> Cd={result.cd_value:.4f} ({conv})"
+                            f"re={run_cfg.reynolds:g} "
+                            f"-> Cd={result.cd_value:.4f} "
+                            f"relStd={result.cd_relstd * 100:.1f}% ({conv})"
                         )
                     else:
                         failed += 1
                         print(
                             f"  [{success + failed}/{len(pending)}] "
                             f"{run_cfg.model} ws={run_cfg.wind_speed} "
-                            f"-> FAILED: {result.error}"
+                            f"re={run_cfg.reynolds:g} "
+                            f"-> {result.status.upper()}: {result.error}"
                         )
 
                 done_batch.append(fut)
@@ -456,6 +565,48 @@ def run_sweep(config_path: str, endpoint: str, resume: bool = False):
     stats = compute_stats()
     if stats:
         print(f"Stats: {json.dumps(stats, indent=2)}")
+
+
+def run_pilot(config: dict):
+    """Run the convergence study's anchor point end to end and compare
+    against the reference Cd. Validates the whole pipeline (Modal call,
+    series collection, tail averaging) for the cost of one run."""
+    run = RunConfig(
+        model=ANCHOR_MODEL,
+        wind_speed=ANCHOR_WIND,
+        reynolds=ANCHOR_RE,
+        duration=config["duration"],
+        viz_mode=config.get("viz_mode", 1),
+        collision_mode=config.get("collision_mode", 2),
+        grid=config.get("grid", "256x128x128"),
+    )
+    quality = config["quality"]
+
+    print(
+        f"Pilot: {run.model} ws={run.wind_speed} re={run.reynolds:g} "
+        f"grid={run.grid} {run.duration}s"
+    )
+    print(f"Expecting Cd = {ANCHOR_CD} +/- {ANCHOR_TOL} (#155 reference)")
+
+    result = submit_run(run, get_render_function())
+    result = check_quality(result, quality)
+
+    if result.status != "complete":
+        print(f"FAILED: {result.error}")
+        sys.exit(1)
+
+    save_manifest_row(result)
+    save_results_csv(result)
+
+    diff = abs(result.cd_value - ANCHOR_CD)
+    verdict = "OK" if diff <= ANCHOR_TOL else "MISMATCH"
+    print(
+        f"Cd={result.cd_value:.4f} (ref {ANCHOR_CD}, diff {diff:.4f}) "
+        f"relStd={result.cd_relstd * 100:.2f}% "
+        f"Re_eff={result.effective_re} -> {verdict}"
+    )
+    if verdict == "MISMATCH":
+        sys.exit(1)
 
 
 def show_status():
@@ -487,10 +638,18 @@ def main():
         "--config", default="sweep_config.yaml", help="Sweep config YAML"
     )
     parser.add_argument(
-        "--endpoint", default=None, help="Modal render endpoint URL"
+        "--resume", action="store_true", help="Skip already-completed runs"
     )
     parser.add_argument(
-        "--resume", action="store_true", help="Skip already-completed runs"
+        "--limit",
+        type=int,
+        default=0,
+        help="Run at most N pending runs (0 = all)",
+    )
+    parser.add_argument(
+        "--pilot",
+        action="store_true",
+        help="Run the #155 anchor point and check Cd against the reference",
     )
     parser.add_argument("--status", action="store_true", help="Show progress")
     parser.add_argument(
@@ -499,6 +658,15 @@ def main():
         help="Just re-export binary from CSV",
     )
     args = parser.parse_args()
+
+    config_path = Path(__file__).parent / args.config
+    if not config_path.exists():
+        print(f"Error: config not found at {config_path}", file=sys.stderr)
+        sys.exit(1)
+    config = load_sweep_config(str(config_path))
+
+    if config.get("dataset_dir"):
+        set_dataset_dir(Path(__file__).parent / config["dataset_dir"])
 
     if args.status:
         show_status()
@@ -509,24 +677,11 @@ def main():
         compute_stats()
         return
 
-    endpoint = args.endpoint
-    if not endpoint:
-        import os
+    if args.pilot:
+        run_pilot(config)
+        return
 
-        endpoint = os.environ.get("MODAL_RENDER_ENDPOINT")
-    if not endpoint:
-        print(
-            "Error: provide --endpoint or set MODAL_RENDER_ENDPOINT",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
-    config_path = Path(__file__).parent / args.config
-    if not config_path.exists():
-        print(f"Error: config not found at {config_path}", file=sys.stderr)
-        sys.exit(1)
-
-    run_sweep(str(config_path), endpoint, resume=args.resume)
+    run_sweep(config, resume=args.resume, limit=args.limit)
 
 
 if __name__ == "__main__":
