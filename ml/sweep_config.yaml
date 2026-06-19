@@ -1,26 +1,44 @@
 # Parameter sweep for training data generation.
 # Run: python data_gen.py --config sweep_config.yaml
+#
+# Protocol follows the grid convergence study (#155,
+# docs/grid_convergence/REPORT.md): 256x128x128 grid, 120 s per run,
+# sponge layer on (solver default), Cd taken as the mean over the last
+# quarter of the force-averaged series. Reference: Cd = 3.333 +/- 0.011
+# for ahmed25 at Re 144.
 
 models:
   - car
   - ahmed25
   - ahmed35
 
+# Single wind speed: Cd at fixed Re is independent of the lattice velocity
+# (it's just U, the dimensionless flow is set by Re). Sweeping wind_speed
+# produced identical Cd at every Re, so it only multiplied GPU cost. One
+# value per (model, Re) point keeps the full sweep at 3 x 5 = 15 runs.
 wind_speeds:
-  min: 0.5
-  max: 5.0
-  step: 0.25
+  min: 1.0
+  max: 1.0
+  step: 0.5
 
+# Pinned Re values, all within the 256-grid effective Re cap (576).
+# Values above the cap clamp to the same flow and would produce
+# duplicate data points labelled with different Re.
 reynolds_numbers:
-  - 0        # auto (default)
-  - 1000
-  - 5000
-  - 10000
-  - 50000
+  - 72
+  - 144
+  - 288
+  - 432
+  - 576
 
-duration: 15       # seconds per run (enough for Cd to converge)
+grid: 256x128x128
+duration: 120      # seconds per run (~16 flow-throughs at this grid)
 viz_mode: 1        # velocity magnitude (doesn't affect Cd, just for consistency)
-collision_mode: 1  # AABB
+collision_mode: 2  # matches the convergence study protocol
+
+# Output directory relative to ml/. v1 (15 s runs, pre-sponge physics)
+# is kept under dataset/ for reference but should not be trained on.
+dataset_dir: dataset/v2
 
 # Rate limiting
 max_concurrent: 4
@@ -29,8 +47,8 @@ delay_between_batches: 2.0  # seconds
 
 # Quality thresholds
 quality:
-  cd_max: 10.0         # flag if Cd above this
+  cd_max: 15.0         # flag if Cd above this (bluff-body Cd grows at low Re)
   cd_min: 0.0          # flag if Cd below this
-  min_cd_samples: 5    # need at least this many Cd readings
-  convergence_window: 5
-  convergence_threshold: 0.05  # relative std dev of last N values
+  min_cd_samples: 20   # need at least this many Cd readings
+  tail_fraction: 0.25  # average over the last quarter of the series
+  convergence_threshold: 0.05  # relative std dev of the tail
