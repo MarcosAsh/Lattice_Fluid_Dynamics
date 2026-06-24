@@ -97,7 +97,7 @@ export default function Home() {
     'checking' | 'healthy' | 'slow' | 'down' | 'not_configured'
   >('checking');
   const [objFile, setObjFile] = useState<File | null>(null);
-  const renderStartTime = useRef<number | null>(null);
+  const [renderStartTime, setRenderStartTime] = useState<number | null>(null);
   const { status: mlStatus, predict: mlPredict } = useSurrogate();
 
   const mlPrediction = mlStatus === 'ready'
@@ -156,7 +156,7 @@ export default function Home() {
       setStatus('rendering');
       setError(null);
       setVideoUrl(null);
-      renderStartTime.current = Date.now();
+      setRenderStartTime(Date.now());
 
       const body: Record<string, unknown> = { ...params };
 
@@ -260,7 +260,7 @@ export default function Home() {
       setError(err instanceof Error ? err.message : 'Unknown error');
       setStatus('error');
     } finally {
-      renderStartTime.current = null;
+      setRenderStartTime(null);
     }
   }, [params, objFile]);
 
@@ -421,7 +421,7 @@ export default function Home() {
             status={status}
             error={error}
             duration={params.duration}
-            renderStartTime={renderStartTime.current}
+            renderStartTime={renderStartTime}
           />
         </div>
         <div className="flex-1 flex flex-col gap-4">
