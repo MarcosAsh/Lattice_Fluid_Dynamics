@@ -116,6 +116,9 @@ jobs:
       - name: Voxelize self-tests
         run: python ml/voxelize.py --selftest
 
+      - name: OBJ preprocess self-tests
+        run: python ml/preprocess.py --selftest
+
   build-website:
     name: Build website (Next.js)
     runs-on: ubuntu-latest
