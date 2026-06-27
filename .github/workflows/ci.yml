@@ -113,6 +113,9 @@ jobs:
           print(f'srbin round-trip OK ({n_patches} patches)')
           "
 
+      - name: Voxelize self-tests
+        run: python ml/voxelize.py --selftest
+
   build-website:
     name: Build website (Next.js)
     runs-on: ubuntu-latest
