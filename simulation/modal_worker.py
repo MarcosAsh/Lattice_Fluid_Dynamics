@@ -69,7 +69,7 @@ image = (
         "xvfb",
         "ffmpeg",
     )
-    .pip_install("requests", "fastapi[standard]", "boto3")
+    .pip_install("requests", "fastapi[standard]", "boto3", "numpy")
     # The base image ships only Mesa's EGL vendor json (50_mesa.json), so
     # GLVND can't find the NVIDIA driver and EGL falls back to swrast (CPU)
     # even on a GPU container. Write the NVIDIA ICD so the GPU is usable.
@@ -308,6 +308,57 @@ def _save_cache(cache_id: str, result: dict):
         )
 
 
+def _preprocess_custom_obj(obj_path, ctx: dict) -> dict | None:
+    """Validate an uploaded OBJ before simulating it.
+
+    Reports mesh statistics and validation warnings via ml/preprocess.py
+    from the cloned source. Returns an error result dict when the mesh has
+    no usable geometry, otherwise None to proceed. Any preprocessing
+    failure is non-fatal: the render falls back to the raw upload, since
+    the C OBJ loader triangulates polygons on its own.
+    """
+    import sys
+
+    try:
+        if "/cache/source/ml" not in sys.path:
+            sys.path.insert(0, "/cache/source/ml")
+        import preprocess
+    except Exception as e:
+        log.warning(
+            "mesh validation unavailable, using raw upload",
+            extra={**ctx, "error": str(e)},
+        )
+        return None
+
+    try:
+        result = preprocess.preprocess(obj_path, recenter=False)
+    except Exception as e:
+        log.warning(
+            "mesh preprocessing failed, using raw upload",
+            extra={**ctx, "error": str(e)},
+        )
+        return None
+
+    stats = result["stats"]
+    log.info(
+        f"custom mesh: {stats.get('triangles', 0)} triangles, "
+        f"watertight={result['validation'].get('watertight')}, "
+        f"warnings={len(result['warnings'])}",
+        extra={**ctx, **stats, "warnings": result["warnings"]},
+    )
+    if not result["ok"]:
+        log.error("uploaded mesh has no usable geometry", extra=ctx)
+        return {
+            "status": "error",
+            "error": (
+                "Uploaded mesh has no usable geometry (no valid "
+                "triangles). Check that the OBJ has vertices and faces."
+            ),
+            "error_type": "mesh",
+        }
+    return None
+
+
 @app.function(
     image=image,
     gpu="A100",
@@ -437,6 +488,9 @@ def render_simulation(
                     "size_kb": custom_obj.stat().st_size // 1024,
                 },
             )
+            mesh_error = _preprocess_custom_obj(custom_obj, ctx)
+            if mesh_error:
+                return mesh_error
         else:
             model_path = model_paths.get(
                 model, model_paths["car"]
