@@ -129,7 +129,10 @@ def run_dataset(name, mesh_dir=MESH_DIR, data_root=DATA_ROOT,
 
     labels = {}
     if "labels_all" in spec:
-        text = get(f"{base}/{spec['labels_all']}").decode()
+        raw_data = get(f"{base}/{spec['labels_all']}")
+        if raw_data is None:
+            raise FileNotFoundError(f"Could not fetch labels from {base}/{spec['labels_all']}")
+        text = raw_data.decode()
         for row in csv.DictReader(io.StringIO(text)):
             row = {k.strip().lower(): v.strip() for k, v in row.items()}
             labels[int(row["run"])] = (float(row["cd"]), float(row["cl"]))
