@@ -46,12 +46,14 @@ N_DESCRIPTORS = len(DESCRIPTOR_NAMES)
 
 # Mesh loading and canonicalization
 
-def load_mesh(source):
+def load_mesh(source, file_type=None):
     """
-    Load a mesh from a path, OBJ bytes, inline OBJ text, or a Trimesh.
+    Load a mesh from a path, raw bytes, inline OBJ text, or a Trimesh.
 
-    Multi-object scenes are merged into one mesh, matching how the solver
-    loads a model.
+    Paths may be any format trimesh reads (OBJ, STL, PLY, glTF/GLB, OFF,
+    3MF, ...); the format is inferred from the extension. For raw bytes pass
+    file_type (e.g. "stl"); it defaults to "obj". Multi-object scenes are
+    merged into one mesh, matching how the solver loads a model.
 
     Returns:
         A trimesh.Trimesh.
@@ -60,7 +62,7 @@ def load_mesh(source):
         return source
     if isinstance(source, (bytes, bytearray)):
         import io
-        mesh = trimesh.load(io.BytesIO(bytes(source)), file_type="obj")
+        mesh = trimesh.load(io.BytesIO(bytes(source)), file_type=file_type or "obj")
     elif isinstance(source, str) and "\nv " in source:
         import io
         mesh = trimesh.load(io.StringIO(source), file_type="obj")

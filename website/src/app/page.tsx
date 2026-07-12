@@ -6,7 +6,7 @@ import ControlPanel from '../components/ControlPanel';
 import VideoPlayer from '../components/VideoPlayer';
 import StatusDisplay from '../components/StatusDisplay';
 import ResultsPanel, { SimulationResult } from '../components/ResultsPanel';
-import { useSurrogate } from '../lib/surrogate';
+import { useSurrogate } from '../lib/anyobj_surrogate';
 import { DEMOS, type DemoEntry } from '../lib/demos';
 
 export type JobStatus =
