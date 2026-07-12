@@ -466,76 +466,121 @@ void main() {
         {/* ------------------------------------------------------------ */}
         <Section id="ml" title="ML Surrogate Model">
           <P>
-            A small MLP predicts Cd and Cl in under a millisecond, giving
-            instant estimates before the LBM has time to converge. The entire
-            training framework is written from scratch in C++ with reverse-mode
-            autodiff, so there are no Python ML dependencies at inference time.
-            The same model runs in the C simulation binary, in the browser via
-            TypeScript, and in the evaluation pipeline.
+            A geometry-aware neural network predicts Cd and Cl for any input
+            mesh in under a millisecond. It gives an instant estimate before
+            the LBM has time to converge and lets the browser return a number
+            with no server round trip. The model reads the shape of the body
+            directly rather than a fixed label, so it generalizes to
+            geometries it was never trained on.
+          </P>
+
+          <h3 className="text-base font-semibold mb-3 mt-8">
+            Reading geometry
+          </h3>
+          <P>
+            Every mesh is first placed in the same frame the solver uses. The
+            body is centered, its longest axis is rotated onto the flow
+            direction, and it is scaled into a unit cube. From that canonical
+            form the encoder measures nineteen scale invariant descriptors that
+            capture how the body displaces air. These include the three aspect
+            ratios of the bounding box, solidity and convexity, slenderness and
+            fineness, frontal fill, wetted area ratio, sphericity, the fore aft
+            shift of the volume centroid, and an eight station profile of cross
+            section area along the flow axis. The result is a fixed length
+            vector that describes any mesh, which is what lets one model serve
+            an Ahmed body, a full car, and an SUV at the same time.
           </P>
 
           <h3 className="text-base font-semibold mb-3 mt-8">Architecture</h3>
           <P>
-            The network takes three z-score normalized inputs (wind speed,
-            Reynolds number, model ID) and outputs two values (Cd, Cl). SwiGLU
-            activations replace standard ReLU for smoother gradient flow.
+            The network takes twenty z-score normalized inputs, being the
+            nineteen geometry descriptors plus the base ten logarithm of the
+            Reynolds number, and outputs two values, Cd and Cl. Reynolds is the
+            only flow input the model needs, because at a fixed Reynolds number
+            the force coefficients no longer depend on the wind speed. Two
+            hidden layers with ReLU activations keep the network small enough
+            to evaluate instantly in the browser.
           </P>
-          <CodeBlock>{`Linear(3, 256) -> SwiGLU(256, 512) -> Linear(256, 128) -> SwiGLU(128, 256) -> Linear(128, 2)
+          <CodeBlock>{`Linear(20, 64) -> ReLU -> Linear(64, 64) -> ReLU -> Linear(64, 2)
 
-525,400 parameters total
-  fc1:  3 x 256  + bias     =   1,024
-  act1: SwiGLU(256, 512)    = 393,216  (gate + up + down projections)
-  fc2:  256 x 128 + bias    =  32,896
-  act2: SwiGLU(128, 256)    =  98,304
-  fc3:  128 x 2 + bias      =     258`}</CodeBlock>
+inputs   19 shape descriptors + log10(Reynolds)
+outputs  Cd, Cl
+about 5,600 parameters total`}</CodeBlock>
 
-          <h3 className="text-base font-semibold mb-3 mt-8">Training</h3>
+          <h3 className="text-base font-semibold mb-3 mt-8">Training data</h3>
           <P>
-            Training data comes from the LBM simulation itself. A parameter
-            sweep over wind speeds, Reynolds numbers, and model geometries
-            generates (input, Cd, Cl) pairs. The data generator
-            (<InlineCode>data_gen.py</InlineCode>) submits render jobs to Modal, validates
-            convergence, and writes a binary dataset.
+            The model is trained on 1,421 high fidelity CFD samples drawn from
+            four public reference datasets. These are AhmedML for the Ahmed
+            body, WindsorML for the Windsor body, DrivAerML for the DrivAer
+            road car, and a sample of SHIFT-SUV for a detailed SUV. Each source
+            reports its force coefficients against the frontal area of that
+            specific geometry, so the Cd convention stays consistent as the
+            shapes vary. Meshes are fetched and encoded on Modal, which keeps
+            the terabyte scale geometry off the local machine.
           </P>
-          <CodeBlock>{`Optimizer:    AdamW (lr=1e-3, weight_decay=1e-4, clip_norm=1.0)
+          <CodeBlock>{`AhmedML     499 Ahmed body variants     CC-BY-SA
+WindsorML   349 Windsor body variants   CC-BY-SA
+DrivAerML   484 DrivAer car variants    CC-BY-SA
+SHIFT-SUV    89 SUV variants (sample)   CC-BY-NC
+            ----
+            1,421 geometries`}</CodeBlock>
+
+          <h3 className="text-base font-semibold mb-3 mt-8">Training setup</h3>
+          <P>
+            Training runs in JAX with optax. Inputs and targets are z-score
+            normalized and the normalizer is saved next to the weights. The
+            objective is mean squared error on the two coefficients, optimized
+            with AdamW under gradient clipping and a learning rate that halves
+            on plateau.
+          </P>
+          <CodeBlock>{`Framework:    JAX + optax
+Optimizer:    AdamW (lr=1e-3, weight_decay=1e-4, clip_norm=1.0)
 Loss:         MSE on [Cd, Cl]
 Batch size:   64
-Epochs:       500 (early stopping, patience=50)
-Train/val:    80/20 split
-Data format:  binary -- 16-byte header + N records of 5 float32s
-              [wind_speed, reynolds, model_id, cd, cl]`}</CodeBlock>
+Schedule:     halve lr on plateau, early stopping
+Train/val:    80/20 split`}</CodeBlock>
 
-          <h3 className="text-base font-semibold mb-3 mt-8">Weight Format</h3>
+          <h3 className="text-base font-semibold mb-3 mt-8">Accuracy</h3>
           <P>
-            Weights are stored in a custom binary format (LTWS) shared across
-            all three inference targets. The normalizer file stores 3 means and
-            3 standard deviations as raw float32s.
+            On a held out split the model reaches a mean absolute error of
+            0.020 on Cd and 0.101 on Cl. The more demanding test is leave one
+            geometry out, where every shape is scored by a model that never saw
+            it during training. Under that protocol the network reaches a mean
+            absolute error of 0.018 on Cd against 0.024 for a baseline that
+            always predicts the dataset mean, and 0.104 against 0.150 on Cl.
+            Beating the mean baseline on shapes held out of training is the
+            evidence that the model has learned to read geometry rather than
+            memorize the training bodies.
           </P>
-          <CodeBlock>{`model.bin:      LTWS header (magic + version + count) + 12 parameter tensors
-model_norm.bin: 6 x float32 (mean[3], std[3])`}</CodeBlock>
+          <CodeBlock>{`Metric                     Model     Mean baseline
+Held out Cd MAE            0.020
+Held out Cl MAE            0.101
+Leave one geometry out Cd  0.018     0.024
+Leave one geometry out Cl  0.104     0.150`}</CodeBlock>
 
           <h3 className="text-base font-semibold mb-3 mt-8">Inference</h3>
           <P>
-            The C simulation loads the weights at startup and prints an instant
-            Cd/Cl estimate before the LBM loop begins. The browser loads the
-            same files from <InlineCode>/models/</InlineCode> and runs a pure TypeScript
-            forward pass with no dependencies. Both paths take under 1ms.
+            An export step writes the weights, the normalizer, and precomputed
+            descriptors for the bundled geometries into a single JSON file. The
+            browser loads <InlineCode>/models/anyobj.json</InlineCode> and runs a
+            pure TypeScript forward pass with no dependencies, so a prediction
+            costs well under a millisecond and needs no backend.
           </P>
-          <CodeBlock language="bash" title="terminal">{`# Generate training data
-cd ml && python data_gen.py --config sweep_config.yaml --endpoint $MODAL_URL
+          <CodeBlock language="bash" title="terminal">{`# Fetch the public datasets into the Modal volume
+modal run ml/anyobj/modal_train.py --fetch ahmedml,windsorml,drivaerml
 
-# Train the model
-cmake -B build && cmake --build build && ./build/train dataset/training_data.bin
+# Train the surrogate
+modal run ml/anyobj/modal_train.py
 
-# Evaluate
-python evaluate.py --weights model.bin --norm model_norm.bin --data dataset/training_data.bin`}</CodeBlock>
+# Export the browser model
+python ml/anyobj/export_web.py`}</CodeBlock>
           <div className="flex gap-3 mt-2 text-xs flex-wrap">
-            <SrcLink path="ml/train.cpp" label="train.cpp" />
-            <SrcLink path="ml/framework/src/autodiff.cpp" label="autodiff.cpp" />
-            <SrcLink path="ml/framework/src/layers/ad_swiglu.cpp" label="ad_swiglu.cpp" />
-            <SrcLink path="simulation/src/ml_predict.c" label="ml_predict.c" />
-            <SrcLink path="website/src/lib/surrogate.ts" label="surrogate.ts" />
-            <SrcLink path="ml/data_gen.py" label="data_gen.py" />
+            <SrcLink path="ml/anyobj/train.py" label="train.py" />
+            <SrcLink path="ml/anyobj/geometry.py" label="geometry.py" />
+            <SrcLink path="ml/anyobj/fetch.py" label="fetch.py" />
+            <SrcLink path="ml/anyobj/modal_train.py" label="modal_train.py" />
+            <SrcLink path="ml/anyobj/export_web.py" label="export_web.py" />
+            <SrcLink path="website/src/lib/anyobj_surrogate.ts" label="anyobj_surrogate.ts" />
           </div>
         </Section>
 

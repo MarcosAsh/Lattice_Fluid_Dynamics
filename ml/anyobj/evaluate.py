@@ -1,5 +1,5 @@
 """
-Evaluate the any-OBJ Cd/Cl surrogate against LBM.
+Evaluate the any-mesh Cd/Cl surrogate against LBM.
 
 Two views:
   default   score a trained checkpoint on its held-out rows.
@@ -13,45 +13,47 @@ predicting the dataset average.
 
 Usage:
     python evaluate.py --logo
-    python evaluate.py --checkpoint anyobj_model_best.pt --plot
+    python evaluate.py --checkpoint anyobj_model_best.npz --plot
 """
 
 import argparse
 import sys
 from pathlib import Path
 
+import jax
+import jax.numpy as jnp
 import numpy as np
-import torch
-import torch.nn as nn
-import torch.optim as optim
+import optax
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from train import (  # noqa: E402
-    DEFAULT_DATA, N_INPUTS, TARGET_NAMES, SurrogateNet, load_dataset, zscore,
+    DEFAULT_DATA, N_INPUTS, TARGET_NAMES, forward, init_params, load_dataset,
+    load_params, mse, zscore,
 )
 
 HERE = Path(__file__).resolve().parent
 
 
-def fit(Xn, Yn, hidden, epochs, lr, device):
-    """Full-batch train a fresh SurrogateNet (dataset is small)."""
-    model = SurrogateNet(hidden).to(device)
-    opt = optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
-    loss_fn = nn.MSELoss()
-    xt = torch.from_numpy(Xn).float().to(device)
-    yt = torch.from_numpy(Yn).float().to(device)
-    model.train()
+def fit(Xn, Yn, hidden, epochs, lr, seed=0):
+    """Full-batch train a fresh surrogate (dataset is small)."""
+    params = init_params(jax.random.PRNGKey(seed), hidden)
+    tx = optax.adamw(lr, weight_decay=1e-4)
+    opt_state = tx.init(params)
+    x, y = jnp.asarray(Xn), jnp.asarray(Yn)
+
+    @jax.jit
+    def step(params, opt_state):
+        grads = jax.grad(mse)(params, x, y)
+        updates, opt_state = tx.update(grads, opt_state, params)
+        return optax.apply_updates(params, updates), opt_state
+
     for _ in range(epochs):
-        opt.zero_grad()
-        loss_fn(model(xt), yt).backward()
-        opt.step()
-    model.eval()
-    return model
+        params, opt_state = step(params, opt_state)
+    return params
 
 
-def predict(model, Xn, device):
-    with torch.no_grad():
-        return model(torch.from_numpy(Xn).float().to(device)).cpu().numpy()
+def predict(params, Xn):
+    return np.asarray(forward(params, jnp.asarray(Xn)))
 
 
 def report(title, names, true, pred, baseline):
@@ -68,7 +70,7 @@ def report(title, names, true, pred, baseline):
         f"{names[j]} ({true[j,0]:.2f}->{pred[j,0]:.2f})" for j in order[:3]))
 
 
-def run_logo(X, Y, names, args, device):
+def run_logo(X, Y, names, args):
     names = np.array(names)
     geoms = sorted(set(names))
     if len(geoms) < 3:
@@ -81,27 +83,24 @@ def run_logo(X, Y, names, args, device):
         te, tr = names == g, names != g
         x_mean, x_std = zscore(X[tr])
         y_mean, y_std = zscore(Y[tr])
-        model = fit((X[tr] - x_mean) / x_std, (Y[tr] - y_mean) / y_std,
-                    args.hidden, args.epochs, args.lr, device)
-        pred[te] = predict(model, (X[te] - x_mean) / x_std, device) * y_std + y_mean
+        params = fit((X[tr] - x_mean) / x_std, (Y[tr] - y_mean) / y_std,
+                     args.hidden, args.epochs, args.lr)
+        pred[te] = predict(params, (X[te] - x_mean) / x_std) * y_std + y_mean
         base[te] = Y[tr].mean(0)  # mean-Cd baseline knows nothing about shape
     report("Leave-one-geometry-out (predicted vs LBM)", names, Y, pred, base)
     if args.plot:
         scatter(Y[:, 0], pred[:, 0], "logo")
 
 
-def run_checkpoint(X, Y, names, args, device):
+def run_checkpoint(X, Y, names, args):
     norm = np.load(HERE / "anyobj_normalizer.npz")
-    model = SurrogateNet(args.hidden).to(device)
-    model.load_state_dict(torch.load(args.checkpoint, map_location=device,
-                                     weights_only=True))
-    model.eval()
+    params = load_params(args.checkpoint)
 
     n = len(X)
     idx = np.random.RandomState(42).permutation(n)
     val = idx[max(1, int(0.8 * n)):] if n >= 5 else idx
     Xn = (X[val] - norm["x_mean"]) / norm["x_std"]
-    pred = predict(model, Xn, device) * norm["y_std"] + norm["y_mean"]
+    pred = predict(params, Xn) * norm["y_std"] + norm["y_mean"]
     base = np.tile(Y.mean(0), (len(val), 1))
     print("Note: random split shares geometries with training; use --logo for "
           "the generalization number.")
@@ -134,9 +133,9 @@ def scatter(true, pred, tag):
 
 
 def main():
-    p = argparse.ArgumentParser(description="Evaluate the any-OBJ Cd surrogate")
+    p = argparse.ArgumentParser(description="Evaluate the any-mesh Cd surrogate")
     p.add_argument("--data", default=str(DEFAULT_DATA))
-    p.add_argument("--checkpoint", default=str(HERE / "anyobj_model_best.pt"))
+    p.add_argument("--checkpoint", default=str(HERE / "anyobj_model_best.npz"))
     p.add_argument("--logo", action="store_true",
                    help="leave-one-geometry-out cross-validation")
     p.add_argument("--hidden", type=int, default=64)
@@ -146,14 +145,13 @@ def main():
     p.add_argument("--plot", action="store_true")
     args = p.parse_args()
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     X, Y, names = load_dataset(Path(args.data).resolve(), args.voxel_res)
     print(f"{len(X)} samples, {len(set(names))} geometries, {N_INPUTS} inputs")
 
     if args.logo:
-        run_logo(X, Y, names, args, device)
+        run_logo(X, Y, names, args)
     else:
-        run_checkpoint(X, Y, names, args, device)
+        run_checkpoint(X, Y, names, args)
 
 
 if __name__ == "__main__":
