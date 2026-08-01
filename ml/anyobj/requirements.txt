@@ -1,6 +1,6 @@
 numpy>=2.5.0
 scipy>=1.17
-trimesh>=4.12
+trimesh>=4.12.2
 rtree>=1.4.1          # trimesh mesh.contains() voxelization backend
 embreex; python_version < "3.14"   # fast ray backend for big meshes
 jax>=0.4.30
