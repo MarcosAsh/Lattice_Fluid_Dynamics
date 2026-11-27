@@ -142,6 +142,7 @@ int main(int argc, char *argv[]) {
 
     // Print config
     printf("Configuration:\n");
+    printf("  Version: %s\n", cli_version());
     printf("  Model: %s\n", modelPath);
     if (slantAngle > 0)
         printf("  Slant Angle: %d°\n", slantAngle);

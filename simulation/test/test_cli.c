@@ -115,9 +115,13 @@ static void test_invalid_values(void) {
 }
 
 static void test_help(void) {
-    printf("test: --help asks for a clean exit\n");
+    printf("test: --help and --version ask for a clean exit\n");
     CliOptions o;
     CHECK(parse(&o, "--help", NULL) == 1, "--help returns 1");
+    CHECK(parse(&o, "--version", NULL) == 1, "--version returns 1");
+    const char *v = cli_version();
+    CHECK(strstr(v, " (") != NULL && v[strlen(v) - 1] == ')',
+          "version string has a git part");
 }
 
 int main(void) {

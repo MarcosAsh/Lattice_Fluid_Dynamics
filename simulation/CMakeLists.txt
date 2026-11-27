@@ -45,6 +45,20 @@ function(lattice_warnings target)
     endif()
 endfunction()
 
+# Build info for --version
+find_package(Git QUIET)
+set(LATTICE_VERSION_H ${CMAKE_CURRENT_BINARY_DIR}/generated/lattice_version.h)
+add_custom_target(lattice_version
+    COMMAND ${CMAKE_COMMAND}
+        -DGIT_EXECUTABLE=${GIT_EXECUTABLE}
+        -DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}
+        -DVERSION=${PROJECT_VERSION}
+        -DINPUT=${CMAKE_CURRENT_SOURCE_DIR}/cmake/lattice_version.h.in
+        -DOUTPUT=${LATTICE_VERSION_H}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/lattice_version.cmake
+    BYPRODUCTS ${LATTICE_VERSION_H}
+    VERBATIM)
+
 # Vendored glad GL loader, built without our warnings
 add_library(lattice_glad STATIC lib/glad/src/gl.c)
 target_include_directories(lattice_glad SYSTEM PUBLIC lib/glad/include)
@@ -65,8 +79,11 @@ add_library(lattice_util STATIC
     src/cli.c
     src/drag_metrics.c
     src/ml_predict.c)
-target_include_directories(lattice_util PUBLIC lib)
+target_include_directories(lattice_util
+    PUBLIC lib
+    PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated)
 target_link_libraries(lattice_util PUBLIC m)
+add_dependencies(lattice_util lattice_version)
 lattice_warnings(lattice_util)
 
 # GL context, LBM solver and GPU helpers
@@ -123,10 +140,14 @@ if(BUILD_TESTING)
     add_test(NAME voxelize_unit_tests COMMAND test_voxelize)
     add_test(NAME cli_unit_tests COMMAND test_cli)
     add_test(NAME cli_help COMMAND 3d_fluid_simulation_car --help)
+    add_test(NAME cli_version COMMAND 3d_fluid_simulation_car --version)
     set_tests_properties(voxelize_unit_tests cli_unit_tests cli_help
-        PROPERTIES LABELS cpu)
+        cli_version PROPERTIES LABELS cpu)
     set_tests_properties(cli_help PROPERTIES
         PASS_REGULAR_EXPRESSION "Usage:")
+    set_tests_properties(cli_version PROPERTIES
+        PASS_REGULAR_EXPRESSION
+        "^3d_fluid_simulation_car ${PROJECT_VERSION} \\([^)]+\\)")
 
     # Shaders and assets are loaded relative to simulation/
     add_test(NAME lbm_unit_tests COMMAND test_lbm)

@@ -32,4 +32,7 @@ typedef struct {
 // requested (caller should exit cleanly) and -1 on invalid input.
 int cli_parse(int argc, char *argv[], CliOptions *opts);
 
+// Project version and git describe, e.g. "1.5.0 (v1.5.0-3-gabc123)"
+const char *cli_version(void);
+
 #endif // CLI_H

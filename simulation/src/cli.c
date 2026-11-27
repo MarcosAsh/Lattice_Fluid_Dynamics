@@ -1,4 +1,5 @@
 #include "../lib/cli.h"
+#include "lattice_version.h"
 
 #include <errno.h>
 #include <getopt.h>
@@ -77,6 +78,10 @@ static int copy_path(const char *name, const char *arg, char *dst, size_t n) {
     return 1;
 }
 
+const char *cli_version(void) {
+    return LATTICE_VERSION " (" LATTICE_GIT_DESCRIBE ")";
+}
+
 int cli_parse(int argc, char *argv[], CliOptions *opts) {
     opts->windSpeed = 1.0f;
     opts->visualizationMode = 1;
@@ -133,6 +138,7 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
         {"vtk-stats", no_argument, 0, 'T'},
         {"superres", no_argument, 0, 'R'},
         {"sr-weights", required_argument, 0, 'W'},
+        {"version", no_argument, 0, 'X'},
         {"help", no_argument, 0, 'h'},
         {0, 0, 0, 0}
 
@@ -271,6 +277,9 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
                            sizeof(opts->srWeightsPath)))
                 return -1;
             break;
+        case 'X':
+            printf("3d_fluid_simulation_car %s\n", cli_version());
+            return 1;
         case '?':
             fprintf(stderr, "Try '%s --help' for more information.\n", argv[0]);
             return -1;
@@ -315,6 +324,7 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
                    "upscaling\n");
             printf("  --sr-weights=PATH     Super-resolution weights "
                    "(default: assets/sr_model.bin)\n");
+            printf("  --version             Print version and exit\n");
             printf("  -h, --help            Show this help\n");
             return 1;
         default:
