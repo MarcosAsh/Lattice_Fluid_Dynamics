@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { JobStatus } from '../app/page';
+import type { JobStatus } from '../lib/types';
 
 /* eslint-disable react-hooks/set-state-in-effect */
 function useTickElapsed(active: boolean, key: number | null): number {

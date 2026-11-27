@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import ResultsPanel, { SimulationResult } from '../src/components/ResultsPanel';
+import ResultsPanel from '../src/components/ResultsPanel';
+import type { SimulationResult } from '../src/lib/types';
 import StatusDisplay from '../src/components/StatusDisplay';
 
 const mockResult: SimulationResult = {

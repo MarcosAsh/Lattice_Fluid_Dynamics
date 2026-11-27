@@ -3,24 +3,7 @@
 import { useMemo } from 'react';
 import { computeStrouhal, type SpectrumResult } from '../lib/spectral';
 import { MODEL_LABELS } from '../lib/models';
-
-export interface SimulationResult {
-  videoUrl: string;
-  cdValue: number | null;
-  clValue: number | null;
-  cdSeries: number[];
-  clSeries: number[];
-  charLength: number | null;
-  sampleInterval: number | null;
-  tStar: number | null;
-  flowThroughs: number | null;
-  cfl: number | null;
-  cdPressureSeries: number[];
-  cdFrictionSeries: number[];
-  model: string;
-  windSpeed: number;
-  timestamp: number;
-}
+import type { SimulationResult } from '../lib/types';
 
 interface ResultsPanelProps {
   current: SimulationResult | null;

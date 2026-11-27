@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useSurrogate, type Prediction } from '../../lib/surrogate';
-import type { SimulationResult } from '../../components/ResultsPanel';
+import type { SimulationResult } from '../../lib/types';
 import { MODELS, MODEL_LABELS } from '../../lib/models';
 
 function clamp(v: number, lo: number, hi: number) {

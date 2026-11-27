@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { SimulationParams } from '../app/page';
+import type { SimulationParams } from '../lib/types';
 import type { Prediction, ModelStatus } from '../lib/surrogate';
 import { validateObj, ObjValidationResult } from '../lib/validateObj';
 

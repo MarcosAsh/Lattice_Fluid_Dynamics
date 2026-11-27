@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { JobStatus } from '../app/page';
+import type { JobStatus } from '../lib/types';
 
 interface VideoPlayerProps {
   videoUrl: string | null;

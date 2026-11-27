@@ -5,21 +5,14 @@ import Image from 'next/image';
 import ControlPanel from '../components/ControlPanel';
 import VideoPlayer from '../components/VideoPlayer';
 import StatusDisplay from '../components/StatusDisplay';
-import ResultsPanel, { SimulationResult } from '../components/ResultsPanel';
+import ResultsPanel from '../components/ResultsPanel';
 import { useSurrogate } from '../lib/anyobj_surrogate';
 import { DEMOS, type DemoEntry } from '../lib/demos';
-
-export type JobStatus =
-  'idle' | 'starting' | 'rendering' | 'complete' | 'error';
-
-export interface SimulationParams {
-  windSpeed: number;
-  vizMode: number;
-  duration: number;
-  collisionMode: number;
-  model: string;
-  reynolds: number;
-}
+import type {
+  JobStatus,
+  SimulationParams,
+  SimulationResult,
+} from '../lib/types';
 
 const VALID_MODELS = new Set(['car', 'ahmed25', 'ahmed35', 'custom']);
 

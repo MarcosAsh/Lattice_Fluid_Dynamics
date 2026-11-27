@@ -1,4 +1,4 @@
-import type { SimulationResult } from '../components/ResultsPanel';
+import type { SimulationResult } from './types';
 
 export interface DemoEntry {
   label: string;
