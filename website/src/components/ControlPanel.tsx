@@ -12,6 +12,8 @@ interface ControlPanelProps {
   onSweep?: (windMin: number, windMax: number, windStep: number) => void;
   sweepProgress?: string | null;
   disabled: boolean;
+  canRender?: boolean;
+  renderHint?: string | null;
   objFile: File | null;
   onObjFileChange: (file: File | null) => void;
   mlPrediction?: Prediction | null;
@@ -158,6 +160,8 @@ export default function ControlPanel({
   onSweep,
   sweepProgress,
   disabled,
+  canRender = true,
+  renderHint,
   objFile,
   onObjFileChange,
   mlPrediction,
@@ -201,7 +205,8 @@ export default function ControlPanel({
   };
 
   const isCustom = params.model === 'custom';
-  const renderDisabled = disabled || (isCustom && !objFile) || validating;
+  const renderDisabled =
+    disabled || !canRender || (isCustom && !objFile) || validating;
 
   return (
     <div className="flex flex-col gap-4 p-4 border border-ctp-surface1 rounded-lg overflow-y-auto bg-ctp-mantle">
@@ -448,6 +453,11 @@ export default function ControlPanel({
               ? 'Select OBJ first'
               : 'Start Render'}
         </button>
+        {renderHint && (
+          <p className="text-[10px] text-ctp-overlay0 leading-tight -mt-2">
+            {renderHint}
+          </p>
+        )}
 
         {onSweep && (
           <>

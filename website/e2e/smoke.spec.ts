@@ -60,3 +60,25 @@ test('shared params and saved runs hydrate without errors', async ({
     [],
   );
 });
+
+test('demo mode keeps the controls usable', async ({ page }) => {
+  await page.goto('/');
+
+  await expect(
+    page.getByText('No GPU backend is connected, so rendering is off.', {
+      exact: false,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Start Render' }),
+  ).toBeDisabled();
+
+  const wind = page.getByRole('slider').first();
+  await expect(wind).toBeEnabled();
+  await wind.fill('2.5');
+  await expect(page).toHaveURL(/ws=2\.5/);
+
+  await page.getByTestId('demo-gallery').getByRole('button').first().click();
+  await expect(page.getByText('0.7772').first()).toBeVisible();
+  await expect(page.getByTestId('demo-gallery')).toBeVisible();
+});

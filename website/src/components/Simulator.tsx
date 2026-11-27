@@ -134,6 +134,12 @@ export default function Simulator({ learnMore }: { learnMore: ReactNode }) {
   );
 
   const rendering = status === 'rendering';
+  const renderHint =
+    backend.status === 'not_configured'
+      ? 'No GPU backend is connected, so rendering is off. Load an example to see results.'
+      : !backend.available && backend.status === 'down'
+        ? 'Could not reach the server, so rendering is off.'
+        : null;
 
   return (
     <>
@@ -154,7 +160,9 @@ export default function Simulator({ learnMore }: { learnMore: ReactNode }) {
             onRender={startRender}
             onSweep={startSweep}
             sweepProgress={sweepProgress}
-            disabled={!backend.available || rendering}
+            disabled={rendering}
+            canRender={backend.available}
+            renderHint={renderHint}
             objFile={objFile}
             onObjFileChange={setObjFile}
             mlPrediction={mlPrediction}
@@ -188,11 +196,11 @@ export default function Simulator({ learnMore }: { learnMore: ReactNode }) {
           <VideoPlayer
             videoUrl={videoUrl}
             status={status}
-            backendAvailable={backend.available}
+            backendStatus={backend.status}
           />
 
           <div className="border border-ctp-surface1 rounded-lg p-4 bg-ctp-mantle">
-            {!videoUrl && !rendering && (
+            {!rendering && (
               <>
                 <h2 className="text-xs font-semibold text-ctp-overlay1 uppercase tracking-wider mb-2">
                   Examples

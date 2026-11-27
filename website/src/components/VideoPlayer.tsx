@@ -1,23 +1,22 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { JobStatus } from '../lib/types';
+import type { BackendStatus, JobStatus } from '../lib/types';
 
 interface VideoPlayerProps {
   videoUrl: string | null;
   status: JobStatus;
-  backendAvailable: boolean;
+  backendStatus: BackendStatus;
 }
 
 export default function VideoPlayer({
   videoUrl,
   status,
-  backendAvailable,
+  backendStatus,
 }: VideoPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [demoAvailable, setDemoAvailable] = useState(true);
   const [gifProgress, setGifProgress] = useState<string | null>(null);
 
   useEffect(() => {
@@ -134,9 +133,6 @@ export default function VideoPlayer({
     URL.revokeObjectURL(url);
   }, []);
 
-  const showDemo = !videoUrl && status === 'idle' && demoAvailable;
-  const showPlaceholder = !videoUrl && !showDemo;
-
   return (
     <div
       ref={containerRef}
@@ -156,38 +152,26 @@ export default function VideoPlayer({
             loop
             className="w-full h-full object-contain"
           />
-        ) : showDemo ? (
-          <>
-            <video
-              ref={videoRef}
-              src="/demo.mp4"
-              autoPlay
-              loop
-              muted
-              playsInline
-              crossOrigin="anonymous"
-              onError={() => setDemoAvailable(false)}
-              className="w-full h-full object-contain"
-            />
-            <div className="absolute bottom-2 right-2 bg-ctp-crust/80 text-ctp-overlay0 text-[10px] px-2 py-0.5 rounded">
-              Demo
-            </div>
-          </>
-        ) : showPlaceholder ? (
+        ) : (
           <div className="text-center text-ctp-overlay0 text-sm px-6">
-            {!backendAvailable && status === 'idle' && (
+            {backendStatus === 'not_configured' && status === 'idle' && (
               <>
                 <p className="text-ctp-subtext0 mb-2">Demo Mode</p>
                 <p className="text-xs text-ctp-overlay0 leading-relaxed">
                   The GPU render backend is not connected. You can explore the
-                  controls and read the white paper. To run live simulations,
-                  configure the MODAL_RENDER_ENDPOINT environment variable.
+                  controls, load an example and read the white paper. To run
+                  live simulations, configure the MODAL_RENDER_ENDPOINT
+                  environment variable.
                 </p>
               </>
             )}
-            {backendAvailable && status === 'idle' && (
-              <p>Configure parameters and click Start Render</p>
+            {backendStatus === 'down' && status === 'idle' && (
+              <p>The render backend is not responding right now</p>
             )}
+            {(backendStatus === 'healthy' || backendStatus === 'slow') &&
+              status === 'idle' && (
+                <p>Configure parameters and click Start Render</p>
+              )}
             {status === 'rendering' && (
               <>
                 <p className="animate-pulse">Rendering simulation...</p>
@@ -200,7 +184,7 @@ export default function VideoPlayer({
               <p className="text-ctp-red">Render failed</p>
             )}
           </div>
-        ) : null}
+        )}
       </div>
 
       {videoUrl && (
