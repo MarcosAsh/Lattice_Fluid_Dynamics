@@ -1,0 +1,100 @@
+{
+  "schema_version": 1,
+  "program": "3d_fluid_simulation_car",
+  "version": "1.5.0",
+  "git": {
+    "describe": "unknown",
+    "commit": "unknown",
+    "dirty": false
+  },
+  "start_time_utc": "2026-11-27T23:01:36Z",
+  "wall_seconds": 794.87627631600117,
+  "gl": {
+    "vendor": "NVIDIA Corporation",
+    "renderer": "NVIDIA GeForce RTX 5070 Ti/PCIe/SSE2",
+    "version": "4.6.0 NVIDIA 615.78.08"
+  },
+  "parameters": {
+    "wind": 1,
+    "viz": 1,
+    "collision": 2,
+    "duration": 30,
+    "output": null,
+    "model": "assets/3d-files/ahmed_25deg_m.obj",
+    "angle": 0,
+    "scale": 2.2988505,
+    "scale_from_cli": false,
+    "reynolds": 0,
+    "grid": [256, 128, 128],
+    "smagorinsky": 0.1,
+    "collision_operator": "mrt",
+    "turbulence": 0,
+    "sponge": 32,
+    "vtk_output": null,
+    "vtk_interval": 100,
+    "vtk_stats": false,
+    "superres": false,
+    "sr_weights": "assets/sr_model.bin",
+    "sr_norm": "assets/sr_model_norm.bin",
+    "manifest": "../out-final/logs/ahmed25_256x128x128.json",
+    "converge": null,
+    "converge_window": 20,
+    "max_duration": 0
+  },
+  "lattice": {
+    "grid": [256, 128, 128],
+    "collision_operator": "mrt",
+    "smagorinsky": true,
+    "periodic_yz": true,
+    "viscosity": 0.0192,
+    "tau": 0.5576,
+    "velocity": 0.05,
+    "mach": 0.08660254166892227,
+    "reynolds": 200,
+    "reynolds_effective": 199.99994,
+    "char_length": 76.8
+  },
+  "model": {
+    "path": "assets/3d-files/ahmed_25deg_m.obj",
+    "triangles": 28626,
+    "solid_cells": 42832,
+    "ref_area": 618.375,
+    "blockage_factor": 0.92593926
+  },
+  "run": {
+    "frames": 2868,
+    "output_frames": 1801,
+    "substeps_per_frame": 10,
+    "lbm_steps": 28680
+  },
+  "results": {
+    "cd_samples": 90,
+    "sample_interval_frames": 20,
+    "force_window_steps": 200,
+    "ema_alpha": 0.1,
+    "cd": 2.3668683,
+    "cd_corr": 2.1915762,
+    "cd_ema": 2.396847,
+    "cd_mean": 2.6522493,
+    "cd_corr_mean": 2.4558218,
+    "cd_pressure": 0.7581775,
+    "cd_friction": 1.6086907,
+    "cl": 0.14516827,
+    "cl_mean": 0.15818287,
+    "t_star": 18.619791,
+    "flow_throughs": 5.5859375,
+    "strouhal": 0.91118646,
+    "shedding_frequency": 0.00059322035
+  },
+  "convergence": {
+    "enabled": false,
+    "tolerance": null,
+    "window": 20,
+    "converged": false,
+    "stop_frame": null,
+    "cd_mean": null,
+    "cd_sem": null,
+    "sem_method": "batch_means_8",
+    "relative_change": null
+  }
+}

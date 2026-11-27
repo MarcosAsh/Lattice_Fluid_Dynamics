@@ -1,0 +1,13 @@
+group sphere_re100: cd on 3 grids, h from char_length
+  grid               cells    h/h1          cd       sem
+  256x128x128      4194304   1.000      1.1308 0.0003073
+  192x96x96        1769472   1.333       1.154 0.0003796
+  128x64x64         524288   2.000      1.2567 0.0004234
+  r21 1.333  r32 1.500  eps21 0.02313  eps32 0.1027  monotone
+  observed order p 3.213 (formal 2)
+  extrapolated cd 1.1156
+  e_a21 2.05%  e_ext21 1.36%  GCI_fine21 1.68%  GCI_coarse21 4.24%  GCI_fine32 4.15%
+  asymptotic GCI32/(r21^p GCI21) 0.980 (near 1)
+  cd = 1.1308 +/- 0.019 (about 95%, numerical 0.019, statistical 0.000615)
+  extrapolated cd 1.1156 +/- 0.00202 from the runs' noise
+wrote docs/validation/sphere/gci_sphere_re100.png
