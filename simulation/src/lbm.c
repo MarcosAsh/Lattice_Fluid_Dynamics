@@ -86,7 +86,10 @@ LBMGrid *LBM_Create(int sizeX, int sizeY, int sizeZ, float viscosity) {
     size_t fSize = 19 * grid->totalCells * sizeof(float);
     size_t velSize = grid->totalCells * 4 * sizeof(float);
     size_t solidSize = grid->totalCells * sizeof(int);
-    size_t forceSize = 7 * sizeof(int); // total(xyz), count, pressure(xyz)
+    // One extra z-group per slab covers any split of 8+ planes
+    int forceWG = ((sizeX + 7) / 8) * ((sizeY + 7) / 8) *
+                  ((sizeZ + 7) / 8 + sizeZ / 8 + 1);
+    size_t forceSize = (size_t)forceWG * 8 * sizeof(float);
 
     size_t totalGPU = 2 * fSize + velSize + solidSize + forceSize;
     printf("GPU memory: f=%.1f MB x2, vel=%.1f MB, solid=%.1f MB, "
@@ -221,11 +224,13 @@ LBMGrid *LBM_Create(int sizeX, int sizeY, int sizeZ, float viscosity) {
     }
     free(solidZeros);
 
-    int forceZeros[7] = {0, 0, 0, 0, 0, 0, 0};
+    grid->forceWorkgroups = forceWG;
+    float *forceZeros = (float *)calloc(1, forceSize);
     glGenBuffers(1, &grid->forceBuffer);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->forceBuffer);
     glBufferData(
         GL_SHADER_STORAGE_BUFFER, forceSize, forceZeros, GL_DYNAMIC_COPY);
+    free(forceZeros);
     if (glGetError() != GL_NO_ERROR) {
         printf("ERROR: GPU alloc failed for forceBuffer\n");
         LBM_Free(grid);
@@ -336,6 +341,8 @@ LBMGrid *LBM_Create(int sizeX, int sizeY, int sizeZ, float viscosity) {
             glGetUniformLocation(grid->forceShader, "gridSize");
         grid->force_zOffsetLoc =
             glGetUniformLocation(grid->forceShader, "zOffset");
+        grid->force_wgBaseLoc =
+            glGetUniformLocation(grid->forceShader, "wgBase");
     }
 
     printf("LBM initialized successfully\n");
@@ -904,6 +911,7 @@ static void dispatchForceShader(LBMGrid *grid) {
         (size_t)19 * grid->sizeX * grid->sizeY * sizeof(float);
     int dispX = (grid->sizeX + 7) / 8;
     int dispY = (grid->sizeY + 7) / 8;
+    int wgBase = 0;
 
     for (int c = 0; c < grid->numChunks; c++) {
         int zStart = c * grid->slabZ;
@@ -911,6 +919,11 @@ static void dispatchForceShader(LBMGrid *grid) {
         if (zEnd > grid->sizeZ)
             zEnd = grid->sizeZ;
         int slabCells = zEnd - zStart;
+        int dispZ = (slabCells + 7) / 8;
+        if (wgBase + dispX * dispY * dispZ > grid->forceWorkgroups) {
+            printf("ERROR: force buffer too small for slab split\n");
+            return;
+        }
 
         if (grid->numChunks == 1) {
             glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, grid->fBuffer);
@@ -930,9 +943,21 @@ static void dispatchForceShader(LBMGrid *grid) {
         glUniform3i(
             grid->force_gridSizeLoc, grid->sizeX, grid->sizeY, slabCells);
         glUniform1i(grid->force_zOffsetLoc, zStart);
+        glUniform1i(grid->force_wgBaseLoc, wgBase);
 
-        glDispatchCompute(dispX, dispY, (slabCells + 7) / 8);
+        glDispatchCompute(dispX, dispY, dispZ);
+        wgBase += dispX * dispY * dispZ;
     }
+}
+
+static void clearForceBuffer(LBMGrid *grid) {
+    size_t bytes = (size_t)grid->forceWorkgroups * 8 * sizeof(float);
+    float *zeros = (float *)calloc(1, bytes);
+    if (!zeros)
+        return;
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->forceBuffer);
+    glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, bytes, zeros);
+    free(zeros);
 }
 
 void LBM_ComputeDragForceDecomposed(LBMGrid *grid,
@@ -960,10 +985,7 @@ void LBM_ComputeDragForceDecomposed(LBMGrid *grid,
     // running sum from LBM_Step; otherwise take one snapshot now.
     int samples = grid->forceAccumCount;
     if (samples == 0) {
-        // Clear force buffer (7 ints: total xyz, count, pressure xyz)
-        int zeros[7] = {0, 0, 0, 0, 0, 0, 0};
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->forceBuffer);
-        glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(zeros), zeros);
+        clearForceBuffer(grid);
         // Make the clear visible to the dispatch below. Spec-wise this
         // is implicit, but a zero force readback has been observed
         // (rarely) on Mesa iris without it when many compute dispatches
@@ -982,29 +1004,35 @@ void LBM_ComputeDragForceDecomposed(LBMGrid *grid,
     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT |
                     GL_BUFFER_UPDATE_BARRIER_BIT);
 
-    // Read back results
-    int results[7];
+    // Read back per-workgroup sums and reduce in double
+    size_t nFloats = (size_t)grid->forceWorkgroups * 8;
+    float *partial = (float *)malloc(nFloats * sizeof(float));
+    if (!partial)
+        return;
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->forceBuffer);
-    glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(results), results);
+    glGetBufferSubData(
+        GL_SHADER_STORAGE_BUFFER, 0, nFloats * sizeof(float), partial);
+    double sum[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+    for (size_t i = 0; i < nFloats; i++)
+        sum[i % 8] += partial[i];
+    free(partial);
 
     // Restart the accumulation window
     if (grid->forceAccumCount > 0) {
-        int zeros[7] = {0, 0, 0, 0, 0, 0, 0};
-        glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(zeros), zeros);
+        clearForceBuffer(grid);
         grid->forceAccumCount = 0;
     }
 
-    // Convert back from int (scaled by 10000), averaged over the window
-    float inv = 1.0f / (10000.0f * (float)samples);
-    *forceX = results[0] * inv;
-    *forceY = results[1] * inv;
-    *forceZ = results[2] * inv;
+    double inv = 1.0 / (double)samples;
+    *forceX = (float)(sum[0] * inv);
+    *forceY = (float)(sum[1] * inv);
+    *forceZ = (float)(sum[2] * inv);
     if (pressureX)
-        *pressureX = results[4] * inv;
+        *pressureX = (float)(sum[4] * inv);
     if (pressureY)
-        *pressureY = results[5] * inv;
+        *pressureY = (float)(sum[5] * inv);
     if (pressureZ)
-        *pressureZ = results[6] * inv;
+        *pressureZ = (float)(sum[6] * inv);
 }
 
 float LBM_ComputeDragCoefficient(LBMGrid *grid,

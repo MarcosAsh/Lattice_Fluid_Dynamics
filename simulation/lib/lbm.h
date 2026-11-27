@@ -76,6 +76,20 @@ typedef struct {
     GLint stream_fNewZOffsetLoc;
     GLint stream_slabZLoc;
     GLint force_zOffsetLoc;
+
+    int periodicX;       // 1 = periodic x, disables inlet and outlet
+    float bodyForce[3];  // uniform body force density, lattice units
+    GLuint diagBuffer;   // stability guard counters
+
+    GLint collide_periodicXLoc;
+    GLint collide_bodyForceLoc;
+    GLint stream_periodicXLoc;
+    GLint stream_fNewZCountLoc;
+    GLint stream_wrapPlaneZLoc;
+
+    int forceWorkgroups; // force buffer holds 2 vec4 per workgroup
+    GLint force_wgBaseLoc;
+    GLsync stepFence;    // bounds the depth of the queued step work
 } LBMGrid;
 
 // Initialize LBM grid

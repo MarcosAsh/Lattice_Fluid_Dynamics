@@ -22,14 +22,9 @@ layout(std430, binding = 5) buffer SolidMask {
     int solid[];
 };
 
+// Per-workgroup float sums of (force, boundary cells), (pressure force, 0)
 layout(std430, binding = 6) buffer ForceBuffer {
-    int forceXInt;
-    int forceYInt;
-    int forceZInt;
-    int solidCount;
-    int pressureForceXInt;
-    int pressureForceYInt;
-    int pressureForceZInt;
+    vec4 partial[];
 };
 
 layout(std430, binding = 7) buffer BouzidiQ {
@@ -38,6 +33,10 @@ layout(std430, binding = 7) buffer BouzidiQ {
 
 uniform ivec3 gridSize;        // (sizeX, sizeY, slabZ) -- Z is slab height
 uniform int zOffset;           // global Z of this slab's first cell
+uniform int wgBase;            // workgroups in earlier slabs
+
+shared vec4 sForce[512];
+shared vec4 sPressure[512];
 
 const ivec3 e[19] = ivec3[19](ivec3(0, 0, 0),
                               ivec3(1, 0, 0),
@@ -94,58 +93,64 @@ float feq(int i, float rho, vec3 u) {
 void main() {
     ivec3 pos = ivec3(gl_GlobalInvocationID.xyz);
 
-    if (pos.x >= gridSize.x || pos.y >= gridSize.y || pos.z >= gridSize.z)
-        return;
-
-    int globalIdx = idx3D_global(pos.x, pos.y, pos.z);
-
-    if (solid[globalIdx] != 0)
-        return;
-
-    // Local velocity and density for equilibrium computation
-    vec4 vel = velocity[globalIdx];
-    vec3 u = vel.xyz;
-    float rho = vel.w;
-
     vec3 localForce = vec3(0.0);
     vec3 pressureForce = vec3(0.0);
     bool hasSolidNeighbor = false;
 
-    for (int i = 1; i < 19; i++) {
-        float q = q_val[idxF(pos.x, pos.y, pos.z, i)];
+    bool inside = pos.x < gridSize.x && pos.y < gridSize.y && pos.z < gridSize.z;
+    int globalIdx = inside ? idx3D_global(pos.x, pos.y, pos.z) : 0;
 
-        if (q >= 0.0) {
-            hasSolidNeighbor = true;
+    if (inside && solid[globalIdx] == 0) {
+        // Local velocity and density for equilibrium computation
+        vec4 vel = velocity[globalIdx];
+        vec3 u = vel.xyz;
+        float rho = vel.w;
 
-            int iopp = opposite[i];
+        for (int i = 1; i < 19; i++) {
+            float q = q_val[idxF(pos.x, pos.y, pos.z, i)];
 
-            // Mei-Luo-Shyy: F_i = e_i * (f*_i + f_iopp)
-            float fi_star = f_new[idxF(pos.x, pos.y, pos.z, i)];
-            float f_iopp = f[idxF(pos.x, pos.y, pos.z, iopp)];
+            if (q >= 0.0) {
+                hasSolidNeighbor = true;
 
-            // Total momentum exchange
-            float ftotal = fi_star + f_iopp;
-            localForce.x += ftotal * float(e[i].x);
-            localForce.y += ftotal * float(e[i].y);
-            localForce.z += ftotal * float(e[i].z);
+                int iopp = opposite[i];
 
-            // Pressure (equilibrium) contribution
-            float feq_i = feq(i, rho, u);
-            float feq_iopp = feq(iopp, rho, u);
-            float fpressure = feq_i + feq_iopp;
-            pressureForce.x += fpressure * float(e[i].x);
-            pressureForce.y += fpressure * float(e[i].y);
-            pressureForce.z += fpressure * float(e[i].z);
+                // Mei-Luo-Shyy: F_i = e_i * (f*_i + f_iopp)
+                float fi_star = f_new[idxF(pos.x, pos.y, pos.z, i)];
+                float f_iopp = f[idxF(pos.x, pos.y, pos.z, iopp)];
+
+                // Total momentum exchange
+                float ftotal = fi_star + f_iopp;
+                localForce.x += ftotal * float(e[i].x);
+                localForce.y += ftotal * float(e[i].y);
+                localForce.z += ftotal * float(e[i].z);
+
+                // Pressure (equilibrium) contribution
+                float feq_i = feq(i, rho, u);
+                float feq_iopp = feq(iopp, rho, u);
+                float fpressure = feq_i + feq_iopp;
+                pressureForce.x += fpressure * float(e[i].x);
+                pressureForce.y += fpressure * float(e[i].y);
+                pressureForce.z += fpressure * float(e[i].z);
+            }
         }
     }
 
-    if (hasSolidNeighbor) {
-        atomicAdd(forceXInt, int(round(localForce.x * 10000.0)));
-        atomicAdd(forceYInt, int(round(localForce.y * 10000.0)));
-        atomicAdd(forceZInt, int(round(localForce.z * 10000.0)));
-        atomicAdd(solidCount, 1);
-        atomicAdd(pressureForceXInt, int(round(pressureForce.x * 10000.0)));
-        atomicAdd(pressureForceYInt, int(round(pressureForce.y * 10000.0)));
-        atomicAdd(pressureForceZInt, int(round(pressureForce.z * 10000.0)));
+    uint lid = gl_LocalInvocationIndex;
+    sForce[lid] = vec4(localForce, hasSolidNeighbor ? 1.0 : 0.0);
+    sPressure[lid] = vec4(pressureForce, 0.0);
+    barrier();
+    for (uint s = 256u; s > 0u; s >>= 1) {
+        if (lid < s) {
+            sForce[lid] += sForce[lid + s];
+            sPressure[lid] += sPressure[lid + s];
+        }
+        barrier();
+    }
+    if (lid == 0u) {
+        uvec3 wg = gl_WorkGroupID;
+        uvec3 nwg = gl_NumWorkGroups;
+        int w = wgBase + int(wg.x + nwg.x * (wg.y + nwg.y * wg.z));
+        partial[2 * w] += sForce[0];
+        partial[2 * w + 1] += sPressure[0];
     }
 }
