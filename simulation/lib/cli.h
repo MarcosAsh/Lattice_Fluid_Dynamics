@@ -38,4 +38,13 @@ int cli_parse(int argc, char *argv[], CliOptions *opts);
 // Project version and git describe, e.g. "1.5.0 (v1.5.0-3-gabc123)"
 const char *cli_version(void);
 
+typedef struct {
+    const char *version;
+    const char *gitDescribe;
+    const char *gitCommit;
+    int gitDirty;
+} BuildInfo;
+
+const BuildInfo *cli_build_info(void);
+
 #endif // CLI_H

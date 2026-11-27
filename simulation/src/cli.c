@@ -89,6 +89,14 @@ const char *cli_version(void) {
     return LATTICE_VERSION " (" LATTICE_GIT_DESCRIBE ")";
 }
 
+const BuildInfo *cli_build_info(void) {
+    static const BuildInfo info = {LATTICE_VERSION,
+                                   LATTICE_GIT_DESCRIBE,
+                                   LATTICE_GIT_COMMIT,
+                                   LATTICE_GIT_DIRTY};
+    return &info;
+}
+
 int cli_parse(int argc, char *argv[], CliOptions *opts) {
     opts->windSpeed = 1.0f;
     opts->visualizationMode = 1;
