@@ -102,7 +102,18 @@ assert m["results"]["cd_samples"] > 0
 assert m["lattice"]["tau"] > 0.5
 assert m["model"]["solid_cells"] > 0
 assert m["run"]["output_frames"] > 0
-assert m["convergence"]["enabled"] is False
+c = m["convergence"]
+assert c["enabled"] is False
+assert c["method"].startswith("mser5"), c["method"]
+for k in ("samples", "rejected_samples", "truncated_samples", "kept_samples",
+          "stationary", "reason", "cd_mean", "cd_sem", "cd_ci95_half_width",
+          "effective_sample_size", "lag1_autocorrelation"):
+    assert k in c, k
+assert c["samples"] + c["rejected_samples"] == m["results"]["cd_samples"]
+if c["cd_mean"] is None:
+    assert c["reason"], "no statistics and no reason"
+else:
+    assert c["cd_ci95_half_width"] >= 0 and c["effective_sample_size"] > 0
 PY
     then
         pass "manifest parses and has the fields"
@@ -125,6 +136,12 @@ if grep -q '"enabled": true' "$OUTDIR/conv.json" 2>/dev/null; then
     pass "convergence in manifest"
 else
     fail "convergence missing from manifest"
+fi
+if echo "$CONV_OUTPUT" | grep -q "^Drag statistics: " &&
+    ! echo "$CONV_OUTPUT" | grep -A4 "^Drag statistics: " | grep -q "Cd="; then
+    pass "drag statistics reported"
+else
+    fail "no drag statistics, or they contain Cd="
 fi
 
 # Cleanup
