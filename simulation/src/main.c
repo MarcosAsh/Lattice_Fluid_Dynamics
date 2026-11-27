@@ -1029,6 +1029,13 @@ int main(int argc, char *argv[]) {
     int cdHistoryCount = 0;
     int converged = 0;
     float cdEma = 0.0f;
+    int unstableSamples = 0;
+
+    // Lift along the shorter cross axis, z for Ahmed and y for the car
+    int liftAxis = (carBounds.maxZ - carBounds.minZ <
+                    carBounds.maxY - carBounds.minY)
+                       ? 2
+                       : 1;
 
     // Cl time series for Strouhal extraction (dynamically grown)
     int clCapacity = 256;
@@ -1502,9 +1509,10 @@ int main(int argc, char *argv[]) {
                    cdEma,
                    tStar,
                    flowThroughs);
-            printf("  Cd_pressure=%.3f Cd_friction=%.3f\n",
+            printf("  Cd_pressure=%.3f Cd_friction=%.3f Cside=%.3f\n",
                    CdPressure,
-                   CdFriction);
+                   CdFriction,
+                   Cside);
 
             cdSamples++;
             cdSum += Cd;
@@ -1708,5 +1716,13 @@ int main(int argc, char *argv[]) {
     printf("Cleanup complete. Exiting.\n");
     printf("Thanks for Running my project! If you liked it please consider "
            "contributing or leaving a star on GitHub!");
+    if (unstableSamples > 0) {
+        fprintf(stderr,
+                "\nERROR: stability guard reset cells in %d Cd samples, "
+                "drag is invalid\n",
+                unstableSamples);
+        if (exitCode == 0)
+            exitCode = 4;
+    }
     return exitCode;
 }
