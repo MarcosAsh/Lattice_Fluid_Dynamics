@@ -153,8 +153,8 @@ used ones:
 --reynolds=RE        Target Reynolds number (0=derive from wind speed)
 --grid=XxYxZ         Grid size (default: 128x64x64)
 --manifest=PATH      Run manifest JSON
---converge=TOL       Stop once the windowed mean Cd has settled
---converge-window=N  Cd samples per window (default: 20)
+--converge=TOL       Stop once the 95% CI of mean Cd is within TOL
+--converge-window=N  Cd samples between checks (default: 20)
 --max-duration=SECS  Frame cap for --converge
 --version            Print version and exit
 ```
@@ -173,13 +173,86 @@ Cd value can be traced back to the exact run that produced it.
 
 ```bash
 ./build/3d_fluid_simulation_car --model=assets/3d-files/ahmed_25deg_m.obj \
-    --converge=0.01 --converge-window=20 --max-duration=60 \
-    --manifest=run.json
+    --converge=0.01 --max-duration=300 --manifest=run.json
 ```
 
-The run ends when the mean Cd of the last two windows differs by less
-than `TOL` twice in a row, or at `--max-duration`. The manifest reports
-whether it converged, the mean and its standard error (batch means).
+Every run keeps its Cd samples, one every 20 frames, and puts an error bar
+on the mean at the end, with or without `--converge`. The result is
+printed after `Drag statistics:` and stored in the `convergence` section
+of the manifest.
+
+The error bar comes from four steps.
+
+1. Cut the start-up transient with MSER-5 (White 1997). The samples are
+   averaged in groups of five, and the cut goes where the standard error
+   of the remaining samples is smallest. The cut is at most half the run.
+   If the smallest value lies in the second half, the run is marked
+   `transient may not be over`. A force oscillation that is still dying
+   out often causes this.
+2. Estimate the standard error of the mean from overlapping batch means
+   (Meketon and Schmeiser 1984). The batch size grows with the square root
+   of the sample count (Flegal and Jones 2010). The lugsail correction
+   (Vats and Flegal 2022) offsets the low bias of short batches on
+   correlated samples. Batch sizes are multiples of 6, so a force that
+   alternates from one sample to the next cancels inside each batch.
+3. Build a 95 percent confidence interval with a Student t quantile.
+4. Test the kept samples for a shift in the mean with the Cramer-von Mises
+   test of Heidelberger and Welch (1983). A straight line is also fitted,
+   and its rise across the kept samples is reported as the drift
+   (Scandurra et al. 2025).
+
+The effective sample size is the number of independent samples that would
+give the same standard error. It can be larger than the sample count when
+neighbouring samples are anticorrelated. The lag-1 autocorrelation is
+printed too. A value near -1 means the force alternates from sample to
+sample, and the summary then reports a period-2 oscillation.
+
+With `--converge=TOL` the run stops at the first check where all of these
+hold:
+
+- at least 200 samples are left after the cut
+- the effective sample size is at least 50
+- the mean passes the stationarity test
+- the 95 percent half-width is less than `TOL` times the mean
+- the drift is less than `TOL` times the mean
+
+A check runs every `--converge-window` samples (default 20).
+`--max-duration` caps the run. A run that reaches the cap prints why it
+did not converge.
+
+`TOL` used to bound the change between the means of two windows. It is now
+the relative half-width, so `--converge=0.01` asks for the mean Cd to
+within 1 percent at 95 percent confidence.
+
+The manifest records the method name and version, the sample counts
+(total, cut, kept, and NaN or Inf samples dropped), the mean, standard
+deviation, standard error, 95 percent half-width, effective sample size,
+lag-1 autocorrelation, drift and the stationarity result. Counts are in Cd
+samples and Cd has no units. Values that could not be computed are `null`,
+and `reason` says why.
+
+On synthetic series the interval covered the true mean in 94 to 98 percent
+of trials, for white noise, strongly correlated noise and a period-2
+oscillation. About 94 percent of runs stopped by the rule were still
+covered. The rule never stopped on a drift of six times `TOL` across 200
+samples. A drift close to `TOL` can slip through, because a short series
+cannot tell it from noise.
+
+References:
+
+- K. P. White, "An effective truncation heuristic for bias reduction in
+  simulation output", Simulation 69(6), 1997.
+- M. S. Meketon and B. Schmeiser, "Overlapping batch means: something for
+  nothing?", Winter Simulation Conference, 1984.
+- J. M. Flegal and G. L. Jones, "Batch means and spectral variance
+  estimators in Markov chain Monte Carlo", Ann. Statist. 38(2), 2010.
+- D. Vats and J. M. Flegal, "Lugsail lag windows for estimating
+  time-average covariance matrices", Biometrika 109(3), 2022.
+- P. Heidelberger and P. D. Welch, "Simulation run length control in the
+  presence of an initial transient", Oper. Res. 31(6), 1983.
+- L. Scandurra, P. Alexias and E. de Villiers, "A framework for initial
+  transient detection and statistical assessment of convergence in CFD
+  simulations", arXiv:2511.22618, 2025.
 
 ## Running a study
 
