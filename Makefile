@@ -16,13 +16,14 @@ deploy-modal: ## Deploy the Modal GPU worker
 deploy-web: ## Deploy the website to Vercel
 	cd website && npx vercel --prod
 
-test: ## Run all tests (simulation build + website lint and build)
-	cmake -B build -S simulation -DCMAKE_BUILD_TYPE=Release
-	cmake --build build -j$$(nproc)
-	cd website && npm ci && npm run lint && npm run build
+test: sim ## Run the simulation, Python and website tests
+	ctest --test-dir build --output-on-failure
+	uv run pytest
+	cd website && npm ci && npm run lint && npm run build && npm test
 
-fmt: ## Format C code with clang-format and fix TS with eslint
-	find simulation/src simulation/lib -name '*.c' -o -name '*.h' | xargs clang-format -i
+fmt: ## Format C, Python and TS
+	git ls-files '*.c' '*.h' '*.cpp' '*.hpp' ':!simulation/lib/glad' | xargs clang-format -i
+	uv run ruff check --fix . && uv run ruff format .
 	cd website && npx eslint --fix src/
 
 clean: ## Remove build artifacts

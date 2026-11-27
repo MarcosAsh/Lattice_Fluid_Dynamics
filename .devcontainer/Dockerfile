@@ -10,7 +10,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1-mesa-dev \
     libegl1-mesa-dev \
     libsdl2-dev \
-    libsdl2-ttf-dev \
     mesa-utils \
     xvfb \
     xauth \
