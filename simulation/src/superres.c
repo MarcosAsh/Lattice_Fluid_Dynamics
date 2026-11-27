@@ -38,6 +38,27 @@ struct SuperResUpscaler {
     float normStd[4];
 };
 
+static int read_u32(FILE *f, uint32_t *v) {
+    return fread(v, sizeof(*v), 1, f) == 1;
+}
+
+// Element count of the next tensor header, or -1 on a bad header
+static long read_numel(FILE *f) {
+    uint32_t ndim;
+    if (!read_u32(f, &ndim) || ndim > 8)
+        return -1;
+    long numel = 1;
+    for (uint32_t d = 0; d < ndim; d++) {
+        uint32_t s;
+        if (!read_u32(f, &s) || s > (1u << 24))
+            return -1;
+        numel *= (long)s;
+        if (numel > (1L << 28))
+            return -1;
+    }
+    return numel;
+}
+
 // Load LTWS weights into a flat float array.
 // Returns the array and sets *outCount to the total number of floats.
 static float *load_ltws_flat(const char *path, int *outCount) {
@@ -48,55 +69,61 @@ static float *load_ltws_flat(const char *path, int *outCount) {
     }
 
     uint32_t magic, version, paramCount;
-    if (fread(&magic, 4, 1, f) != 1 || magic != LTWS_MAGIC) {
+    if (!read_u32(f, &magic) || magic != LTWS_MAGIC) {
         printf("SR: bad magic in %s\n", path);
         fclose(f);
         return NULL;
     }
-    fread(&version, 4, 1, f);
-    fread(&paramCount, 4, 1, f);
-
-    // First pass: compute total size
-    long dataStart = ftell(f);
-    int totalFloats = 0;
-    for (uint32_t p = 0; p < paramCount; p++) {
-        uint32_t ndim;
-        fread(&ndim, 4, 1, f);
-        int numel = 1;
-        for (uint32_t d = 0; d < ndim; d++) {
-            uint32_t s;
-            fread(&s, 4, 1, f);
-            numel *= (int)s;
-        }
-        fseek(f, numel * 4, SEEK_CUR);
-        totalFloats += numel;
-    }
-
-    // Second pass: read data
-    float *data = (float *)malloc(totalFloats * sizeof(float));
-    if (!data) {
+    if (!read_u32(f, &version) || !read_u32(f, &paramCount) ||
+        paramCount > 64) {
+        printf("SR: bad header in %s\n", path);
         fclose(f);
         return NULL;
     }
 
-    fseek(f, dataStart, SEEK_SET);
-    int offset = 0;
+    // First pass: compute total size
+    long dataStart = ftell(f);
+    long totalFloats = 0;
     for (uint32_t p = 0; p < paramCount; p++) {
-        uint32_t ndim;
-        fread(&ndim, 4, 1, f);
-        int numel = 1;
-        for (uint32_t d = 0; d < ndim; d++) {
-            uint32_t s;
-            fread(&s, 4, 1, f);
-            numel *= (int)s;
+        long numel = read_numel(f);
+        if (numel < 0 || fseek(f, numel * 4, SEEK_CUR) != 0) {
+            printf("SR: bad tensor %u in %s\n", p, path);
+            fclose(f);
+            return NULL;
         }
-        fread(data + offset, sizeof(float), numel, f);
+        totalFloats += numel;
+    }
+    if (totalFloats <= 0 || totalFloats > (1L << 28)) {
+        printf("SR: bad weight count in %s\n", path);
+        fclose(f);
+        return NULL;
+    }
+
+    // Second pass: read data
+    float *data = (float *)malloc((size_t)totalFloats * sizeof(float));
+    if (!data || fseek(f, dataStart, SEEK_SET) != 0) {
+        free(data);
+        fclose(f);
+        return NULL;
+    }
+
+    long offset = 0;
+    for (uint32_t p = 0; p < paramCount; p++) {
+        long numel = read_numel(f);
+        if (numel < 0 || offset + numel > totalFloats ||
+            fread(data + offset, sizeof(float), (size_t)numel, f) !=
+                (size_t)numel) {
+            printf("SR: truncated weights file: %s\n", path);
+            free(data);
+            fclose(f);
+            return NULL;
+        }
         offset += numel;
     }
 
     fclose(f);
-    *outCount = totalFloats;
-    printf("SR: loaded %d weight floats from %s\n", totalFloats, path);
+    *outCount = (int)totalFloats;
+    printf("SR: loaded %ld weight floats from %s\n", totalFloats, path);
     return data;
 }
 
@@ -111,9 +138,17 @@ static int load_normalizer(const char *path, float mean[4], float std[4]) {
         }
         return 0;
     }
-    fread(mean, sizeof(float), 4, f);
-    fread(std, sizeof(float), 4, f);
+    int ok = fread(mean, sizeof(float), 4, f) == 4 &&
+             fread(std, sizeof(float), 4, f) == 4;
     fclose(f);
+    if (!ok) {
+        printf("SR: truncated normalizer: %s\n", path);
+        for (int i = 0; i < 4; i++) {
+            mean[i] = 0.0f;
+            std[i] = 1.0f;
+        }
+        return 0;
+    }
     printf("SR: normalizer mean=(%.4f, %.4f, %.4f, %.4f) "
            "std=(%.4f, %.4f, %.4f, %.4f)\n",
            mean[0], mean[1], mean[2], mean[3],
@@ -126,7 +161,7 @@ static int load_normalizer(const char *path, float mean[4], float std[4]) {
 // PyTorch state dict keys are sorted alphabetically:
 //   net.0.bias, net.0.weight, net.2.bias, net.2.weight, ...
 // So the order is: b0, W0, b1, W1, b2, W2, b3, W3
-static void compute_offsets(SuperResUpscaler *sr) {
+static int compute_offsets(SuperResUpscaler *sr) {
     int H = HIDDEN_DIM;
     int off = 0;
 
@@ -151,6 +186,7 @@ static void compute_offsets(SuperResUpscaler *sr) {
            "W2=%d b2=%d W3=%d b3=%d (total=%d)\n",
            sr->wOff0, sr->bOff0, sr->wOff1, sr->bOff1,
            sr->wOff2, sr->bOff2, sr->wOff3, sr->bOff3, off);
+    return off;
 }
 
 SuperResUpscaler *SR_Create(int coarseX, int coarseY, int coarseZ,
@@ -203,15 +239,25 @@ SuperResUpscaler *SR_Create(int coarseX, int coarseY, int coarseZ,
         return NULL;
     }
 
+    // The shader indexes the buffer with these offsets
+    int expected = compute_offsets(sr);
+    if (weightCount != expected) {
+        printf("SR: %s has %d weights, expected %d\n",
+               weightsPath,
+               weightCount,
+               expected);
+        free(weightData);
+        glDeleteProgram(sr->shaderProgram);
+        free(sr);
+        return NULL;
+    }
+
     // Upload weights to SSBO
     glGenBuffers(1, &sr->weightsBuffer);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, sr->weightsBuffer);
     glBufferData(GL_SHADER_STORAGE_BUFFER,
                  weightCount * sizeof(float), weightData, GL_STATIC_DRAW);
     free(weightData);
-
-    // Compute offsets
-    compute_offsets(sr);
 
     // Load normalizer
     load_normalizer(normPath, sr->normMean, sr->normStd);

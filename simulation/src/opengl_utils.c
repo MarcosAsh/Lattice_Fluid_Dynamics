@@ -31,15 +31,17 @@ static void print_source_preview(const char *source, int lines) {
     }
 }
 
-GLuint loadShader(const char *path, GLenum type) {
+static GLuint loadShader(const char *path, GLenum type) {
     FILE *file = fopen(path, "rb");
     if (!file) {
         printf("Error: shader file not found: %s\n", path);
         return 0;
     }
-    fseek(file, 0, SEEK_END);
-    long length = ftell(file);
-    fseek(file, 0, SEEK_SET);
+    long length = -1;
+    if (fseek(file, 0, SEEK_END) == 0)
+        length = ftell(file);
+    if (fseek(file, 0, SEEK_SET) != 0)
+        length = -1;
 
     if (length <= 0) {
         printf("Error: shader file is empty: %s\n", path);
@@ -53,9 +55,14 @@ GLuint loadShader(const char *path, GLenum type) {
         fclose(file);
         return 0;
     }
-    fread(source, 1, length, file);
-    source[length] = '\0';
+    size_t got = fread(source, 1, (size_t)length, file);
     fclose(file);
+    if (got != (size_t)length) {
+        printf("Error: short read on shader file: %s\n", path);
+        free(source);
+        return 0;
+    }
+    source[length] = '\0';
 
     GLuint shader = glCreateShader(type);
     glShaderSource(
