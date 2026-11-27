@@ -607,6 +607,17 @@ def check_rows(rows: list[dict]) -> list[str]:
     schemas = {r.get("schema_version") for r in ok} - {MANIFEST_SCHEMA}
     if schemas:
         warnings.append(f"manifest schema_version {sorted(schemas)}, this tool reads 1")
+    capped = [
+        r
+        for r in ok
+        if r["params"].get("reynolds") and (r["reynolds"] or 0) < 0.99 * r["params"]["reynolds"]
+    ]
+    if capped:
+        detail = ", ".join(
+            f"{r['name']} ({r['params']['reynolds']:g} to {r['reynolds']:.0f})" for r in capped[:3]
+        )
+        more = f" and {len(capped) - 3} more" if len(capped) > 3 else ""
+        warnings.append(f"{len(capped)} case(s) ran below the requested Re: {detail}{more}")
     unconverged = [r for r in ok if r["converged"] is False]
     if unconverged:
         warnings.append(f"{len(unconverged)} case(s) did not converge: {_names(unconverged)}")

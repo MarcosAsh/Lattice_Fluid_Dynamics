@@ -192,6 +192,14 @@ def test_small_ratio_and_mismatched_length_warn():
     assert any("from char_length" in w for w in res["warnings"])
 
 
+def test_reynolds_drift_warns():
+    pts = points(seq(2, (1.0, 4.0 / 3.0, 2.0)))
+    for p, re in zip(pts, (144.0, 108.0, 72.0), strict=True):
+        p["reynolds"] = re
+    res = gci.analyse(pts)
+    assert "Re differs across grids (144, 108, 72), so they are not one flow" in res["warnings"]
+
+
 def test_four_grids_give_two_triplets():
     grids = ("128x64x64", "64x32x32", "32x16x16", "16x8x8")
     res = gci.analyse(points(seq(2, (1, 2, 4, 8)), grids=grids))

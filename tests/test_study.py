@@ -185,6 +185,17 @@ def test_mixed_commits_and_dirty_tree_warn(study):
     assert "WARNING: 1 case(s) built from a dirty tree: ahmed_25deg_m-64x32x32" in text
 
 
+def test_capped_reynolds_warns(tmp_path):
+    data = study_data(base={"model": MODEL, "duration": 3, "reynolds": 500})
+    s = st.load_study(write_study(tmp_path, data))
+    result, _ = st.run_study(s, FakeBackend(), log=quiet)
+    assert any(
+        w.startswith("3 case(s) ran below the requested Re: ahmed_25deg_m-32x16x16")
+        and "(500 to 144)" in w
+        for w in result["warnings"]
+    )
+
+
 def test_table_columns_and_values(study):
     fake = FakeBackend(**{"64_32_32": {"cd": 0.35, "sem": 0.004}})
     st.run_study(study, fake, log=quiet)

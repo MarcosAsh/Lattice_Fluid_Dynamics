@@ -288,6 +288,10 @@ def analyse(
                     f"{a['grid']} to {b['grid']}: r={r_cells:.3f} from cells but "
                     f"{r_len:.3f} from char_length"
                 )
+    re = [p.get("reynolds") for p in pts]
+    if all(re) and (max(re) - min(re)) > 0.01 * max(re):
+        shown = ", ".join(f"{v:.4g}" for v in re)
+        warnings.append(f"Re differs across grids ({shown}), so they are not one flow")
     if any(p.get("sem") is None for p in pts[:3]):
         warnings.append("no standard error on some grids, noise is not checked")
 
@@ -366,6 +370,7 @@ def group_points(rows: list[dict], value: str, sem: str | None) -> tuple[dict, l
                 "grid": row.get("grid"),
                 "cells": _cells(row),
                 "char_length": _num(row.get("char_length")),
+                "reynolds": _num(row.get("reynolds")),
                 "value": v,
                 "sem": _num(row.get(sem)) if sem else None,
             }
@@ -458,6 +463,7 @@ def plot_group(path: Path, name: str, res: dict, value: str, k: float) -> None:
         ax.plot(xs, ys, "--", color=blue, lw=2, label=f"fit, p = {p:.2f}")
         ax.plot([0], [ext], "o", mfc="white", mec=blue, mew=2, ms=8, label="extrapolated")
         title = f"{name}: GCI_fine {100 * t['gci_fine21']:.2f}%"
+        ax.legend(frameon=False)
     else:
         title = f"{name}: no estimate"
     ax.set_xlim(-0.05 * h[-1], 1.05 * h[-1])
@@ -468,7 +474,6 @@ def plot_group(path: Path, name: str, res: dict, value: str, k: float) -> None:
     ax.set_axisbelow(True)
     for side in ("top", "right"):
         ax.spines[side].set_visible(False)
-    ax.legend(frameon=False)
     fig.tight_layout()
     fig.savefig(path)
     plt.close(fig)
