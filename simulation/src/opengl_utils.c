@@ -151,15 +151,3 @@ GLuint createComputeShader(const char *computePath) {
     glDeleteShader(computeShader);
     return program;
 }
-
-GLuint createBuffer(
-    GLenum type,
-    GLsizeiptr size,
-    const void *data,
-    GLenum usage) {
-    GLuint buffer;
-    glGenBuffers(1, &buffer);
-    glBindBuffer(type, buffer);
-    glBufferData(type, size, data, usage);
-    return buffer;
-}

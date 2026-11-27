@@ -19,7 +19,4 @@ typedef struct {
 Model loadOBJ(const char* filePath);
 void freeModel(Model* model);
 
-// Declare the isInsideCarModel function
-int isInsideCarModel(int x, int y, int z, Model* model, int sizeX, int sizeY, int sizeZ);
-
 #endif // MODEL_LOADER_H

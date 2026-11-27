@@ -31,11 +31,8 @@ add_executable(3d_fluid_simulation_car
     src/view_matrix.c
     src/vti_export.c
     src/gl_context.c
-    src/coloring.c
-    src/fluid_cube.c
     obj-file-loader/lib/model_loader.c
     src/render_model.c
-    src/particle_system.c
     src/opengl_utils.c
     src/lbm.c
     src/ml_predict.c
