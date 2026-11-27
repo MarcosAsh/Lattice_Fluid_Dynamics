@@ -10,11 +10,7 @@ import { useSurrogate } from '../lib/anyobj_surrogate';
 import { DEMOS, type DemoEntry } from '../lib/demos';
 
 export type JobStatus =
-  | 'idle'
-  | 'starting'
-  | 'rendering'
-  | 'complete'
-  | 'error';
+  'idle' | 'starting' | 'rendering' | 'complete' | 'error';
 
 export interface SimulationParams {
   windSpeed: number;
@@ -44,10 +40,12 @@ function parseHash(): Partial<SimulationParams> {
   const result: Partial<SimulationParams> = {};
   if (p.has('ws')) result.windSpeed = clamp(parseNum(p.get('ws')!, 1.0), 0, 5);
   if (p.has('vm')) result.vizMode = clamp(parseNum(p.get('vm')!, 1, 10), 0, 6);
-  if (p.has('cm')) result.collisionMode = clamp(parseNum(p.get('cm')!, 1, 10), 0, 3);
+  if (p.has('cm'))
+    result.collisionMode = clamp(parseNum(p.get('cm')!, 1, 10), 0, 3);
   if (p.has('d')) result.duration = clamp(parseNum(p.get('d')!, 10, 10), 5, 30);
   if (p.has('m') && VALID_MODELS.has(p.get('m')!)) result.model = p.get('m')!;
-  if (p.has('re')) result.reynolds = clamp(parseNum(p.get('re')!, 0), 0, 100000);
+  if (p.has('re'))
+    result.reynolds = clamp(parseNum(p.get('re')!, 0), 0, 100000);
   return result;
 }
 
@@ -100,9 +98,10 @@ export default function Home() {
   const [renderStartTime, setRenderStartTime] = useState<number | null>(null);
   const { status: mlStatus, predict: mlPredict } = useSurrogate();
 
-  const mlPrediction = mlStatus === 'ready'
-    ? mlPredict(params.windSpeed, params.reynolds, params.model)
-    : null;
+  const mlPrediction =
+    mlStatus === 'ready'
+      ? mlPredict(params.windSpeed, params.reynolds, params.model)
+      : null;
 
   useEffect(() => {
     fetch('/api/render')
@@ -112,7 +111,9 @@ export default function Home() {
       })
       .then((data) => {
         setBackendAvailable(data.available);
-        setBackendStatus(data.status ?? (data.available ? 'healthy' : 'not_configured'));
+        setBackendStatus(
+          data.status ?? (data.available ? 'healthy' : 'not_configured'),
+        );
       })
       .catch(() => {
         setBackendAvailable(false);
@@ -125,10 +126,7 @@ export default function Home() {
     try {
       // Keep last 50 results max
       const toSave = results.slice(-50);
-      localStorage.setItem(
-        'lattice_results',
-        JSON.stringify(toSave),
-      );
+      localStorage.setItem('lattice_results', JSON.stringify(toSave));
     } catch {
       // localStorage full or unavailable
     }
@@ -144,7 +142,8 @@ export default function Home() {
     writeHash(params);
   }, [params]);
 
-  const currentResult = liveResult ?? (results.length > 0 ? results[results.length - 1] : null);
+  const currentResult =
+    liveResult ?? (results.length > 0 ? results[results.length - 1] : null);
 
   const startRender = useCallback(async () => {
     if (params.model === 'custom' && !objFile) {
@@ -195,7 +194,9 @@ export default function Home() {
       while (Date.now() - pollStart < maxPollTime) {
         await new Promise((r) => setTimeout(r, 3000));
 
-        const pollRes = await fetch(`/api/render?jobId=${encodeURIComponent(jobId)}`);
+        const pollRes = await fetch(
+          `/api/render?jobId=${encodeURIComponent(jobId)}`,
+        );
         if (!pollRes.ok) continue; // retry on transient errors
 
         const data = await pollRes.json();
@@ -266,79 +267,92 @@ export default function Home() {
 
   const [sweepProgress, setSweepProgress] = useState<string | null>(null);
 
-  const startSweep = useCallback(async (windMin: number, windMax: number, windStep: number) => {
-    const speeds: number[] = [];
-    for (let w = windMin; w <= windMax + 0.001; w += windStep) {
-      speeds.push(Math.round(w * 10) / 10);
-    }
-    if (speeds.length === 0) return;
-
-    setError(null);
-    setStatus('rendering');
-
-    try {
-      for (let i = 0; i < speeds.length; i++) {
-        const ws = speeds[i];
-        setSweepProgress(`${i + 1}/${speeds.length}: wind ${ws.toFixed(1)} m/s`);
-
-        const sweepParams = { ...params, windSpeed: ws };
-        const body: Record<string, unknown> = { ...sweepParams };
-        if (params.model === 'custom' && objFile) {
-          body.objData = await objFile.text();
-        }
-
-        const submitRes = await fetch('/api/render', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-        if (!submitRes.ok) throw new Error(`Sweep submit failed at wind ${ws}`);
-        const submitData = await submitRes.json();
-        const jobId = submitData.jobId;
-        if (!jobId) throw new Error('No job ID');
-
-        const maxPollTime = (params.duration ?? 5) * 60 * 1000;
-        const pollStart = Date.now();
-        let done = false;
-
-        while (Date.now() - pollStart < maxPollTime) {
-          await new Promise((r) => setTimeout(r, 3000));
-          const pollRes = await fetch(`/api/render?jobId=${encodeURIComponent(jobId)}`);
-          if (!pollRes.ok) continue;
-          const data = await pollRes.json();
-          if (data.status === 'rendering') continue;
-          if (data.status === 'complete' && data.video_url) {
-            const result: SimulationResult = {
-              videoUrl: data.video_url,
-              cdValue: data.cd_value ?? null,
-              clValue: data.cl_value ?? null,
-              cdSeries: data.cd_series ?? [],
-              clSeries: data.cl_series ?? [],
-              charLength: data.char_length ?? null,
-              sampleInterval: data.sample_interval ?? null,
-              tStar: data.t_star ?? null,
-              flowThroughs: data.flow_throughs ?? null,
-              cfl: data.cfl ?? null,
-              cdPressureSeries: data.cd_pressure_series ?? [],
-              cdFrictionSeries: data.cd_friction_series ?? [],
-              model: params.model,
-              windSpeed: ws,
-              timestamp: Date.now(),
-            };
-            setResults((prev) => [...prev, result]);
-            setVideoUrl(data.video_url);
-            done = true;
-            break;
-          }
-          if (data.status === 'error') throw new Error(data.error || `Sweep failed at wind ${ws}`);
-        }
-        if (!done) throw new Error(`Sweep timed out at wind ${ws}`);
+  const startSweep = useCallback(
+    async (windMin: number, windMax: number, windStep: number) => {
+      const speeds: number[] = [];
+      for (let w = windMin; w <= windMax + 0.001; w += windStep) {
+        speeds.push(Math.round(w * 10) / 10);
       }
+      if (speeds.length === 0) return;
 
-      setStatus('complete');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
-      setStatus('error');
-    } finally {
-      setSweepProgress(null);
-    }
-  }, [params, objFile]);
+      setError(null);
+      setStatus('rendering');
+
+      try {
+        for (let i = 0; i < speeds.length; i++) {
+          const ws = speeds[i];
+          setSweepProgress(
+            `${i + 1}/${speeds.length}: wind ${ws.toFixed(1)} m/s`,
+          );
+
+          const sweepParams = { ...params, windSpeed: ws };
+          const body: Record<string, unknown> = { ...sweepParams };
+          if (params.model === 'custom' && objFile) {
+            body.objData = await objFile.text();
+          }
+
+          const submitRes = await fetch('/api/render', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          if (!submitRes.ok)
+            throw new Error(`Sweep submit failed at wind ${ws}`);
+          const submitData = await submitRes.json();
+          const jobId = submitData.jobId;
+          if (!jobId) throw new Error('No job ID');
+
+          const maxPollTime = (params.duration ?? 5) * 60 * 1000;
+          const pollStart = Date.now();
+          let done = false;
+
+          while (Date.now() - pollStart < maxPollTime) {
+            await new Promise((r) => setTimeout(r, 3000));
+            const pollRes = await fetch(
+              `/api/render?jobId=${encodeURIComponent(jobId)}`,
+            );
+            if (!pollRes.ok) continue;
+            const data = await pollRes.json();
+            if (data.status === 'rendering') continue;
+            if (data.status === 'complete' && data.video_url) {
+              const result: SimulationResult = {
+                videoUrl: data.video_url,
+                cdValue: data.cd_value ?? null,
+                clValue: data.cl_value ?? null,
+                cdSeries: data.cd_series ?? [],
+                clSeries: data.cl_series ?? [],
+                charLength: data.char_length ?? null,
+                sampleInterval: data.sample_interval ?? null,
+                tStar: data.t_star ?? null,
+                flowThroughs: data.flow_throughs ?? null,
+                cfl: data.cfl ?? null,
+                cdPressureSeries: data.cd_pressure_series ?? [],
+                cdFrictionSeries: data.cd_friction_series ?? [],
+                model: params.model,
+                windSpeed: ws,
+                timestamp: Date.now(),
+              };
+              setResults((prev) => [...prev, result]);
+              setVideoUrl(data.video_url);
+              done = true;
+              break;
+            }
+            if (data.status === 'error')
+              throw new Error(data.error || `Sweep failed at wind ${ws}`);
+          }
+          if (!done) throw new Error(`Sweep timed out at wind ${ws}`);
+        }
+
+        setStatus('complete');
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Unknown error');
+        setStatus('error');
+      } finally {
+        setSweepProgress(null);
+      }
+    },
+    [params, objFile],
+  );
 
   const selectResult = useCallback((result: SimulationResult) => {
     setVideoUrl(result.videoUrl);
@@ -360,7 +374,13 @@ export default function Home() {
   return (
     <main className="min-h-screen p-4 md:p-6 lg:p-10 max-w-7xl mx-auto">
       <div className="mb-4 lg:mb-8 flex items-center gap-3 lg:gap-4">
-        <Image src="/logo.png" alt="Lattice" width={64} height={64} className="h-12 lg:h-16 w-auto" />
+        <Image
+          src="/logo.png"
+          alt="Lattice"
+          width={64}
+          height={64}
+          className="h-12 lg:h-16 w-auto"
+        />
         <p className="text-xs lg:text-sm text-ctp-subtext0">
           GPU-accelerated wind tunnel simulation{' '}
           <a
@@ -437,15 +457,22 @@ export default function Home() {
                 <h2 className="text-xs font-semibold text-ctp-overlay1 uppercase tracking-wider mb-2">
                   Examples
                 </h2>
-                <div className="grid grid-cols-3 gap-2 mb-4" data-testid="demo-gallery">
+                <div
+                  className="grid grid-cols-3 gap-2 mb-4"
+                  data-testid="demo-gallery"
+                >
                   {DEMOS.map((demo) => (
                     <button
                       key={demo.params.model}
                       onClick={() => loadDemo(demo)}
                       className="rounded p-2 text-left hover:bg-ctp-surface0 transition-colors"
                     >
-                      <div className="text-sm font-medium text-ctp-text">{demo.label}</div>
-                      <div className="text-xs text-ctp-overlay0 mt-0.5">{demo.description}</div>
+                      <div className="text-sm font-medium text-ctp-text">
+                        {demo.label}
+                      </div>
+                      <div className="text-xs text-ctp-overlay0 mt-0.5">
+                        {demo.description}
+                      </div>
                     </button>
                   ))}
                 </div>
@@ -460,15 +487,23 @@ export default function Home() {
                 href="/docs"
                 className="flex-1 rounded p-2 hover:bg-ctp-surface0 transition-colors"
               >
-                <div className="text-sm font-medium text-ctp-text">White Paper</div>
-                <div className="text-xs text-ctp-overlay0 mt-0.5">LBM theory, compute shaders, drag validation</div>
+                <div className="text-sm font-medium text-ctp-text">
+                  White Paper
+                </div>
+                <div className="text-xs text-ctp-overlay0 mt-0.5">
+                  LBM theory, compute shaders, drag validation
+                </div>
               </Link>
               <Link
                 href="/comparison"
                 className="flex-1 rounded p-2 hover:bg-ctp-surface0 transition-colors"
               >
-                <div className="text-sm font-medium text-ctp-text">ML vs LBM</div>
-                <div className="text-xs text-ctp-overlay0 mt-0.5">Surrogate model predictions vs simulation</div>
+                <div className="text-sm font-medium text-ctp-text">
+                  ML vs LBM
+                </div>
+                <div className="text-xs text-ctp-overlay0 mt-0.5">
+                  Surrogate model predictions vs simulation
+                </div>
               </Link>
             </div>
           </div>

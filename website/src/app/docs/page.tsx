@@ -66,10 +66,7 @@ export default function DocsPage() {
       <main className="flex-1 max-w-3xl mx-auto px-6 lg:px-10 py-8">
         {/* Breadcrumb */}
         <nav className="mb-8 text-xs text-ctp-overlay1 flex items-center gap-2">
-          <Link
-            href="/"
-            className="hover:text-ctp-text transition-colors"
-          >
+          <Link href="/" className="hover:text-ctp-text transition-colors">
             Home
           </Link>
           <span>/</span>
@@ -97,7 +94,10 @@ export default function DocsPage() {
           <h3 className="text-base font-semibold mb-3 mt-6">
             Build from source
           </h3>
-          <CodeBlock language="bash" title="terminal">{`# Dependencies (Ubuntu/Debian)
+          <CodeBlock
+            language="bash"
+            title="terminal"
+          >{`# Dependencies (Ubuntu/Debian)
 sudo apt install build-essential cmake pkg-config \\
   libsdl2-dev libsdl2-ttf-dev mesa-common-dev \\
   libgl1-mesa-dev libegl1-mesa-dev
@@ -127,15 +127,13 @@ npm ci && npm run dev
         {/* How It Works                                                  */}
         {/* ------------------------------------------------------------ */}
         <Section id="how-it-works" title="How It Works">
-          <P>
-            Each frame runs five GPU compute passes in sequence:
-          </P>
+          <P>Each frame runs five GPU compute passes in sequence:</P>
           <ol className="list-decimal list-inside text-sm text-ctp-subtext1 space-y-2 mb-4 ml-2">
             <li>
               <strong className="text-ctp-text">Collision</strong> -- relax
-              distribution functions toward equilibrium (MRT by default;
-              BGK, regularized, and entropic operators available, with
-              optional Smagorinsky SGS turbulence model)
+              distribution functions toward equilibrium (MRT by default; BGK,
+              regularized, and entropic operators available, with optional
+              Smagorinsky SGS turbulence model)
             </li>
             <li>
               <strong className="text-ctp-text">Streaming</strong> -- propagate
@@ -157,12 +155,12 @@ npm ci && npm run dev
           <P>
             The LBM solver uses a D3Q19 lattice (19 velocity directions in 3D).
             Solid geometry is voxelized from OBJ meshes using ray casting.
-            Boundary conditions are Zou-He velocity inlet, Zou-He pressure outlet,
-            and Bouzidi interpolated bounce-back on solid walls. The Bouzidi scheme
-            stores the fractional distance from each fluid cell to the actual mesh
-            surface along every lattice link, then applies quadratic or linear
-            interpolation during streaming. This gives second-order wall accuracy
-            without refining the grid.
+            Boundary conditions are Zou-He velocity inlet, Zou-He pressure
+            outlet, and Bouzidi interpolated bounce-back on solid walls. The
+            Bouzidi scheme stores the fractional distance from each fluid cell
+            to the actual mesh surface along every lattice link, then applies
+            quadratic or linear interpolation during streaming. This gives
+            second-order wall accuracy without refining the grid.
           </P>
           <P>
             Two refinements keep the inflow and outflow physical. The inlet can
@@ -170,10 +168,10 @@ npm ci && npm run dev
             intensity) to mimic the 1-2% residual turbulence of a real wind
             tunnel. Before the outlet, a sponge layer over the last eighth of
             the domain ramps viscosity up and relaxes densities toward the
-            reference state, so outgoing pressure waves are absorbed instead
-            of reflecting -- without it, the inlet and outlet form a
-            streamwise acoustic resonator whose standing wave contaminates
-            the drag signal on coarse grids.
+            reference state, so outgoing pressure waves are absorbed instead of
+            reflecting -- without it, the inlet and outlet form a streamwise
+            acoustic resonator whose standing wave contaminates the drag signal
+            on coarse grids.
           </P>
         </Section>
 
@@ -212,26 +210,51 @@ npm ci && npm run dev
             headers={['Flag', 'Default', 'Description']}
             rows={[
               ['-w, --wind=SPEED', '1.0', 'Wind speed 0-5 (maps to Re)'],
-              ['-d, --duration=SECS', '0', 'Headless render duration (0 = interactive)'],
+              [
+                '-d, --duration=SECS',
+                '0',
+                'Headless render duration (0 = interactive)',
+              ],
               ['-o, --output=PATH', '', 'Output directory for PPM frames'],
               ['-m, --model=PATH', 'car-model.obj', 'Path to OBJ mesh file'],
               ['-a, --angle=DEG', '', 'Ahmed body slant angle (25 or 35)'],
               ['-g, --grid=XxYxZ', '128x64x64', 'LBM grid resolution'],
-              ['-r, --reynolds=RE', '0', 'Target Reynolds number (0 = derive from wind)'],
+              [
+                '-r, --reynolds=RE',
+                '0',
+                'Target Reynolds number (0 = derive from wind)',
+              ],
               ['-s, --scale=S', '0.05', 'Model scale factor'],
               ['-S, --smagorinsky=CS', '0.1', 'Smagorinsky constant (0-0.5)'],
-              ['-E, --entropic', 'off', 'Entropic collision (replaces MRT + Smagorinsky)'],
-              ['-t, --turbulence=TI', '0', 'Inlet turbulence intensity (0-0.3)'],
-              ['--sponge=CELLS', 'gridX/8', 'Outlet acoustic sponge width (0 disables)'],
+              [
+                '-E, --entropic',
+                'off',
+                'Entropic collision (replaces MRT + Smagorinsky)',
+              ],
+              [
+                '-t, --turbulence=TI',
+                '0',
+                'Inlet turbulence intensity (0-0.3)',
+              ],
+              [
+                '--sponge=CELLS',
+                'gridX/8',
+                'Outlet acoustic sponge width (0 disables)',
+              ],
               ['-v, --viz=MODE', '1', 'Visualization mode (0-7)'],
-              ['-c, --collision=MODE', '2', 'Collision: 0=off, 1=AABB, 2=mesh, 3=voxel'],
+              [
+                '-c, --collision=MODE',
+                '2',
+                'Collision: 0=off, 1=AABB, 2=mesh, 3=voxel',
+              ],
             ]}
           />
           <Callout type="note">
-            Wind speed controls Reynolds number when <InlineCode>--reynolds</InlineCode> is
-            not set: Re = 200 * windSpeed, capped by the grid{"'"}s minimum stable
-            tau (0.52). Larger grids support higher Re. Voxel collision (mode 3)
-            requires LBM and will fall back to AABB if LBM is disabled.
+            Wind speed controls Reynolds number when{' '}
+            <InlineCode>--reynolds</InlineCode> is not set: Re = 200 *
+            windSpeed, capped by the grid{"'"}s minimum stable tau (0.52).
+            Larger grids support higher Re. Voxel collision (mode 3) requires
+            LBM and will fall back to AABB if LBM is disabled.
           </Callout>
         </Section>
 
@@ -289,9 +312,10 @@ npm ci && npm run dev
             ]}
           />
           <P>
-            Press <InlineCode>V</InlineCode> to cycle through modes in interactive mode.
-            Streamline mode (7) stores a 32-frame position trail per particle and
-            renders as GL_LINE_STRIP with velocity-based coloring and alpha fade.
+            Press <InlineCode>V</InlineCode> to cycle through modes in
+            interactive mode. Streamline mode (7) stores a 32-frame position
+            trail per particle and renders as GL_LINE_STRIP with velocity-based
+            coloring and alpha fade.
           </P>
         </Section>
 
@@ -337,18 +361,16 @@ npm ci && npm run dev
             <sup>eq</sup>]
           </MathBlock>
           <Callout type="note">
-            The relaxation time &#x3c4; controls viscosity: &#x3bd; =
-            c<sub>s</sub>&#xb2;(&#x3c4; &#x2212; &#xbd;)&#x394;t. Lower
-            &#x3c4; means higher Re but less numerical stability. The minimum
-            stable value is &#x3c4; = 0.52.
+            The relaxation time &#x3c4; controls viscosity: &#x3bd; = c
+            <sub>s</sub>&#xb2;(&#x3c4; &#x2212; &#xbd;)&#x394;t. Lower &#x3c4;
+            means higher Re but less numerical stability. The minimum stable
+            value is &#x3c4; = 0.52.
           </Callout>
 
           <h3 className="text-base font-semibold mb-3 mt-8">
             Equilibrium Distribution
           </h3>
-          <P>
-            The Maxwell-Boltzmann equilibrium distribution is:
-          </P>
+          <P>The Maxwell-Boltzmann equilibrium distribution is:</P>
           <MathBlock>
             f<sub>i</sub>
             <sup>eq</sup> = w<sub>i</sub>&#x3c1;[1 + (<strong>e</strong>
@@ -366,7 +388,10 @@ npm ci && npm run dev
           <h3 className="text-base font-semibold mb-3 mt-8">
             Collision Kernel
           </h3>
-          <CodeBlock language="glsl" title="lbm_collide.comp (simplified)">{`#version 430 core
+          <CodeBlock
+            language="glsl"
+            title="lbm_collide.comp (simplified)"
+          >{`#version 430 core
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
 
 uniform float tau;
@@ -397,17 +422,17 @@ void main() {
             Smagorinsky SGS Model
           </h3>
           <P>
-            For turbulent flows, the Smagorinsky subgrid-scale model computes
-            a local eddy viscosity from the non-equilibrium stress tensor:
+            For turbulent flows, the Smagorinsky subgrid-scale model computes a
+            local eddy viscosity from the non-equilibrium stress tensor:
           </P>
           <MathBlock>
-            &#x3c4;<sub>eff</sub> = &#xbd;(&#x3c4; +
-            &#x221a;(&#x3c4;&#xb2; + 18C<sub>s</sub>&#xb2;|&#x3a0;|/&#x3c1;))
+            &#x3c4;<sub>eff</sub> = &#xbd;(&#x3c4; + &#x221a;(&#x3c4;&#xb2; +
+            18C<sub>s</sub>&#xb2;|&#x3a0;|/&#x3c1;))
           </MathBlock>
           <P>
             where C<sub>s</sub> is the Smagorinsky constant (default 0.1,
-            tunable via <InlineCode>--smagorinsky</InlineCode>) and |&#x3a0;| is the
-            Frobenius norm of the non-equilibrium stress. This increases
+            tunable via <InlineCode>--smagorinsky</InlineCode>) and |&#x3a0;| is
+            the Frobenius norm of the non-equilibrium stress. This increases
             &#x3c4; locally in turbulent regions, preventing instability without
             damping the entire domain.
           </P>
@@ -416,14 +441,14 @@ void main() {
             Entropic Collision
           </h3>
           <P>
-            As an alternative to MRT, the entropic LBM
-            (<InlineCode>--entropic</InlineCode>) enforces the discrete
-            H-theorem each step: the relaxation is written as
-            f&apos; = f + &#x3b1;&#x3b2;(f<sup>eq</sup> &#x2212; f) and &#x3b1; is
-            solved per cell (Newton-Raphson, 2-3 iterations) so that the
-            entropy H = &#x2211; f<sub>i</sub> ln(f<sub>i</sub>/w<sub>i</sub>)
-            never decreases. In under-resolved regions &#x3b1; drops below the
-            BGK value of 2, adding exactly enough local dissipation to keep the
+            As an alternative to MRT, the entropic LBM (
+            <InlineCode>--entropic</InlineCode>) enforces the discrete H-theorem
+            each step: the relaxation is written as f&apos; = f +
+            &#x3b1;&#x3b2;(f<sup>eq</sup> &#x2212; f) and &#x3b1; is solved per
+            cell (Newton-Raphson, 2-3 iterations) so that the entropy H =
+            &#x2211; f<sub>i</sub> ln(f<sub>i</sub>/w<sub>i</sub>) never
+            decreases. In under-resolved regions &#x3b1; drops below the BGK
+            value of 2, adding exactly enough local dissipation to keep the
             scheme stable -- no eddy-viscosity constant to tune.
           </P>
 
@@ -431,33 +456,43 @@ void main() {
             Drag Computation
           </h3>
           <P>
-            Surface forces use the Mei-Luo-Shyy momentum exchange method,
-            which pairs with the Bouzidi boundary to account for the actual
-            wall position rather than assuming it sits on the grid midpoint:
+            Surface forces use the Mei-Luo-Shyy momentum exchange method, which
+            pairs with the Bouzidi boundary to account for the actual wall
+            position rather than assuming it sits on the grid midpoint:
           </P>
           <MathBlock>
             <strong>F</strong> = &#x2211;<sub>i</sub> <strong>e</strong>
-            <sub>i</sub> (f<sub>i</sub>*(<strong>x</strong><sub>f</sub>) +
-            f<sub>i&#x0304;</sub>(<strong>x</strong><sub>f</sub>))
+            <sub>i</sub> (f<sub>i</sub>*(<strong>x</strong>
+            <sub>f</sub>) + f<sub>i&#x0304;</sub>(<strong>x</strong>
+            <sub>f</sub>))
           </MathBlock>
           <P>
             where f<sub>i</sub>* is the post-collision distribution heading
             toward the wall and f<sub>i&#x0304;</sub> is the Bouzidi-reflected
             distribution coming back. The force is accumulated on the GPU every
-            LBM step and each reported sample is the mean over its full
-            sampling window, which suppresses the discretization noise that
-            dominates instantaneous momentum-exchange snapshots on coarse
-            grids. The drag and lift coefficients are then:
+            LBM step and each reported sample is the mean over its full sampling
+            window, which suppresses the discretization noise that dominates
+            instantaneous momentum-exchange snapshots on coarse grids. The drag
+            and lift coefficients are then:
           </P>
           <MathBlock>
             C<sub>d</sub> = F<sub>x</sub> / (&#xbd;&#x3c1;U&#xb2;A)
-            &nbsp;&nbsp;&nbsp;&nbsp;
-            C<sub>l</sub> = F<sub>y</sub> / (&#xbd;&#x3c1;U&#xb2;A)
+            &nbsp;&nbsp;&nbsp;&nbsp; C<sub>l</sub> = F<sub>y</sub> /
+            (&#xbd;&#x3c1;U&#xb2;A)
           </MathBlock>
           <div className="flex gap-3 mt-2 text-xs">
-            <SrcLink path="simulation/shaders/lbm_collide.comp" label="lbm_collide.comp" />
-            <SrcLink path="simulation/shaders/lbm_stream.comp" label="lbm_stream.comp" />
-            <SrcLink path="simulation/shaders/lbm_force.comp" label="lbm_force.comp" />
+            <SrcLink
+              path="simulation/shaders/lbm_collide.comp"
+              label="lbm_collide.comp"
+            />
+            <SrcLink
+              path="simulation/shaders/lbm_stream.comp"
+              label="lbm_stream.comp"
+            />
+            <SrcLink
+              path="simulation/shaders/lbm_force.comp"
+              label="lbm_force.comp"
+            />
           </div>
         </Section>
 
@@ -467,11 +502,11 @@ void main() {
         <Section id="ml" title="ML Surrogate Model">
           <P>
             A geometry-aware neural network predicts Cd and Cl for any input
-            mesh in under a millisecond. It gives an instant estimate before
-            the LBM has time to converge and lets the browser return a number
-            with no server round trip. The model reads the shape of the body
-            directly rather than a fixed label, so it generalizes to
-            geometries it was never trained on.
+            mesh in under a millisecond. It gives an instant estimate before the
+            LBM has time to converge and lets the browser return a number with
+            no server round trip. The model reads the shape of the body directly
+            rather than a fixed label, so it generalizes to geometries it was
+            never trained on.
           </P>
 
           <h3 className="text-base font-semibold mb-3 mt-8">
@@ -498,8 +533,8 @@ void main() {
             Reynolds number, and outputs two values, Cd and Cl. Reynolds is the
             only flow input the model needs, because at a fixed Reynolds number
             the force coefficients no longer depend on the wind speed. Two
-            hidden layers with ReLU activations keep the network small enough
-            to evaluate instantly in the browser.
+            hidden layers with ReLU activations keep the network small enough to
+            evaluate instantly in the browser.
           </P>
           <CodeBlock>{`Linear(20, 64) -> ReLU -> Linear(64, 64) -> ReLU -> Linear(64, 2)
 
@@ -511,8 +546,8 @@ about 5,600 parameters total`}</CodeBlock>
           <P>
             The model is trained on 1,421 high fidelity CFD samples drawn from
             four public reference datasets. These are AhmedML for the Ahmed
-            body, WindsorML for the Windsor body, DrivAerML for the DrivAer
-            road car, and a sample of SHIFT-SUV for a detailed SUV. Each source
+            body, WindsorML for the Windsor body, DrivAerML for the DrivAer road
+            car, and a sample of SHIFT-SUV for a detailed SUV. Each source
             reports its force coefficients against the frontal area of that
             specific geometry, so the Cd convention stays consistent as the
             shapes vary. Meshes are fetched and encoded on Modal, which keeps
@@ -542,15 +577,15 @@ Train/val:    80/20 split`}</CodeBlock>
 
           <h3 className="text-base font-semibold mb-3 mt-8">Accuracy</h3>
           <P>
-            On a held out split the model reaches a mean absolute error of
-            0.020 on Cd and 0.101 on Cl. The more demanding test is leave one
-            geometry out, where every shape is scored by a model that never saw
-            it during training. Under that protocol the network reaches a mean
-            absolute error of 0.018 on Cd against 0.024 for a baseline that
-            always predicts the dataset mean, and 0.104 against 0.150 on Cl.
-            Beating the mean baseline on shapes held out of training is the
-            evidence that the model has learned to read geometry rather than
-            memorize the training bodies.
+            On a held out split the model reaches a mean absolute error of 0.020
+            on Cd and 0.101 on Cl. The more demanding test is leave one geometry
+            out, where every shape is scored by a model that never saw it during
+            training. Under that protocol the network reaches a mean absolute
+            error of 0.018 on Cd against 0.024 for a baseline that always
+            predicts the dataset mean, and 0.104 against 0.150 on Cl. Beating
+            the mean baseline on shapes held out of training is the evidence
+            that the model has learned to read geometry rather than memorize the
+            training bodies.
           </P>
           <CodeBlock>{`Metric                     Model     Mean baseline
 Held out Cd MAE            0.020
@@ -562,11 +597,14 @@ Leave one geometry out Cl  0.104     0.150`}</CodeBlock>
           <P>
             An export step writes the weights, the normalizer, and precomputed
             descriptors for the bundled geometries into a single JSON file. The
-            browser loads <InlineCode>/models/anyobj.json</InlineCode> and runs a
-            pure TypeScript forward pass with no dependencies, so a prediction
+            browser loads <InlineCode>/models/anyobj.json</InlineCode> and runs
+            a pure TypeScript forward pass with no dependencies, so a prediction
             costs well under a millisecond and needs no backend.
           </P>
-          <CodeBlock language="bash" title="terminal">{`# Fetch the public datasets into the Modal volume
+          <CodeBlock
+            language="bash"
+            title="terminal"
+          >{`# Fetch the public datasets into the Modal volume
 modal run ml/anyobj/modal_train.py --fetch ahmedml,windsorml,drivaerml
 
 # Train the surrogate
@@ -580,7 +618,10 @@ python ml/anyobj/export_web.py`}</CodeBlock>
             <SrcLink path="ml/anyobj/fetch.py" label="fetch.py" />
             <SrcLink path="ml/anyobj/modal_train.py" label="modal_train.py" />
             <SrcLink path="ml/anyobj/export_web.py" label="export_web.py" />
-            <SrcLink path="website/src/lib/anyobj_surrogate.ts" label="anyobj_surrogate.ts" />
+            <SrcLink
+              path="website/src/lib/anyobj_surrogate.ts"
+              label="anyobj_surrogate.ts"
+            />
           </div>
         </Section>
 
@@ -590,9 +631,10 @@ python ml/anyobj/export_web.py`}</CodeBlock>
         <Section id="validation" title="Validation">
           <P>
             The solver uses a sphere drag test to validate the force computation
-            pipeline (momentum exchange, Bouzidi boundary, Cd formula). At Re=100
-            with 16 cells across the sphere diameter, the measured Cd falls
-            within the expected range from Clift, Grace &amp; Weber (1978).
+            pipeline (momentum exchange, Bouzidi boundary, Cd formula). At
+            Re=100 with 16 cells across the sphere diameter, the measured Cd
+            falls within the expected range from Clift, Grace &amp; Weber
+            (1978).
           </P>
 
           <h3 className="text-base font-semibold mb-3 mt-6">
@@ -601,7 +643,13 @@ python ml/anyobj/export_web.py`}</CodeBlock>
           <DocTable
             headers={['Re', 'Grid', 'Cd (sim)', 'Cd (ref)', 'Status']}
             rows={[
-              ['100', '128\u00d764\u00d764', '1.1 \u2013 1.3', '1.09', 'Pass (30% tol)'],
+              [
+                '100',
+                '128\u00d764\u00d764',
+                '1.1 \u2013 1.3',
+                '1.09',
+                'Pass (30% tol)',
+              ],
             ]}
           />
 
@@ -609,19 +657,18 @@ python ml/anyobj/export_web.py`}</CodeBlock>
             Why Cd differs from wind tunnel data
           </h3>
           <P>
-            Published Ahmed body data (Ahmed 1984, Lienhart 2003) is measured
-            at Re &gt; 500,000 where the flow is fully turbulent. The LBM
-            solver on typical grids (128-256 cells) operates at Re = 50-200
-            where the flow is laminar. At laminar Re the boundary layer is
-            thicker, separation occurs earlier, and Cd is 3-10x higher
-            than at turbulent Re. This is physically correct behavior, not
-            a bug.
+            Published Ahmed body data (Ahmed 1984, Lienhart 2003) is measured at
+            Re &gt; 500,000 where the flow is fully turbulent. The LBM solver on
+            typical grids (128-256 cells) operates at Re = 50-200 where the flow
+            is laminar. At laminar Re the boundary layer is thicker, separation
+            occurs earlier, and Cd is 3-10x higher than at turbulent Re. This is
+            physically correct behavior, not a bug.
           </P>
           <P>
             The Smagorinsky SGS turbulence model adds local eddy viscosity that
-            partially compensates, but matching high-Re experimental data requires
-            grids with hundreds of cells across the body -- beyond what consumer
-            GPUs can handle in real time.
+            partially compensates, but matching high-Re experimental data
+            requires grids with hundreds of cells across the body -- beyond what
+            consumer GPUs can handle in real time.
           </P>
 
           <h3 className="text-base font-semibold mb-3 mt-6">
@@ -635,8 +682,8 @@ python ml/anyobj/export_web.py`}</CodeBlock>
           </P>
           <MathBlock>
             Re<sub>max</sub> = U &#xb7; L<sub>body</sub> / &#x3bd;<sub>min</sub>
-            &nbsp;&nbsp;&nbsp;&nbsp;
-            &#x3bd;<sub>min</sub> = (&#x3c4;<sub>min</sub> &#x2212; 0.5) / 3
+            &nbsp;&nbsp;&nbsp;&nbsp; &#x3bd;<sub>min</sub> = (&#x3c4;
+            <sub>min</sub> &#x2212; 0.5) / 3
           </MathBlock>
           <DocTable
             headers={['Grid', 'Body cells', 'Re (max)', 'Cd range', 'GPU VRAM']}
@@ -644,7 +691,13 @@ python ml/anyobj/export_web.py`}</CodeBlock>
               ['128\u00d764\u00d764', '~38', '~115', '2 \u2013 5', '86 MB'],
               ['128\u00d796\u00d796', '~38', '~115', '2 \u2013 5', '240 MB'],
               ['256\u00d7128\u00d7128', '~77', '~230', '1 \u2013 3', '960 MB'],
-              ['512\u00d7256\u00d7256', '~153', '~460', '0.5 \u2013 2', '7.6 GB'],
+              [
+                '512\u00d7256\u00d7256',
+                '~153',
+                '~460',
+                '0.5 \u2013 2',
+                '7.6 GB',
+              ],
             ]}
           />
           <Callout type="note">
@@ -654,9 +707,7 @@ python ml/anyobj/export_web.py`}</CodeBlock>
             across the body.
           </Callout>
 
-          <h3 className="text-base font-semibold mb-3 mt-6">
-            Try it yourself
-          </h3>
+          <h3 className="text-base font-semibold mb-3 mt-6">Try it yourself</h3>
           <P>
             Use the calculator below to see what Reynolds number and memory
             footprint your grid configuration produces:
@@ -696,9 +747,9 @@ python ml/anyobj/export_web.py`}</CodeBlock>
             The drag coefficient needs 3-5 flow-throughs to converge. A
             flow-through is the time for a fluid element to traverse the domain:
             N_x / U_lattice steps. For a 256-cell domain at U = 0.05, one
-            flow-through takes 5,120 steps. The simulation reports an exponential
-            moving average (EMA) of Cd that stabilizes after approximately 50
-            samples.
+            flow-through takes 5,120 steps. The simulation reports an
+            exponential moving average (EMA) of Cd that stabilizes after
+            approximately 50 samples.
           </P>
         </Section>
 
@@ -722,9 +773,9 @@ python ml/anyobj/export_web.py`}</CodeBlock>
 
           <h3 className="text-base font-semibold mb-3 mt-8">Code style</h3>
           <P>
-            The simulation is C11, formatted with clang-format (LLVM style,
-            80 char limit). The website is TypeScript/React with Tailwind.
-            Tests run in CI via GitHub Actions.
+            The simulation is C11, formatted with clang-format (LLVM style, 80
+            char limit). The website is TypeScript/React with Tailwind. Tests
+            run in CI via GitHub Actions.
           </P>
 
           <h3 className="text-base font-semibold mb-3 mt-8">Commit sign-off</h3>
@@ -738,7 +789,8 @@ python ml/anyobj/export_web.py`}</CodeBlock>
             >
               Developer Certificate of Origin
             </a>
-            . Use <InlineCode>git commit -s</InlineCode> to add it automatically:
+            . Use <InlineCode>git commit -s</InlineCode> to add it
+            automatically:
           </P>
           <CodeBlock language="bash">{`git commit -s -m "lbm: fix bounce-back at concave corners"
 
@@ -747,8 +799,8 @@ python ml/anyobj/export_web.py`}</CodeBlock>
 #
 # Signed-off-by: Your Name <your@email.com>`}</CodeBlock>
           <Callout type="warning">
-            Commits without a valid sign-off will be rejected by CI.
-            Make sure your Git name and email match your GitHub account.
+            Commits without a valid sign-off will be rejected by CI. Make sure
+            your Git name and email match your GitHub account.
           </Callout>
 
           <h3 className="text-base font-semibold mb-3 mt-8">Running tests</h3>
@@ -772,8 +824,8 @@ cd ml/framework && ./build/test_ml            # ML framework tests`}</CodeBlock>
               time-averaged ground vehicle wake.&quot; SAE 840300, 1984.
             </li>
             <li>
-              Chen, Doolen. &quot;Lattice Boltzmann method for fluid flows.&quot;
-              Annu. Rev. Fluid Mech., 1998.
+              Chen, Doolen. &quot;Lattice Boltzmann method for fluid
+              flows.&quot; Annu. Rev. Fluid Mech., 1998.
             </li>
             <li>
               Kr&uuml;ger et al. The Lattice Boltzmann Method. Springer, 2017.

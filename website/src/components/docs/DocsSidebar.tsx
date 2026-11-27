@@ -51,7 +51,13 @@ function SidebarContent({
   return (
     <>
       <Link href="/" className="block mb-8" onClick={onLinkClick}>
-        <Image src="/logo.png" alt="Lattice" width={32} height={32} className="h-8 w-auto" />
+        <Image
+          src="/logo.png"
+          alt="Lattice"
+          width={32}
+          height={32}
+          className="h-8 w-auto"
+        />
       </Link>
 
       <nav className="space-y-4">
@@ -184,8 +190,18 @@ export function DocsSidebar({
         className="lg:hidden fixed top-4 left-4 z-40 p-2 bg-ctp-surface0 border border-ctp-surface1 rounded-lg text-ctp-text hover:bg-ctp-surface1 transition-colors"
         aria-label="Open navigation"
       >
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+        <svg
+          className="w-5 h-5"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M4 6h16M4 12h16M4 18h16"
+          />
         </svg>
       </button>
 
@@ -209,8 +225,18 @@ export function DocsSidebar({
             className="text-ctp-overlay1 hover:text-ctp-text transition-colors"
             aria-label="Close navigation"
           >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M6 18L18 6M6 6l12 12"
+              />
             </svg>
           </button>
         </div>

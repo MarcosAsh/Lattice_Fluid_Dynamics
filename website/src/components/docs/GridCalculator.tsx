@@ -36,8 +36,8 @@ export function GridCalculator() {
       cells: (cells / 1e6).toFixed(1),
       memMB: Math.round(memMB),
       ssboMB: Math.round(ssboMB),
-      bodyWidth: (bodyWorldLen * gridY / 4).toFixed(0),
-      bodyHeight: ((bodyWorldLen * 0.66 / 2.4) * gridZ / 4).toFixed(0),
+      bodyWidth: ((bodyWorldLen * gridY) / 4).toFixed(0),
+      bodyHeight: ((((bodyWorldLen * 0.66) / 2.4) * gridZ) / 4).toFixed(0),
     };
   }, [gridX, gridY, gridZ]);
 
@@ -58,7 +58,11 @@ export function GridCalculator() {
         {presets.map((p) => (
           <button
             key={p.label}
-            onClick={() => { setGridX(p.x); setGridY(p.y); setGridZ(p.z); }}
+            onClick={() => {
+              setGridX(p.x);
+              setGridY(p.y);
+              setGridZ(p.z);
+            }}
             className={`px-3 py-1 text-xs rounded-md border transition-colors ${
               gridX === p.x && gridY === p.y && gridZ === p.z
                 ? 'bg-ctp-blue text-ctp-base border-ctp-blue'
@@ -77,7 +81,9 @@ export function GridCalculator() {
           { label: 'Z (vertical)', value: gridZ, set: setGridZ },
         ].map(({ label, value, set }) => (
           <div key={label}>
-            <label className="text-xs text-ctp-overlay1 block mb-1">{label}</label>
+            <label className="text-xs text-ctp-overlay1 block mb-1">
+              {label}
+            </label>
             <input
               type="number"
               min={16}
@@ -96,7 +102,9 @@ export function GridCalculator() {
         <div className="text-ctp-text font-mono">{results.cells}M</div>
 
         <div className="text-ctp-overlay1">Body length (lattice)</div>
-        <div className="text-ctp-text font-mono">{results.charLength} cells</div>
+        <div className="text-ctp-text font-mono">
+          {results.charLength} cells
+        </div>
 
         <div className="text-ctp-overlay1">Re (max, &tau;=0.52)</div>
         <div className="text-ctp-text font-mono">{results.reMax}</div>
@@ -108,9 +116,11 @@ export function GridCalculator() {
         <div className="text-ctp-text font-mono">{results.memMB} MB</div>
 
         <div className="text-ctp-overlay1">Largest SSBO buffer</div>
-        <div className={`font-mono ${
-          results.ssboMB > 128 ? 'text-ctp-red' : 'text-ctp-green'
-        }`}>
+        <div
+          className={`font-mono ${
+            results.ssboMB > 128 ? 'text-ctp-red' : 'text-ctp-green'
+          }`}
+        >
           {results.ssboMB} MB
           {results.ssboMB > 128 && ' (needs EGL/native GPU)'}
         </div>

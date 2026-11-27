@@ -34,7 +34,12 @@ const MODEL_IDS: Record<string, number> = {
 
 // Math helpers
 
-function matvec(W: Float32Array, x: Float32Array, rows: number, cols: number): Float32Array {
+function matvec(
+  W: Float32Array,
+  x: Float32Array,
+  rows: number,
+  cols: number,
+): Float32Array {
   const y = new Float32Array(rows);
   for (let r = 0; r < rows; r++) {
     let sum = 0;
@@ -110,7 +115,8 @@ function parseWeights(buf: ArrayBuffer): Weights {
 
   const count = view.getUint32(off, true);
   off += 4;
-  if (count !== NUM_PARAMS) throw new Error(`Expected ${NUM_PARAMS} params, got ${count}`);
+  if (count !== NUM_PARAMS)
+    throw new Error(`Expected ${NUM_PARAMS} params, got ${count}`);
 
   function readParam(): Float32Array {
     if (off + 4 > buf.byteLength) throw new Error('Truncated weights file');
@@ -122,7 +128,8 @@ function parseWeights(buf: ArrayBuffer): Weights {
       numel *= view.getUint32(off, true);
       off += 4;
     }
-    if (off + numel * 4 > buf.byteLength) throw new Error('Truncated weights file');
+    if (off + numel * 4 > buf.byteLength)
+      throw new Error('Truncated weights file');
     const data = new Float32Array(buf, off, numel);
     off += numel * 4;
     return new Float32Array(data); // copy so we own the buffer
@@ -159,7 +166,13 @@ export interface Prediction {
   cl: number;
 }
 
-function forward(w: Weights, norm: Normalizer, windSpeed: number, reynolds: number, modelId: number): Prediction {
+function forward(
+  w: Weights,
+  norm: Normalizer,
+  windSpeed: number,
+  reynolds: number,
+  modelId: number,
+): Prediction {
   // Z-score normalize inputs
   const x = new Float32Array(IN);
   x[0] = (windSpeed - norm.mean[0]) / norm.stdDev[0];
@@ -193,7 +206,11 @@ export type ModelStatus = 'idle' | 'loading' | 'ready' | 'error';
 
 export function useSurrogate(): {
   status: ModelStatus;
-  predict: (windSpeed: number, reynolds: number, model: string) => Prediction | null;
+  predict: (
+    windSpeed: number,
+    reynolds: number,
+    model: string,
+  ) => Prediction | null;
 } {
   const [status, setStatus] = useState<ModelStatus>('loading');
   const weightsRef = useRef<Weights | null>(null);
@@ -234,7 +251,13 @@ export function useSurrogate(): {
       if (!weightsRef.current || !normRef.current) return null;
       const id = MODEL_IDS[model];
       if (id === undefined) return null;
-      return forward(weightsRef.current, normRef.current, windSpeed, reynolds, id);
+      return forward(
+        weightsRef.current,
+        normRef.current,
+        windSpeed,
+        reynolds,
+        id,
+      );
     },
     [],
   );

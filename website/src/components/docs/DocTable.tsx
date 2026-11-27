@@ -22,10 +22,7 @@ export function DocTable({
         </thead>
         <tbody className="text-ctp-subtext1 text-xs">
           {rows.map((row, i) => (
-            <tr
-              key={i}
-              className="border-b border-ctp-surface0 last:border-0"
-            >
+            <tr key={i} className="border-b border-ctp-surface0 last:border-0">
               {row.map((cell, j) => (
                 <td key={j} className="py-2 px-3 font-mono">
                   {cell}

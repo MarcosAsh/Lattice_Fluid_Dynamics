@@ -66,7 +66,9 @@ export default function VideoPlayer({
         URL.revokeObjectURL(url);
       }, 'image/png');
     } catch {
-      alert('Screenshot blocked by cross-origin policy. Use the Download button instead.');
+      alert(
+        'Screenshot blocked by cross-origin policy. Use the Download button instead.',
+      );
     }
   }, []);
 
@@ -118,7 +120,9 @@ export default function VideoPlayer({
     setGifProgress(null);
 
     if (chunks.length === 0) {
-      alert('Clip capture blocked by cross-origin policy. Use the Download button instead.');
+      alert(
+        'Clip capture blocked by cross-origin policy. Use the Download button instead.',
+      );
       return;
     }
     const blob = new Blob(chunks, { type: 'video/webm' });

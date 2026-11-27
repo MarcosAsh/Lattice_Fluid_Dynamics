@@ -86,7 +86,8 @@ const PYTHON_RULES: Rule[] = [
   },
   {
     type: 'function',
-    pattern: /\b(?:print|len|range|enumerate|zip|map|filter|sorted|type|int|float|str|list|dict|set|tuple|open|super|isinstance|hasattr|getattr|setattr)\b/,
+    pattern:
+      /\b(?:print|len|range|enumerate|zip|map|filter|sorted|type|int|float|str|list|dict|set|tuple|open|super|isinstance|hasattr|getattr|setattr)\b/,
   },
   { type: 'number', pattern: /\b\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b/ },
   { type: 'operator', pattern: /[+\-*/%=!<>&|^~@:]|->|<<|>>|\*\*/ },

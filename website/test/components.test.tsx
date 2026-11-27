@@ -1,8 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import ResultsPanel, {
-  SimulationResult,
-} from '../src/components/ResultsPanel';
+import ResultsPanel, { SimulationResult } from '../src/components/ResultsPanel';
 import StatusDisplay from '../src/components/StatusDisplay';
 
 const mockResult: SimulationResult = {
@@ -26,11 +24,7 @@ const mockResult: SimulationResult = {
 describe('ResultsPanel', () => {
   it('renders nothing when history is empty', () => {
     const { container } = render(
-      <ResultsPanel
-        current={null}
-        history={[]}
-        onSelect={() => {}}
-      />,
+      <ResultsPanel current={null} history={[]} onSelect={() => {}} />,
     );
     expect(container.firstChild).toBeNull();
   });
@@ -98,9 +92,7 @@ describe('StatusDisplay', () => {
         renderStartTime={null}
       />,
     );
-    expect(
-      screen.getByText('Complete!'),
-    ).toBeInTheDocument();
+    expect(screen.getByText('Complete!')).toBeInTheDocument();
   });
 
   it('shows Error when failed', () => {
@@ -113,8 +105,6 @@ describe('StatusDisplay', () => {
       />,
     );
     expect(screen.getByText('Error')).toBeInTheDocument();
-    expect(
-      screen.getByText('GPU crashed'),
-    ).toBeInTheDocument();
+    expect(screen.getByText('GPU crashed')).toBeInTheDocument();
   });
 });

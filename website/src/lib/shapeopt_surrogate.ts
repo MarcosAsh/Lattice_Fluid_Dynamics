@@ -30,7 +30,12 @@ const NUM_FFD = 108;
 
 // Math helpers
 
-function matvec(W: Float32Array, x: Float32Array, rows: number, cols: number): Float32Array {
+function matvec(
+  W: Float32Array,
+  x: Float32Array,
+  rows: number,
+  cols: number,
+): Float32Array {
   const y = new Float32Array(rows);
   for (let r = 0; r < rows; r++) {
     let sum = 0;
@@ -106,7 +111,8 @@ function parseWeights(buf: ArrayBuffer): Weights {
 
   const count = view.getUint32(off, true);
   off += 4;
-  if (count !== NUM_PARAMS) throw new Error(`Expected ${NUM_PARAMS} params, got ${count}`);
+  if (count !== NUM_PARAMS)
+    throw new Error(`Expected ${NUM_PARAMS} params, got ${count}`);
 
   function readParam(): Float32Array {
     if (off + 4 > buf.byteLength) throw new Error('Truncated weights file');
@@ -118,7 +124,8 @@ function parseWeights(buf: ArrayBuffer): Weights {
       numel *= view.getUint32(off, true);
       off += 4;
     }
-    if (off + numel * 4 > buf.byteLength) throw new Error('Truncated weights file');
+    if (off + numel * 4 > buf.byteLength)
+      throw new Error('Truncated weights file');
     const data = new Float32Array(buf, off, numel);
     off += numel * 4;
     return new Float32Array(data); // copy so we own the buffer
@@ -167,7 +174,8 @@ function buildInput(
     x[i] = (ffdDisplacements[i] - norm.mean[i]) / norm.stdDev[i];
   }
   x[NUM_FFD] = (windSpeed - norm.mean[NUM_FFD]) / norm.stdDev[NUM_FFD];
-  x[NUM_FFD + 1] = (reynolds - norm.mean[NUM_FFD + 1]) / norm.stdDev[NUM_FFD + 1];
+  x[NUM_FFD + 1] =
+    (reynolds - norm.mean[NUM_FFD + 1]) / norm.stdDev[NUM_FFD + 1];
   return x;
 }
 
@@ -220,7 +228,9 @@ export function predictCd(
   reynolds: number,
 ): { cd: number; cl: number } {
   if (ffdDisplacements.length !== NUM_FFD) {
-    throw new Error(`Expected ${NUM_FFD} FFD displacements, got ${ffdDisplacements.length}`);
+    throw new Error(
+      `Expected ${NUM_FFD} FFD displacements, got ${ffdDisplacements.length}`,
+    );
   }
   const x = buildInput(model.norm, ffdDisplacements, windSpeed, reynolds);
   return forward(model.weights, x);

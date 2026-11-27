@@ -25,9 +25,9 @@ function clamp(v: number, lo: number, hi: number) {
 // SPSA optimizer -- 2 forward passes per step regardless of dimension
 
 interface SPSAConfig {
-  a: number;     // step size scale
-  c: number;     // perturbation size
-  A: number;     // stability constant (typically ~10% of max iterations)
+  a: number; // step size scale
+  c: number; // perturbation size
+  A: number; // stability constant (typically ~10% of max iterations)
   alpha: number; // step size decay exponent
   gamma: number; // perturbation decay exponent
 }
@@ -77,7 +77,7 @@ function spsaStep(
 
   // Update
   const newParams = state.params.map((p, i) =>
-    clamp(p - ak * gradScale / delta[i], -0.15, 0.15),
+    clamp(p - (ak * gradScale) / delta[i], -0.15, 0.15),
   );
 
   const newPred = predictCd(model, newParams, windSpeed, reynolds);
@@ -519,7 +519,8 @@ export default function OptimizePage() {
             </div>
             {improvement !== null && improvement > 0 && (
               <p className="mt-2 text-xs text-ctp-subtext0">
-                Cd reduced from {baselineCd!.toFixed(4)} to {finalCd!.toFixed(4)}
+                Cd reduced from {baselineCd!.toFixed(4)} to{' '}
+                {finalCd!.toFixed(4)}
               </p>
             )}
           </div>
@@ -563,7 +564,9 @@ export default function OptimizePage() {
                       </td>
                       <td
                         className={`py-0.5 font-mono ${
-                          Math.abs(v) > 0.01 ? 'text-ctp-mauve' : 'text-ctp-overlay0'
+                          Math.abs(v) > 0.01
+                            ? 'text-ctp-mauve'
+                            : 'text-ctp-overlay0'
                         }`}
                       >
                         {v.toFixed(6)}
@@ -581,16 +584,16 @@ export default function OptimizePage() {
       {status === 'idle' && (
         <div className="border border-ctp-surface1 rounded-lg p-4 bg-ctp-mantle text-xs text-ctp-subtext0 leading-relaxed">
           <p className="mb-2">
-            This tool optimizes the shape of a vehicle body to minimize aerodynamic
-            drag. It works by adjusting {NUM_FFD} Free-Form Deformation (FFD)
-            control point displacements while evaluating the drag coefficient
-            through a neural network surrogate.
+            This tool optimizes the shape of a vehicle body to minimize
+            aerodynamic drag. It works by adjusting {NUM_FFD} Free-Form
+            Deformation (FFD) control point displacements while evaluating the
+            drag coefficient through a neural network surrogate.
           </p>
           <p className="mb-2">
             The optimizer uses SPSA (Simultaneous Perturbation Stochastic
             Approximation), which estimates the gradient with just 2 forward
-            passes per step regardless of the number of parameters. This makes it
-            practical to run hundreds of iterations in real time.
+            passes per step regardless of the number of parameters. This makes
+            it practical to run hundreds of iterations in real time.
           </p>
           <p>
             After optimization, you can validate the result by running a full

@@ -21,8 +21,7 @@ function StatCard({
   mlValue: number | null;
   lbmValue: number | null;
 }) {
-  const err =
-    mlValue !== null && lbmValue !== null ? mlValue - lbmValue : null;
+  const err = mlValue !== null && lbmValue !== null ? mlValue - lbmValue : null;
   const pctErr =
     err !== null && lbmValue !== null && Math.abs(lbmValue) > 1e-8
       ? (err / Math.abs(lbmValue)) * 100
@@ -246,10 +245,7 @@ function SweepTable({
           </thead>
           <tbody>
             {predictions.map(({ ws, pred }) => (
-              <tr
-                key={ws}
-                className="border-b border-ctp-surface0"
-              >
+              <tr key={ws} className="border-b border-ctp-surface0">
                 <td className="py-1 pr-3 font-mono text-ctp-subtext1">
                   {ws.toFixed(2)}
                 </td>
@@ -366,7 +362,8 @@ export default function ComparisonPage() {
             ML vs LBM Comparison
           </h1>
           <p className="text-xs text-ctp-subtext0">
-            Surrogate model predictions compared against Lattice Boltzmann results
+            Surrogate model predictions compared against Lattice Boltzmann
+            results
           </p>
         </div>
       </div>
@@ -510,11 +507,7 @@ export default function ComparisonPage() {
         {/* ML sweep table */}
         {mlStatus === 'ready' && (
           <div className={cdPairs.length > 0 ? '' : 'lg:col-span-3'}>
-            <SweepTable
-              model={model}
-              reynolds={reynolds}
-              predict={mlPredict}
-            />
+            <SweepTable model={model} reynolds={reynolds} predict={mlPredict} />
           </div>
         )}
       </div>
@@ -560,10 +553,7 @@ export default function ComparisonPage() {
                   const cdErr = p.ml_cd - p.lbm_cd;
                   const clErr = p.ml_cl - p.lbm_cl;
                   return (
-                    <tr
-                      key={i}
-                      className="border-b border-ctp-surface0"
-                    >
+                    <tr key={i} className="border-b border-ctp-surface0">
                       <td className="py-1 pr-2 text-ctp-subtext1">
                         {MODEL_LABELS[p.model] ?? p.model}
                       </td>

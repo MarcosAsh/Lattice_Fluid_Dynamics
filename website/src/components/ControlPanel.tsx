@@ -164,7 +164,8 @@ export default function ControlPanel({
   mlStatus,
 }: ControlPanelProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [objValidation, setObjValidation] = useState<ObjValidationResult | null>(null);
+  const [objValidation, setObjValidation] =
+    useState<ObjValidationResult | null>(null);
   const [validating, setValidating] = useState(false);
   const [sweepMin, setSweepMin] = useState(0.5);
   const [sweepMax, setSweepMax] = useState(3.0);
@@ -284,7 +285,11 @@ export default function ControlPanel({
               disabled={disabled || validating}
               className="bg-ctp-surface0 hover:bg-ctp-surface1 text-ctp-text text-xs font-medium py-1.5 px-3 rounded border border-ctp-surface1 transition-colors text-left"
             >
-              {validating ? 'Validating...' : objFile ? objFile.name : 'Choose file...'}
+              {validating
+                ? 'Validating...'
+                : objFile
+                  ? objFile.name
+                  : 'Choose file...'}
             </button>
             {objFile && objValidation && (
               <p className="text-[10px] text-ctp-overlay0">
@@ -312,7 +317,10 @@ export default function ControlPanel({
             {objValidation && objValidation.warnings.length > 0 && (
               <div className="flex flex-col gap-0.5 mt-0.5">
                 {objValidation.warnings.map((warn, i) => (
-                  <p key={i} className="text-[10px] text-ctp-yellow leading-tight">
+                  <p
+                    key={i}
+                    className="text-[10px] text-ctp-yellow leading-tight"
+                  >
                     {warn}
                   </p>
                 ))}
@@ -482,14 +490,18 @@ export default function ControlPanel({
                   max={2}
                   step={0.5}
                   value={sweepStep}
-                  onChange={(e) => setSweepStep(parseFloat(e.target.value) || 0.5)}
+                  onChange={(e) =>
+                    setSweepStep(parseFloat(e.target.value) || 0.5)
+                  }
                   className="bg-ctp-surface0 text-ctp-text text-xs rounded px-1.5 py-1 border border-ctp-surface1 w-full font-mono"
                   disabled={disabled}
                 />
               </div>
             </div>
             {sweepProgress && (
-              <div className="text-xs text-ctp-overlay1 font-mono">{sweepProgress}</div>
+              <div className="text-xs text-ctp-overlay1 font-mono">
+                {sweepProgress}
+              </div>
             )}
             <button
               onClick={() => onSweep(sweepMin, sweepMax, sweepStep)}

@@ -5,7 +5,10 @@ export interface ObjValidationResult {
   stats: {
     vertices: number;
     faces: number;
-    boundingBox: { min: [number, number, number]; max: [number, number, number] } | null;
+    boundingBox: {
+      min: [number, number, number];
+      max: [number, number, number];
+    } | null;
   };
 }
 
@@ -48,7 +51,9 @@ export function validateObj(text: string): ObjValidationResult {
     if (line.startsWith('v ')) {
       const parts = line.split(/\s+/);
       if (parts.length < 4) {
-        errors.push(`Line ${i + 1}: vertex needs 3 coordinates, got ${parts.length - 1}`);
+        errors.push(
+          `Line ${i + 1}: vertex needs 3 coordinates, got ${parts.length - 1}`,
+        );
         continue;
       }
       const x = parseFloat(parts[1]);
@@ -62,7 +67,9 @@ export function validateObj(text: string): ObjValidationResult {
     } else if (line.startsWith('f ')) {
       const parts = line.split(/\s+/).slice(1);
       if (parts.length < 3) {
-        errors.push(`Line ${i + 1}: face needs at least 3 vertices, got ${parts.length}`);
+        errors.push(
+          `Line ${i + 1}: face needs at least 3 vertices, got ${parts.length}`,
+        );
         continue;
       }
       // Triangulate quads and n-gons using fan triangulation
@@ -111,7 +118,11 @@ export function validateObj(text: string): ObjValidationResult {
       valid: false,
       errors: errors.slice(0, 5), // cap to avoid wall of text
       warnings,
-      stats: { vertices: vertices.length, faces: faces.length, boundingBox: null },
+      stats: {
+        vertices: vertices.length,
+        faces: faces.length,
+        boundingBox: null,
+      },
     };
   }
 
@@ -142,7 +153,9 @@ export function validateObj(text: string): ObjValidationResult {
   if (degenerate > 0) {
     const pct = ((degenerate / faces.length) * 100).toFixed(1);
     if (degenerate === faces.length) {
-      errors.push('All faces are degenerate (duplicate vertex indices). This is not a valid mesh.');
+      errors.push(
+        'All faces are degenerate (duplicate vertex indices). This is not a valid mesh.',
+      );
     } else {
       warnings.push(
         `${degenerate} degenerate faces (${pct}% of mesh). These will be ignored by the solver.`,

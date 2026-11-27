@@ -37,7 +37,11 @@ export interface Prediction {
   cl: number;
 }
 
-function forward(model: AnyobjModel, geometry: string, reynolds: number): Prediction | null {
+function forward(
+  model: AnyobjModel,
+  geometry: string,
+  reynolds: number,
+): Prediction | null {
   const desc = model.descriptors[geometry];
   if (!desc) return null;
 
@@ -70,7 +74,11 @@ export type ModelStatus = 'idle' | 'loading' | 'ready' | 'error';
 
 export function useSurrogate(): {
   status: ModelStatus;
-  predict: (windSpeed: number, reynolds: number, model: string) => Prediction | null;
+  predict: (
+    windSpeed: number,
+    reynolds: number,
+    model: string,
+  ) => Prediction | null;
 } {
   const [status, setStatus] = useState<ModelStatus>('loading');
   const modelRef = useRef<AnyobjModel | null>(null);
@@ -99,7 +107,11 @@ export function useSurrogate(): {
   }, []);
 
   const predict = useCallback(
-    (_windSpeed: number, reynolds: number, model: string): Prediction | null => {
+    (
+      _windSpeed: number,
+      reynolds: number,
+      model: string,
+    ): Prediction | null => {
       if (!modelRef.current) return null;
       return forward(modelRef.current, model, reynolds);
     },

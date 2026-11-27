@@ -22,7 +22,6 @@ export interface SimulationResult {
   timestamp: number;
 }
 
-
 interface ResultsPanelProps {
   current: SimulationResult | null;
   history: SimulationResult[];
@@ -84,7 +83,7 @@ function CdChart({
   const plotH = H - pad.top - pad.bottom;
 
   const allVals = [...cdSeries, ...clSeries].filter(
-    (v) => Number.isFinite(v) && v >= 0
+    (v) => Number.isFinite(v) && v >= 0,
   );
   if (allVals.length === 0) return null;
 
@@ -108,11 +107,7 @@ function CdChart({
       <div className="text-[10px] text-ctp-overlay0 uppercase tracking-wider mb-1">
         Convergence
       </div>
-      <svg
-        viewBox={`0 0 ${W} ${H}`}
-        className="w-full"
-        style={{ maxWidth: W }}
-      >
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxWidth: W }}>
         {/* Grid lines */}
         {yTicks.map((v) => {
           const y = pad.top + plotH - (v / yMax) * plotH;
@@ -255,11 +250,7 @@ function SpectrumChart({ spectrum }: { spectrum: SpectrumResult }) {
       <div className="text-[10px] text-ctp-overlay0 uppercase tracking-wider mb-1">
         Cl Power Spectrum
       </div>
-      <svg
-        viewBox={`0 0 ${W} ${H}`}
-        className="w-full"
-        style={{ maxWidth: W }}
-      >
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxWidth: W }}>
         {/* Axes */}
         <line
           x1={pad.left}
@@ -287,18 +278,8 @@ function SpectrumChart({ spectrum }: { spectrum: SpectrumResult }) {
         />
 
         {/* Peak marker */}
-        <circle
-          cx={peakX}
-          cy={peakY}
-          r={3}
-          className="fill-ctp-red"
-        />
-        <text
-          x={peakX + 5}
-          y={peakY - 4}
-          className="fill-ctp-red"
-          fontSize={7}
-        >
+        <circle cx={peakX} cy={peakY} r={3} className="fill-ctp-red" />
+        <text x={peakX + 5} y={peakY - 4} className="fill-ctp-red" fontSize={7}>
           f={peakFreqLabel}
         </text>
 
@@ -319,8 +300,13 @@ function SpectrumChart({ spectrum }: { spectrum: SpectrumResult }) {
 
 function useStrouhal(result: SimulationResult | null): SpectrumResult | null {
   return useMemo(() => {
-    if (!result || result.clSeries.length < 8 || !result.charLength) return null;
-    return computeStrouhal(result.clSeries, result.charLength, result.sampleInterval ?? undefined);
+    if (!result || result.clSeries.length < 8 || !result.charLength)
+      return null;
+    return computeStrouhal(
+      result.clSeries,
+      result.charLength,
+      result.sampleInterval ?? undefined,
+    );
   }, [result]);
 }
 
@@ -332,10 +318,15 @@ function SweepChart({ history }: { history: SimulationResult[] }) {
       if (r.cdValue === null) continue;
       const key = r.model;
       if (!byModel.has(key)) byModel.set(key, []);
-      byModel.get(key)!.push({ ws: r.windSpeed, cd: r.cdValue, cl: r.clValue ?? 0 });
+      byModel
+        .get(key)!
+        .push({ ws: r.windSpeed, cd: r.cdValue, cl: r.clValue ?? 0 });
     }
     // Only show models with 2+ distinct wind speeds
-    const result: { model: string; points: { ws: number; cd: number; cl: number }[] }[] = [];
+    const result: {
+      model: string;
+      points: { ws: number; cd: number; cl: number }[];
+    }[] = [];
     for (const [model, points] of byModel) {
       const unique = new Set(points.map((p) => p.ws));
       if (unique.size >= 2) {
@@ -368,14 +359,37 @@ function SweepChart({ history }: { history: SimulationResult[] }) {
         C<sub>d</sub> vs Wind Speed
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxWidth: W }}>
-        <rect x={pad.left} y={pad.top} width={plotW} height={plotH} fill="none" stroke="#45475a" strokeWidth={0.5} />
+        <rect
+          x={pad.left}
+          y={pad.top}
+          width={plotW}
+          height={plotH}
+          fill="none"
+          stroke="#45475a"
+          strokeWidth={0.5}
+        />
         {[0, 0.5, 1].map((f) => {
           const y = pad.top + plotH - f * plotH;
           const val = (f * cdMax).toFixed(2);
           return (
             <g key={f}>
-              <line x1={pad.left} x2={pad.left + plotW} y1={y} y2={y} stroke="#313244" strokeWidth={0.5} />
-              <text x={pad.left - 4} y={y + 3} textAnchor="end" fill="#6c7086" fontSize={8}>{val}</text>
+              <line
+                x1={pad.left}
+                x2={pad.left + plotW}
+                y1={y}
+                y2={y}
+                stroke="#313244"
+                strokeWidth={0.5}
+              />
+              <text
+                x={pad.left - 4}
+                y={y + 3}
+                textAnchor="end"
+                fill="#6c7086"
+                fontSize={8}
+              >
+                {val}
+              </text>
             </g>
           );
         })}
@@ -385,29 +399,50 @@ function SweepChart({ history }: { history: SimulationResult[] }) {
             x: pad.left + ((p.ws - wsMin) / wsRange) * plotW,
             y: pad.top + plotH - (p.cd / cdMax) * plotH,
           }));
-          const path = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+          const path = pts
+            .map(
+              (p, i) =>
+                `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`,
+            )
+            .join(' ');
           return (
             <g key={series.model}>
               <path d={path} fill="none" stroke={color} strokeWidth={1.5} />
               {pts.map((p, i) => (
                 <circle key={i} cx={p.x} cy={p.y} r={3} fill={color} />
               ))}
-              <text x={pts[pts.length - 1].x + 4} y={pts[pts.length - 1].y + 3} fill={color} fontSize={8}>
+              <text
+                x={pts[pts.length - 1].x + 4}
+                y={pts[pts.length - 1].y + 3}
+                fill={color}
+                fontSize={8}
+              >
                 {MODEL_LABELS[series.model] ?? series.model}
               </text>
             </g>
           );
         })}
         {/* X axis labels */}
-        {allPoints.filter((p, i, a) => a.findIndex((q) => q.ws === p.ws) === i).map((p) => {
-          const x = pad.left + ((p.ws - wsMin) / wsRange) * plotW;
-          return (
-            <text key={p.ws} x={x} y={H - 4} textAnchor="middle" fill="#6c7086" fontSize={8}>
-              {p.ws.toFixed(1)}
-            </text>
-          );
-        })}
-        <text x={W / 2} y={H} textAnchor="middle" fill="#6c7086" fontSize={7}>Wind Speed (m/s)</text>
+        {allPoints
+          .filter((p, i, a) => a.findIndex((q) => q.ws === p.ws) === i)
+          .map((p) => {
+            const x = pad.left + ((p.ws - wsMin) / wsRange) * plotW;
+            return (
+              <text
+                key={p.ws}
+                x={x}
+                y={H - 4}
+                textAnchor="middle"
+                fill="#6c7086"
+                fontSize={8}
+              >
+                {p.ws.toFixed(1)}
+              </text>
+            );
+          })}
+        <text x={W / 2} y={H} textAnchor="middle" fill="#6c7086" fontSize={7}>
+          Wind Speed (m/s)
+        </text>
       </svg>
     </div>
   );
@@ -454,9 +489,7 @@ export default function ResultsPanel({
             <div className="text-lg font-mono text-ctp-text truncate">
               {spectrum ? spectrum.strouhal.toFixed(4) : '--'}
             </div>
-            <div className="text-ctp-overlay0 mt-0.5">
-              St = fL/U
-            </div>
+            <div className="text-ctp-overlay0 mt-0.5">St = fL/U</div>
           </div>
           {current.tStar !== null && (
             <div className="border border-ctp-surface1 rounded p-3 min-w-0">
@@ -533,9 +566,14 @@ export default function ResultsPanel({
               <tbody>
                 {[...history].reverse().map((result) => {
                   const isCurrent = result === current;
-                  const rowSt = result.charLength && result.clSeries.length >= 8
-                    ? computeStrouhal(result.clSeries, result.charLength, result.sampleInterval ?? undefined)
-                    : null;
+                  const rowSt =
+                    result.charLength && result.clSeries.length >= 8
+                      ? computeStrouhal(
+                          result.clSeries,
+                          result.charLength,
+                          result.sampleInterval ?? undefined,
+                        )
+                      : null;
                   return (
                     <tr
                       key={result.timestamp}

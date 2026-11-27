@@ -59,9 +59,12 @@ export async function GET(request: Request) {
   }
 
   try {
-    const res = await fetch(`${statusUrl}?job_id=${encodeURIComponent(jobId)}`, {
-      signal: AbortSignal.timeout(10000),
-    });
+    const res = await fetch(
+      `${statusUrl}?job_id=${encodeURIComponent(jobId)}`,
+      {
+        signal: AbortSignal.timeout(10000),
+      },
+    );
     if (!res.ok) {
       throw new Error(`status ${res.status}`);
     }
@@ -82,7 +85,9 @@ export async function POST(request: Request) {
   const lastRequest = RATE_LIMIT.get(ip) || 0;
 
   if (now - lastRequest < RATE_LIMIT_WINDOW_MS) {
-    const waitSec = Math.ceil((RATE_LIMIT_WINDOW_MS - (now - lastRequest)) / 1000);
+    const waitSec = Math.ceil(
+      (RATE_LIMIT_WINDOW_MS - (now - lastRequest)) / 1000,
+    );
     return NextResponse.json(
       {
         status: 'error',
