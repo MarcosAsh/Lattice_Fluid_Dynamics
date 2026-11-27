@@ -182,6 +182,7 @@ SHAPEOPT_SCHEMA = (
     Field("collision_mode", "int", required=False, min=0),
     Field("max_concurrent", "int", required=False, min=1),
     Field("retry_limit", "int", required=False, min=0),
+    Field("seed", "int", required=False, min=0),
     Field("optimize_steps", "int", required=False, min=1),
     Field("optimize_lr", "number", required=False, min=0, exclusive_min=True),
 )

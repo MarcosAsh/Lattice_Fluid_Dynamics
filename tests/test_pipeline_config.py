@@ -136,3 +136,11 @@ def test_cli(tmp_path, capsys):
     unknown = tmp_path / "u.yaml"
     unknown.write_text("x: 1\n")
     assert cfg.main([str(unknown)]) == 1
+
+
+def test_shapeopt_seed_key():
+    good = load("shapeopt", ML / "shapeopt" / "shapeopt_config.yaml")
+    good["seed"] = 7
+    assert not cfg.validate("shapeopt", good)
+    good["seed"] = -1
+    assert cfg.validate("shapeopt", good)

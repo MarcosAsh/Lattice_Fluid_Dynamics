@@ -305,8 +305,12 @@ def export_sobin(results_file: Path, output_file: Path) -> int:
 # Main pipeline
 
 
-def run_sweep(config_path: str, endpoint: str, resume: bool = False) -> None:
+def run_sweep(
+    config_path: str, endpoint: str, resume: bool = False, seed: int | None = None
+) -> None:
     config = load_config(config_path)
+    if seed is None:
+        seed = config.get("seed")
 
     base_models = config["base_models"]
     n_control = tuple(config["ffd_grid"])
@@ -344,7 +348,10 @@ def run_sweep(config_path: str, endpoint: str, resume: bool = False) -> None:
         # Generate LHS samples
         print(f"  Generating {num_samples} LHS samples...")
         lhs_samples = lattice.sample_random(
-            num_samples, max_fraction=max_fraction, symmetric=symmetric
+            num_samples,
+            max_fraction=max_fraction,
+            symmetric=symmetric,
+            rng=np.random.default_rng(seed),
         )
 
         # Prepend the baseline (zero displacements) as sample 0
@@ -504,6 +511,12 @@ def main() -> None:
         help="Skip already-completed samples",
     )
     parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Seed for the LHS samples (default: seed in config, else random)",
+    )
+    parser.add_argument(
         "--status",
         action="store_true",
         help="Show data generation progress",
@@ -541,7 +554,7 @@ def main() -> None:
         print(f"Error: config not found at {config_path}", file=sys.stderr)
         sys.exit(1)
 
-    run_sweep(str(config_path), endpoint, resume=args.resume)
+    run_sweep(str(config_path), endpoint, resume=args.resume, seed=args.seed)
 
 
 if __name__ == "__main__":

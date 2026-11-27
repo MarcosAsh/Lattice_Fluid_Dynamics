@@ -13,6 +13,7 @@ Usage:
 
 import argparse
 import struct
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -21,6 +22,9 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from torch.utils.data import TensorDataset
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from seeding import seed_everything
 
 SRBIN_MAGIC = 0x53524553
 COARSE_DIM = 3 * 3 * 3 * 4  # 108: 3x3x3 neighborhood, 4 channels
@@ -139,6 +143,9 @@ def compute_psnr(mse: float, data_range: float = 1.0) -> float:
 
 
 def train(args: argparse.Namespace) -> None:
+    if getattr(args, "seed", None) is not None:
+        seed_everything(args.seed)
+
     print(f"Loading dataset: {args.data}")
     coarse, fine = load_srbin(args.data)
     print(f"  Patches: {len(coarse)}")
@@ -283,6 +290,7 @@ def main() -> None:
     parser.add_argument("--hidden", type=int, default=128)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--patience", type=int, default=50)
+    parser.add_argument("--seed", type=int, default=None, help="seed torch and numpy")
     args = parser.parse_args()
 
     train(args)

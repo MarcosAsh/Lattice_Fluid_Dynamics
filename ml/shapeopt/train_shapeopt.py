@@ -22,6 +22,9 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from torch.utils.data import TensorDataset
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from seeding import seed_everything
+
 SOBIN_MAGIC = 0x534F5054
 LTWS_MAGIC = 0x4C545753
 LTWS_VERSION = 1
@@ -179,6 +182,9 @@ def save_normalizer(means: np.ndarray, stds: np.ndarray, output_path: str) -> No
 
 
 def train(args: argparse.Namespace) -> None:
+    if getattr(args, "seed", None) is not None:
+        seed_everything(args.seed)
+
     print(f"Loading dataset: {args.data}")
     displacements, outputs = load_sobin(args.data)
     num_samples, num_ffd_params = displacements.shape
@@ -367,6 +373,7 @@ def main() -> None:
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--patience", type=int, default=100)
+    parser.add_argument("--seed", type=int, default=None, help="seed torch and numpy")
     parser.add_argument(
         "--wind-speed",
         type=float,
