@@ -1,0 +1,80 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 22,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "binaryDir": "${sourceDir}/build/${presetName}"
+    },
+    {
+      "name": "release",
+      "displayName": "Release",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "debug",
+      "displayName": "Debug (GL debug output on)",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "asan",
+      "displayName": "Debug with ASan and UBSan",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "LATTICE_SANITIZE": "address,undefined"
+      }
+    },
+    {
+      "name": "ci",
+      "displayName": "Release with warnings as errors",
+      "inherits": "release",
+      "cacheVariables": {
+        "LATTICE_WERROR": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "release", "configurePreset": "release" },
+    { "name": "debug", "configurePreset": "debug" },
+    { "name": "asan", "configurePreset": "asan" },
+    { "name": "ci", "configurePreset": "ci" }
+  ],
+  "testPresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "output": { "outputOnFailure": true }
+    },
+    { "name": "release", "inherits": "base", "configurePreset": "release" },
+    { "name": "debug", "inherits": "base", "configurePreset": "debug" },
+    {
+      "name": "asan",
+      "inherits": "base",
+      "configurePreset": "asan",
+      "environment": {
+        "LSAN_OPTIONS": "suppressions=${sourceDir}/test/lsan.supp:print_suppressions=0",
+        "UBSAN_OPTIONS": "print_stacktrace=1"
+      }
+    },
+    { "name": "ci", "inherits": "base", "configurePreset": "ci" },
+    {
+      "name": "cpu",
+      "displayName": "Tests that need no GL context",
+      "inherits": "base",
+      "configurePreset": "release",
+      "filter": { "include": { "label": "cpu" } }
+    }
+  ]
+}

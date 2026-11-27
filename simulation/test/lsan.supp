@@ -1,0 +1,10 @@
+# Leaks inside GL drivers and SDL, not in our code
+leak:libEGL_mesa
+leak:libGLX_mesa
+leak:libgallium
+leak:libdrm
+leak:libLLVM
+leak:libSDL2
+leak:libSDL3
+leak:libnvidia
+leak:_dri.so
