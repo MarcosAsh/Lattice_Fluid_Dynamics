@@ -82,3 +82,16 @@ test('demo mode keeps the controls usable', async ({ page }) => {
   await expect(page.getByText('0.7772').first()).toBeVisible();
   await expect(page.getByTestId('demo-gallery')).toBeVisible();
 });
+
+test('viewing an older run shows its results', async ({ page }) => {
+  await page.goto('/');
+  const gallery = page.getByTestId('demo-gallery');
+  await gallery.getByRole('button', { name: /^Car/ }).click();
+  await gallery.getByRole('button', { name: /^Ahmed 25/ }).click();
+
+  const dragCard = page.getByText('Drag Coefficient').locator('..');
+  await expect(dragCard).toContainText('2.3002');
+
+  await page.getByRole('button', { name: 'View' }).click();
+  await expect(dragCard).toContainText('0.7772');
+});

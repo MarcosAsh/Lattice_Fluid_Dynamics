@@ -35,6 +35,7 @@ export default function Simulator({ learnMore }: { learnMore: ReactNode }) {
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [liveResult, setLiveResult] = useState<SimulationResult | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
   const [objFile, setObjFile] = useState<File | null>(null);
   const [renderStartTime, setRenderStartTime] = useState<number | null>(null);
   const [sweepProgress, setSweepProgress] = useState<string | null>(null);
@@ -44,9 +45,15 @@ export default function Simulator({ learnMore }: { learnMore: ReactNode }) {
       ? mlPredict(params.windSpeed, params.reynolds, params.model)
       : null;
 
-  const currentResult = liveResult ?? results[results.length - 1] ?? null;
+  const selected =
+    selectedId === null
+      ? null
+      : (results.find((r) => r.timestamp === selectedId) ?? null);
+  const currentResult =
+    liveResult ?? selected ?? results[results.length - 1] ?? null;
 
   const showRun = useCallback((run: SimulationResult) => {
+    setSelectedId(run.timestamp);
     setVideoUrl(run.videoUrl || null);
     setStatus('complete');
   }, []);
@@ -107,8 +114,9 @@ export default function Simulator({ learnMore }: { learnMore: ReactNode }) {
               `Sweep stopped at wind ${ws.toFixed(1)} m/s: ${errorMessage(err)}`,
             );
           }
-          addRun(result);
-          setVideoUrl(result.videoUrl || null);
+          const stored = addRun(result);
+          setSelectedId(stored.timestamp);
+          setVideoUrl(stored.videoUrl || null);
         }
         setStatus('complete');
       } catch (err) {
