@@ -1104,7 +1104,7 @@ void LBM_SetSolidMesh(LBMGrid *grid,
     typedef struct {
         float minY, maxY;
         float minZ, maxZ;
-        float maxX;
+        float minX, maxX;
     } TriBounds;
 
     TriBounds *triBounds =
@@ -1124,12 +1124,14 @@ void LBM_SetSolidMesh(LBMGrid *grid,
             float minZt = fminf(v0z, fminf(v1z, v2z));
             float maxZt = fmaxf(v0z, fmaxf(v1z, v2z));
             float maxXt = fmaxf(v0x, fmaxf(v1x, v2x));
+            float minXt = fminf(v0x, fminf(v1x, v2x));
 
             triBounds[t].minY = minYt;
             triBounds[t].maxY = maxYt;
             triBounds[t].minZ = minZt;
             triBounds[t].maxZ = maxZt;
             triBounds[t].maxX = maxXt;
+            triBounds[t].minX = minXt;
         }
     }
 
@@ -1183,7 +1185,9 @@ void LBM_SetSolidMesh(LBMGrid *grid,
                     float hx = 0, hy = -e2z, hz = e2y;
                     float a = e1x * hx + e1y * hy + e1z * hz;
 
-                    if (a > -0.00001f && a < 0.00001f)
+                    float e1n = e1x * e1x + e1y * e1y + e1z * e1z;
+                    float hn = hy * hy + hz * hz;
+                    if (a * a <= 1e-12f * e1n * hn)
                         continue;
 
                     float f = 1.0f / a;
@@ -1233,6 +1237,7 @@ void LBM_SetSolidMesh(LBMGrid *grid,
         qData[qi] = -1.0f;
 
     int qLinks = 0;
+    int qFallback = 0;
 
     for (int gz = 0; gz < grid->sizeZ; gz++) {
         for (int gy = 0; gy < grid->sizeY; gy++) {
@@ -1271,11 +1276,15 @@ void LBM_SetSolidMesh(LBMGrid *grid,
                     float bestT = 2.0f; // > 1 means no hit
 
                     for (int t = 0; t < numTriangles; t++) {
+                        // Cull on the link segment's box
                         if (triBounds) {
                             TriBounds tb = triBounds[t];
-                            if (wy < tb.minY || wy > tb.maxY ||
-                                wz < tb.minZ || wz > tb.maxZ ||
-                                wx > tb.maxX) {
+                            if (fmaxf(wx, wx + dx) < tb.minX ||
+                                fminf(wx, wx + dx) > tb.maxX ||
+                                fmaxf(wy, wy + dy) < tb.minY ||
+                                fminf(wy, wy + dy) > tb.maxY ||
+                                fmaxf(wz, wz + dz) < tb.minZ ||
+                                fminf(wz, wz + dz) > tb.maxZ) {
                                 continue;
                             }
                         }
@@ -1293,7 +1302,10 @@ void LBM_SetSolidMesh(LBMGrid *grid,
                         float hz = dx * e2y - dy * e2x;
                         float a = e1x * hx + e1y * hy + e1z * hz;
 
-                        if (a > -1e-6f && a < 1e-6f)
+                        // Parallel test relative to the edge and link lengths
+                        float e1n = e1x * e1x + e1y * e1y + e1z * e1z;
+                        float hn = hx * hx + hy * hy + hz * hz;
+                        if (a * a <= 1e-12f * e1n * hn)
                             continue;
 
                         float f = 1.0f / a;
@@ -1316,10 +1328,12 @@ void LBM_SetSolidMesh(LBMGrid *grid,
 
                     // q is the fractional distance along the lattice link
                     float q;
-                    if (bestT <= 1.0f)
+                    if (bestT <= 1.0f) {
                         q = bestT;
-                    else
+                    } else {
                         q = 0.5f; // fallback: midpoint
+                        qFallback++;
+                    }
 
                     // Clamp to avoid degeneracy
                     if (q < 0.01f)
@@ -1335,7 +1349,10 @@ void LBM_SetSolidMesh(LBMGrid *grid,
         }
     }
 
-    printf("Bouzidi: %d boundary links computed\n", qLinks);
+    printf("Bouzidi: %d boundary links computed, %d without a surface hit "
+           "(q=0.5)\n",
+           qLinks,
+           qFallback);
 
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->qBuffer);
     glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, qCount * sizeof(float), qData);
