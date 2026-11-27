@@ -72,7 +72,10 @@ const char *vizModeNames[] = {"Depth",
                               "Pathlines",
                               "Pressure",
                               "Streamlines"};
-const int numVizModes = 10;
+const int numVizModes = CLI_NUM_VIZ_MODES;
+_Static_assert(sizeof(vizModeNames) / sizeof(vizModeNames[0]) ==
+                   CLI_NUM_VIZ_MODES,
+               "vizModeNames out of sync with CLI_NUM_VIZ_MODES");
 
 static float randUnit(void) {
     return (float)rand() / (float)RAND_MAX;
@@ -96,12 +99,13 @@ static void seedParticles(Particle *p, int count) {
 }
 
 int main(int argc, char *argv[]) {
+    CliOptions opts;
+    int cliStatus = cli_parse(argc, argv, &opts);
+    if (cliStatus != 0)
+        return cliStatus > 0 ? 0 : 2;
+
     printf("Starting 3D Fluid Simulation...\n");
     srand(time(NULL));
-
-    CliOptions opts;
-    if (cli_parse(argc, argv, &opts) != 0)
-        return 0;
 
     float windSpeed = opts.windSpeed;
     int visualizationMode = opts.visualizationMode;
@@ -116,6 +120,8 @@ int main(int argc, char *argv[]) {
     int slantAngle = opts.slantAngle;
     float reynoldsNumber = opts.reynoldsNumber;
     int scaleFromCLI = opts.scaleFromCLI;
+    if (scaleFromCLI)
+        g_modelScale = opts.modelScale;
     int gridX = opts.gridX, gridY = opts.gridY, gridZ = opts.gridZ;
     float smagorinskyCs = opts.smagorinskyCs;
     int useEntropic = opts.useEntropic;

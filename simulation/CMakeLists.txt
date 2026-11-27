@@ -111,14 +111,19 @@ if(BUILD_TESTING)
     target_link_libraries(test_voxelize PRIVATE lattice_mesh)
     lattice_warnings(test_voxelize)
 
+    add_executable(test_cli test/test_cli.c)
+    target_link_libraries(test_cli PRIVATE lattice_util)
+    lattice_warnings(test_cli)
+
     # Needs a GL 4.3 context
     add_executable(test_lbm test/test_lbm.c)
     target_link_libraries(test_lbm PRIVATE lattice_gl)
     lattice_warnings(test_lbm)
 
     add_test(NAME voxelize_unit_tests COMMAND test_voxelize)
+    add_test(NAME cli_unit_tests COMMAND test_cli)
     add_test(NAME cli_help COMMAND 3d_fluid_simulation_car --help)
-    set_tests_properties(voxelize_unit_tests cli_help
+    set_tests_properties(voxelize_unit_tests cli_unit_tests cli_help
         PROPERTIES LABELS cpu)
     set_tests_properties(cli_help PROPERTIES
         PASS_REGULAR_EXPRESSION "Usage:")

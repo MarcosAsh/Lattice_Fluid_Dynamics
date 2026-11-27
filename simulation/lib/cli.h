@@ -1,6 +1,8 @@
 #ifndef CLI_H
 #define CLI_H
 
+#define CLI_NUM_VIZ_MODES 10
+
 typedef struct {
     float windSpeed;
     int visualizationMode;
@@ -11,6 +13,7 @@ typedef struct {
     int slantAngle;
     float reynoldsNumber;
     int scaleFromCLI;
+    float modelScale;
     int gridX, gridY, gridZ;
     float smagorinskyCs;
     int useMRT;
@@ -26,7 +29,7 @@ typedef struct {
 } CliOptions;
 
 // Parse command-line options. Returns 0 on success, 1 if --help was
-// requested (caller should exit cleanly).
+// requested (caller should exit cleanly) and -1 on invalid input.
 int cli_parse(int argc, char *argv[], CliOptions *opts);
 
 #endif // CLI_H
