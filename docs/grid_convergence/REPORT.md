@@ -1,5 +1,11 @@
 # Grid convergence study: Ahmed body 25 deg (#155)
 
+> Superseded. These numbers predate the solver fixes of November 2026 and
+> should not be cited. See [validation/REPORT.md](../validation/REPORT.md).
+
+> The solver also lowered the Reynolds number without saying so when a grid
+> could not support it, so the grids in this study may not share one Re.
+
 Three passes run on Modal A100, 2026-06-10 (passes 1-2 on commit
 6a7d5f3, pass 3 on 78e0e71 with force averaging).
 Raw Cd series in `raw_*.json`, summary tables in `results_*.csv`,

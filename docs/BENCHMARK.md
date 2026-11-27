@@ -1,5 +1,8 @@
 # Benchmark Results
 
+> Superseded. These numbers predate the solver fixes of November 2026 and
+> should not be cited. See [validation/REPORT.md](validation/REPORT.md).
+
 GPU profiling and Cd measurements across grid sizes,
 models, and wind speeds. Generated automatically.
 
