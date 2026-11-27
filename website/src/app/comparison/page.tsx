@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useSurrogate, type Prediction } from '../../lib/surrogate';
-import type { SimulationResult } from '../../lib/types';
+import { useRuns } from '../../lib/runs';
 import { MODELS, MODEL_LABELS } from '../../lib/models';
 
 function clamp(v: number, lo: number, hi: number) {
@@ -274,15 +274,7 @@ export default function ComparisonPage() {
   const [reynolds, setReynolds] = useState(5000);
 
   // Load LBM results from localStorage
-  const lbmHistory: SimulationResult[] = useMemo(() => {
-    if (typeof window === 'undefined') return [];
-    try {
-      const saved = localStorage.getItem('lattice_results');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  }, []);
+  const lbmHistory = useRuns();
 
   // ML prediction for current params
   const mlPred =

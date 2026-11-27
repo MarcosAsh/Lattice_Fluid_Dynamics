@@ -26,3 +26,37 @@ test('home page renders the control panel and demo gallery without crashing', as
     [],
   );
 });
+
+// Hash params and saved runs differ from the static HTML
+test('shared params and saved runs hydrate without errors', async ({
+  page,
+}) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', (err) => pageErrors.push(err.message));
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      'lattice_results',
+      JSON.stringify([
+        {
+          videoUrl: '',
+          cdValue: 0.4321,
+          clValue: 0.1,
+          cdSeries: [0.5, 0.4321],
+          clSeries: [0.1, 0.1],
+          model: 'ahmed25',
+          windSpeed: 2,
+          timestamp: 1,
+        },
+      ]),
+    );
+  });
+
+  await page.goto('/#ws=3.5&m=ahmed35');
+
+  await expect(page.getByText('3.5', { exact: true })).toBeVisible();
+  await expect(page.getByRole('combobox').first()).toHaveValue('ahmed35');
+  await expect(page.getByText('0.4321').first()).toBeVisible();
+  expect(pageErrors, `uncaught page errors: ${pageErrors.join('; ')}`).toEqual(
+    [],
+  );
+});

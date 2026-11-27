@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import ControlPanel from '../components/ControlPanel';
@@ -8,81 +8,18 @@ import StatusDisplay from '../components/StatusDisplay';
 import ResultsPanel from '../components/ResultsPanel';
 import { useSurrogate } from '../lib/anyobj_surrogate';
 import { DEMOS, type DemoEntry } from '../lib/demos';
-import type {
-  JobStatus,
-  SimulationParams,
-  SimulationResult,
-} from '../lib/types';
-
-const VALID_MODELS = new Set(['car', 'ahmed25', 'ahmed35', 'custom']);
-
-function clamp(v: number, lo: number, hi: number) {
-  return Math.max(lo, Math.min(hi, v));
-}
-
-function parseNum(raw: string, fallback: number, radix?: number): number {
-  const v = radix ? parseInt(raw, radix) : parseFloat(raw);
-  return Number.isNaN(v) ? fallback : v;
-}
-
-function parseHash(): Partial<SimulationParams> {
-  if (typeof window === 'undefined') return {};
-  const hash = window.location.hash.slice(1);
-  if (!hash) return {};
-  const p = new URLSearchParams(hash);
-  const result: Partial<SimulationParams> = {};
-  if (p.has('ws')) result.windSpeed = clamp(parseNum(p.get('ws')!, 1.0), 0, 5);
-  if (p.has('vm')) result.vizMode = clamp(parseNum(p.get('vm')!, 1, 10), 0, 6);
-  if (p.has('cm'))
-    result.collisionMode = clamp(parseNum(p.get('cm')!, 1, 10), 0, 3);
-  if (p.has('d')) result.duration = clamp(parseNum(p.get('d')!, 10, 10), 5, 30);
-  if (p.has('m') && VALID_MODELS.has(p.get('m')!)) result.model = p.get('m')!;
-  if (p.has('re'))
-    result.reynolds = clamp(parseNum(p.get('re')!, 0), 0, 100000);
-  return result;
-}
-
-function writeHash(params: SimulationParams) {
-  const hash = `ws=${params.windSpeed}&vm=${params.vizMode}&cm=${params.collisionMode}&d=${params.duration}&m=${params.model}&re=${params.reynolds}`;
-  window.history.replaceState(null, '', `#${hash}`);
-}
+import { useHashParams } from '../lib/hashParams';
+import { addRun, useRuns } from '../lib/runs';
+import type { JobStatus, SimulationResult } from '../lib/types';
 
 export default function Home() {
-  const [params, setParams] = useState<SimulationParams>(() => {
-    const defaults: SimulationParams = {
-      windSpeed: 1.0,
-      vizMode: 1,
-      duration: 5,
-      collisionMode: 2,
-      model: 'car',
-      reynolds: 0,
-    };
-    return { ...defaults, ...parseHash() };
-  });
+  const [params, setParams] = useHashParams();
+  const results = useRuns();
 
   const [status, setStatus] = useState<JobStatus>('idle');
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [liveResult, setLiveResult] = useState<SimulationResult | null>(null);
-  const [results, setResults] = useState<SimulationResult[]>(() => {
-    if (typeof window === 'undefined') return [];
-    try {
-      const saved = localStorage.getItem('lattice_results');
-      if (!saved) return [];
-      const parsed: SimulationResult[] = JSON.parse(saved);
-      // Backfill fields added after initial release
-      return parsed.map((r) => ({
-        ...r,
-        tStar: r.tStar ?? null,
-        flowThroughs: r.flowThroughs ?? null,
-        cfl: r.cfl ?? null,
-        cdPressureSeries: r.cdPressureSeries ?? [],
-        cdFrictionSeries: r.cdFrictionSeries ?? [],
-      }));
-    } catch {
-      return [];
-    }
-  });
   const [backendAvailable, setBackendAvailable] = useState(true);
   const [backendStatus, setBackendStatus] = useState<
     'checking' | 'healthy' | 'slow' | 'down' | 'not_configured'
@@ -113,27 +50,6 @@ export default function Home() {
         setBackendStatus('down');
       });
   }, []);
-
-  // Persist results to localStorage
-  useEffect(() => {
-    try {
-      // Keep last 50 results max
-      const toSave = results.slice(-50);
-      localStorage.setItem('lattice_results', JSON.stringify(toSave));
-    } catch {
-      // localStorage full or unavailable
-    }
-  }, [results]);
-
-  // Write hash on param change
-  const initialized = useRef(false);
-  useEffect(() => {
-    if (!initialized.current) {
-      initialized.current = true;
-      return;
-    }
-    writeHash(params);
-  }, [params]);
 
   const currentResult =
     liveResult ?? (results.length > 0 ? results[results.length - 1] : null);
@@ -240,7 +156,7 @@ export default function Home() {
             windSpeed: params.windSpeed,
             timestamp: Date.now(),
           };
-          setResults((prev) => [...prev, result]);
+          addRun(result);
           return;
         }
 
@@ -325,7 +241,7 @@ export default function Home() {
                 windSpeed: ws,
                 timestamp: Date.now(),
               };
-              setResults((prev) => [...prev, result]);
+              addRun(result);
               setVideoUrl(data.video_url);
               done = true;
               break;
@@ -352,17 +268,17 @@ export default function Home() {
     setStatus('complete');
   }, []);
 
-  const loadDemo = useCallback((demo: DemoEntry) => {
-    setVideoUrl(demo.result.videoUrl);
-    setStatus('complete');
-    setError(null);
-    const result: SimulationResult = {
-      ...demo.result,
-      timestamp: Date.now(),
-    };
-    setResults((prev) => [...prev, result]);
-    setParams((prev) => ({ ...prev, ...demo.params }));
-  }, []);
+  const loadDemo = useCallback(
+    (demo: DemoEntry) => {
+      const demoParams = { ...params, ...demo.params };
+      setVideoUrl(demo.result.videoUrl);
+      setStatus('complete');
+      setError(null);
+      addRun({ ...demo.result, timestamp: Date.now(), params: demoParams });
+      setParams(demoParams);
+    },
+    [params, setParams],
+  );
 
   return (
     <main className="min-h-screen p-4 md:p-6 lg:p-10 max-w-7xl mx-auto">
