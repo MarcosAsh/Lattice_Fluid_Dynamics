@@ -3,13 +3,20 @@
 import { useMemo } from 'react';
 import { computeStrouhal, type SpectrumResult } from '../lib/spectral';
 import { MODEL_LABELS } from '../lib/models';
+import { runLabel } from '../lib/compare';
+import { downloadText } from '../lib/download';
 import type { SimulationResult } from '../lib/types';
 
 interface ResultsPanelProps {
   current: SimulationResult | null;
   history: SimulationResult[];
   onSelect: (result: SimulationResult) => void;
+  // Timestamps of the runs picked for comparison, in pick order
+  compareIds?: number[];
+  onToggleCompare?: (id: number) => void;
 }
+
+const COMPARE_TAGS = ['A', 'B'] as const;
 
 function downloadCsv(result: SimulationResult, strouhal: number | null) {
   const rows: string[] = [];
@@ -41,13 +48,11 @@ function downloadCsv(result: SimulationResult, strouhal: number | null) {
       rows.push(`${i},${cd},${cl}`);
     }
   }
-  const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `lattice_${result.model}_w${result.windSpeed.toFixed(1)}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
+  downloadText(
+    rows.join('\n'),
+    `lattice_${result.model}_w${result.windSpeed.toFixed(1)}.csv`,
+    'text/csv',
+  );
 }
 
 function CdChart({
@@ -459,6 +464,8 @@ export default function ResultsPanel({
   current,
   history,
   onSelect,
+  compareIds = [],
+  onToggleCompare,
 }: ResultsPanelProps) {
   const spectrum = useStrouhal(current);
 
@@ -548,10 +555,23 @@ export default function ResultsPanel({
           <h3 className="text-[10px] text-ctp-overlay0 uppercase tracking-wider mb-2">
             All Runs
           </h3>
+          {onToggleCompare && (
+            <p className="text-[10px] text-ctp-overlay0 leading-tight mb-2">
+              Tick two runs to compare them side by side.
+            </p>
+          )}
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
                 <tr className="border-b border-ctp-surface1">
+                  {onToggleCompare && (
+                    <th
+                      scope="col"
+                      className="py-1.5 pr-2 text-ctp-subtext0 font-medium"
+                    >
+                      Compare
+                    </th>
+                  )}
                   <th
                     scope="col"
                     className="py-1.5 pr-2 text-ctp-subtext0 font-medium"
@@ -593,6 +613,8 @@ export default function ResultsPanel({
               <tbody>
                 {[...history].reverse().map((result) => {
                   const isCurrent = result === current;
+                  const pick = compareIds.indexOf(result.timestamp);
+                  const tag = COMPARE_TAGS[pick];
                   const rowSt =
                     result.charLength && result.clSeries.length >= 8
                       ? computeStrouhal(
@@ -606,6 +628,28 @@ export default function ResultsPanel({
                       key={result.timestamp}
                       className={`border-b border-ctp-surface0 ${isCurrent ? 'bg-ctp-surface0/50' : ''}`}
                     >
+                      {onToggleCompare && (
+                        <td className="py-1.5 pr-2">
+                          <label className="inline-flex items-center gap-1.5">
+                            <input
+                              type="checkbox"
+                              checked={pick >= 0}
+                              disabled={pick < 0 && compareIds.length >= 2}
+                              onChange={() => onToggleCompare(result.timestamp)}
+                              aria-label={`Compare ${runLabel(result)}`}
+                              className="accent-ctp-mauve"
+                            />
+                            {tag && (
+                              <span
+                                aria-hidden="true"
+                                className={`font-mono font-semibold ${tag === 'A' ? 'text-ctp-blue' : 'text-ctp-peach'}`}
+                              >
+                                {tag}
+                              </span>
+                            )}
+                          </label>
+                        </td>
+                      )}
                       <td className="py-1.5 pr-2 text-ctp-subtext1">
                         {MODEL_LABELS[result.model] ?? result.model}
                       </td>

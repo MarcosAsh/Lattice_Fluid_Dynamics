@@ -5,6 +5,7 @@ import ControlPanel from './ControlPanel';
 import VideoPlayer from './VideoPlayer';
 import StatusDisplay from './StatusDisplay';
 import ResultsPanel from './ResultsPanel';
+import RunComparison from './RunComparison';
 import { useSurrogate } from '../lib/anyobj_surrogate';
 import { useBackendStatus } from '../lib/backend';
 import { DEMOS, type DemoEntry } from '../lib/demos';
@@ -36,6 +37,7 @@ export default function Simulator({ learnMore }: { learnMore: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [liveResult, setLiveResult] = useState<SimulationResult | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [compareIds, setCompareIds] = useState<number[]>([]);
   const [objFile, setObjFile] = useState<File | null>(null);
   const [renderStartTime, setRenderStartTime] = useState<number | null>(null);
   const [sweepProgress, setSweepProgress] = useState<string | null>(null);
@@ -51,6 +53,10 @@ export default function Simulator({ learnMore }: { learnMore: ReactNode }) {
       : (results.find((r) => r.timestamp === selectedId) ?? null);
   const currentResult =
     liveResult ?? selected ?? results[results.length - 1] ?? null;
+
+  const [runA, runB] = compareIds
+    .map((id) => results.find((r) => r.timestamp === id))
+    .filter((r): r is SimulationResult => r !== undefined);
 
   const showRun = useCallback((run: SimulationResult) => {
     setSelectedId(run.timestamp);
@@ -140,6 +146,13 @@ export default function Simulator({ learnMore }: { learnMore: ReactNode }) {
     },
     [params, setParams, showRun],
   );
+
+  const toggleCompare = useCallback((id: number) => {
+    setCompareIds((prev) => {
+      if (prev.includes(id)) return prev.filter((x) => x !== id);
+      return prev.length >= 2 ? prev : [...prev, id];
+    });
+  }, []);
 
   const rendering = status === 'rendering';
   const renderHint =
@@ -241,7 +254,17 @@ export default function Simulator({ learnMore }: { learnMore: ReactNode }) {
             current={currentResult}
             history={results}
             onSelect={showRun}
+            compareIds={compareIds}
+            onToggleCompare={toggleCompare}
           />
+
+          {runA && runB && (
+            <RunComparison
+              a={runA}
+              b={runB}
+              onClose={() => setCompareIds([])}
+            />
+          )}
         </div>
       </div>
     </>
