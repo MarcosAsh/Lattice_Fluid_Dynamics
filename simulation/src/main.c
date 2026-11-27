@@ -20,6 +20,7 @@
 #include "../lib/superres.h"
 
 #include "../lib/cli.h"
+#include "../lib/convergence.h"
 #include "../lib/drag_metrics.h"
 #include "../lib/event_handlers.h"
 #include "../lib/gl_helpers.h"
@@ -949,6 +950,21 @@ int main(int argc, char *argv[]) {
     int outputFrameCount = 0;
     int maxFrames = (renderDuration > 0) ? renderDuration * 60 : 0;
 
+    // Optional --converge stopping, reads the Cd series only
+    int convergeOn = opts.convergeTol > 0.0f;
+    ConvergenceDetector conv = {0};
+    if (convergeOn) {
+        if (conv_init(&conv, opts.convergeTol, opts.convergeWindow) != 0) {
+            fprintf(stderr, "Failed to set up --converge\n");
+            return 1;
+        }
+        printf("Convergence stopping: tol=%g, window=%d samples, "
+               "cap=%d output frames\n",
+               opts.convergeTol,
+               opts.convergeWindow,
+               maxFrames);
+    }
+
     // Convergence detection for auto-stop. CD_HISTORY_SIZE and
     // CD_SAMPLE_INTERVAL live in drag_metrics.h.
     float cdHistory[CD_HISTORY_SIZE];
@@ -1429,6 +1445,19 @@ int main(int argc, char *argv[]) {
                     clSeries[clCount++] = Cl;
             }
 
+            if (convergeOn && isfinite(Cd) && conv_add(&conv, Cd)) {
+                double cm, csem;
+                conv_stats(&conv, &cm, &csem);
+                printf("Convergence: reached at frame %d, Cd mean=%.4f "
+                       "sem=%.4f (%d samples, rel change %.2e)\n",
+                       frameCount,
+                       cm,
+                       csem,
+                       conv.count,
+                       conv.relChange);
+                running = 0;
+            }
+
             // Track Cd for convergence detection
             if (Cd > 0 && Cd < 1000) {
                 cdHistory[cdHistoryCount % CD_HISTORY_SIZE] = Cd;
@@ -1455,7 +1484,7 @@ int main(int argc, char *argv[]) {
                                mean,
                                relStd);
                         // Auto-stop in headless mode
-                        if (maxFrames > 0) {
+                        if (maxFrames > 0 && !convergeOn) {
                             // Run 2 more seconds for clean video ending
                             int extra = 120;
                             if (outputFrameCount + extra < maxFrames)
@@ -1490,6 +1519,17 @@ int main(int argc, char *argv[]) {
             GLContext_SwapBuffers(glCtx);
     }
 
+    if (convergeOn && !conv.converged) {
+        double cm, csem;
+        conv_stats(&conv, &cm, &csem);
+        printf("Convergence: not reached after %d samples, Cd mean=%.4f "
+               "sem=%.4f (rel change %.2e)\n",
+               conv.count,
+               cm,
+               csem,
+               conv.relChange);
+    }
+
     if (useLBM) {
         compute_strouhal(clSeries,
                          clCount,
@@ -1499,6 +1539,7 @@ int main(int argc, char *argv[]) {
     }
 
     printf("Cleaning up...\n");
+    conv_free(&conv);
     free(particles);
     if (triangleData)
         free(triangleData);

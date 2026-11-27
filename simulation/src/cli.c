@@ -1,4 +1,5 @@
 #include "../lib/cli.h"
+#include "../lib/drag_metrics.h"
 #include "lattice_version.h"
 
 #include <errno.h>
@@ -10,6 +11,12 @@
 #include <string.h>
 
 #define GRID_MAX 4096
+
+enum {
+    OPT_CONVERGE = 1000,
+    OPT_CONVERGE_WINDOW,
+    OPT_MAX_DURATION,
+};
 
 static int bad_value(const char *name, const char *arg) {
     fprintf(stderr, "invalid value for --%s: '%s'\n", name, arg);
@@ -116,6 +123,9 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
             "assets/sr_model_norm.bin",
             sizeof(opts->srNormPath) - 1);
     opts->srNormPath[sizeof(opts->srNormPath) - 1] = '\0';
+    opts->convergeTol = 0.0f;
+    opts->convergeWindow = 20;
+    opts->maxDuration = 0;
 
     static struct option long_options[] = {
         {"wind", required_argument, 0, 'w'},
@@ -138,6 +148,9 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
         {"vtk-stats", no_argument, 0, 'T'},
         {"superres", no_argument, 0, 'R'},
         {"sr-weights", required_argument, 0, 'W'},
+        {"converge", required_argument, 0, OPT_CONVERGE},
+        {"converge-window", required_argument, 0, OPT_CONVERGE_WINDOW},
+        {"max-duration", required_argument, 0, OPT_MAX_DURATION},
         {"version", no_argument, 0, 'X'},
         {"help", no_argument, 0, 'h'},
         {0, 0, 0, 0}
@@ -145,9 +158,10 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
     };
 
     int opt;
-    while ((opt = getopt_long(
-                argc, argv, "w:v:c:d:o:m:a:r:s:g:S:Mt:Eh", long_options, NULL)) !=
-           -1) {
+    while (
+        (opt = getopt_long(
+             argc, argv, "w:v:c:d:o:m:a:r:s:g:S:Mt:Eh", long_options, NULL)) !=
+        -1) {
         switch (opt) {
         case 'w':
             if (!parse_float("wind", optarg, &opts->windSpeed))
@@ -277,6 +291,30 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
                            sizeof(opts->srWeightsPath)))
                 return -1;
             break;
+        case OPT_CONVERGE:
+            if (!parse_float("converge", optarg, &opts->convergeTol))
+                return -1;
+            if (!(opts->convergeTol > 0.0f && opts->convergeTol < 1.0f)) {
+                bad_value("converge", optarg);
+                return -1;
+            }
+            break;
+        case OPT_CONVERGE_WINDOW:
+            if (!parse_int("converge-window", optarg, &opts->convergeWindow))
+                return -1;
+            if (opts->convergeWindow < 4 || opts->convergeWindow > 100000) {
+                bad_value("converge-window", optarg);
+                return -1;
+            }
+            break;
+        case OPT_MAX_DURATION:
+            if (!parse_int("max-duration", optarg, &opts->maxDuration))
+                return -1;
+            if (opts->maxDuration < 1) {
+                bad_value("max-duration", optarg);
+                return -1;
+            }
+            break;
         case 'X':
             printf("3d_fluid_simulation_car %s\n", cli_version());
             return 1;
@@ -324,12 +362,36 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
                    "upscaling\n");
             printf("  --sr-weights=PATH     Super-resolution weights "
                    "(default: assets/sr_model.bin)\n");
+            printf("  --converge=TOL        Stop a headless run once the "
+                   "windowed mean Cd\n"
+                   "                        changes by less than TOL "
+                   "(relative) twice in a row\n");
+            printf("  --converge-window=N   Cd samples per window "
+                   "(default: 20, one sample\n"
+                   "                        every %d frames)\n",
+                   CD_SAMPLE_INTERVAL);
+            printf("  --max-duration=SECS   Frame cap for --converge "
+                   "(overrides --duration)\n");
             printf("  --version             Print version and exit\n");
             printf("  -h, --help            Show this help\n");
             return 1;
         default:
             return -1;
         }
+    }
+
+    if (opts->maxDuration > 0) {
+        if (opts->convergeTol <= 0.0f) {
+            fprintf(stderr, "--max-duration needs --converge\n");
+            return -1;
+        }
+        opts->renderDuration = opts->maxDuration;
+    }
+    if (opts->convergeTol > 0.0f && opts->renderDuration <= 0) {
+        fprintf(stderr,
+                "--converge needs a headless run (--duration or "
+                "--max-duration)\n");
+        return -1;
     }
 
     return 0;

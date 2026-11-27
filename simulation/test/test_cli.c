@@ -114,6 +114,28 @@ static void test_invalid_values(void) {
     CHECK(parse(&o, longPath, NULL) == -1, "rejects over-long path");
 }
 
+static void test_converge_options(void) {
+    printf("test: convergence options\n");
+    CliOptions o;
+    CHECK(parse(&o, NULL, NULL) == 0 && o.convergeTol == 0.0f &&
+              o.convergeWindow == 20 && o.maxDuration == 0,
+          "off by default");
+    CHECK(parse(&o, "--converge=0.01", "--max-duration=30") == 0 &&
+              o.convergeTol == 0.01f && o.renderDuration == 30,
+          "max-duration sets the headless cap");
+    CHECK(parse(&o, "--converge=0.01", "--duration=10") == 0 &&
+              o.renderDuration == 10,
+          "duration works as the cap");
+    CHECK(parse(&o, "--converge=0.01", "--converge-window=8") == -1,
+          "converge needs a headless run");
+    CHECK(parse(&o, "--max-duration=30", NULL) == -1,
+          "max-duration needs converge");
+    CHECK(parse(&o, "--converge=0", "--duration=10") == -1, "zero tolerance");
+    CHECK(parse(&o, "--converge=1.5", "--duration=10") == -1,
+          "tolerance below 1");
+    CHECK(parse(&o, "--converge-window=3", NULL) == -1, "window too small");
+}
+
 static void test_help(void) {
     printf("test: --help and --version ask for a clean exit\n");
     CliOptions o;
@@ -129,6 +151,7 @@ int main(void) {
     test_defaults();
     test_valid_values();
     test_invalid_values();
+    test_converge_options();
     test_help();
     printf("\n%d/%d checks passed\n", tests_run - tests_failed, tests_run);
     return tests_failed == 0 ? 0 : 1;

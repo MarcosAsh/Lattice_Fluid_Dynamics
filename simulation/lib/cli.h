@@ -26,6 +26,9 @@ typedef struct {
     int useSuperRes;
     char srWeightsPath[256];
     char srNormPath[256];
+    float convergeTol; // 0 = off
+    int convergeWindow;
+    int maxDuration;
 } CliOptions;
 
 // Parse command-line options. Returns 0 on success, 1 if --help was
