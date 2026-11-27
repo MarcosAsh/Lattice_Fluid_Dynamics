@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { SECTION_GROUPS } from '../../lib/docs-sections';
@@ -9,6 +10,12 @@ import { DocTable } from '../../components/docs/DocTable';
 import { MathBlock } from '../../components/docs/MathBlock';
 import { SrcLink } from '../../components/docs/SrcLink';
 import { GridCalculator } from '../../components/docs/GridCalculator';
+
+export const metadata: Metadata = {
+  title: 'Documentation',
+  description:
+    'How Lattice works: build and CLI reference, LBM physics, the ML surrogate, validation and performance.',
+};
 
 function Section({
   id,

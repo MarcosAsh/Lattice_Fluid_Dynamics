@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 
@@ -12,23 +12,43 @@ const geistMono = Geist_Mono({
   subsets: ['latin'],
 });
 
+// Absolute base for OpenGraph URLs, from SITE_URL or Vercel's production domain
+function siteUrl(): URL {
+  if (process.env.SITE_URL) return new URL(process.env.SITE_URL);
+  const vercel = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+  return new URL(vercel ? `https://${vercel}` : 'http://localhost:3000');
+}
+
+const description =
+  'GPU-accelerated wind tunnel simulation using Lattice Boltzmann Methods and OpenGL compute shaders';
+const shortDescription =
+  'GPU-accelerated wind tunnel simulation using LBM and OpenGL compute shaders';
+
 export const metadata: Metadata = {
-  title: 'Lattice',
-  description:
-    'GPU-accelerated wind tunnel simulation using Lattice Boltzmann Methods and OpenGL compute shaders',
+  metadataBase: siteUrl(),
+  title: { default: 'Lattice', template: '%s | Lattice' },
+  description,
+  applicationName: 'Lattice',
   openGraph: {
+    type: 'website',
+    siteName: 'Lattice',
     title: 'Lattice',
-    description:
-      'GPU-accelerated wind tunnel simulation using LBM and OpenGL compute shaders',
-    images: [{ url: '/logo.png', width: 1200, height: 630 }],
+    description: shortDescription,
+    images: [
+      { url: '/logo.png', width: 1536, height: 1024, alt: 'Lattice logo' },
+    ],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Lattice',
-    description:
-      'GPU-accelerated wind tunnel simulation using LBM and OpenGL compute shaders',
+    description: shortDescription,
     images: ['/logo.png'],
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: '#1e1e2e',
+  colorScheme: 'dark',
 };
 
 export default function RootLayout({

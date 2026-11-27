@@ -111,3 +111,27 @@ test('docs page is server rendered and tracks the section in view', async ({
     sidebar.getByRole('link', { name: 'CLI Reference' }),
   ).toHaveClass(/border-ctp-mauve/);
 });
+
+for (const [path, title] of [
+  ['/', 'Lattice'],
+  ['/docs', 'Documentation | Lattice'],
+  ['/comparison', 'ML vs LBM | Lattice'],
+  ['/optimize', 'Shape Optimization | Lattice'],
+] as const) {
+  test(`${path} has its title and loads cleanly`, async ({ page }) => {
+    const problems: string[] = [];
+    page.on('pageerror', (err) => problems.push(err.message));
+    page.on('console', (msg) => {
+      if (msg.type() === 'error') problems.push(msg.text());
+    });
+
+    await page.goto(path);
+    await expect(page).toHaveTitle(title);
+    await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute(
+      'content',
+      '#1e1e2e',
+    );
+    await page.waitForLoadState('networkidle');
+    expect(problems, problems.join('; ')).toEqual([]);
+  });
+}
