@@ -383,6 +383,7 @@ def sphere(s, quick):
             rows[0]["cd_ref"] = cgw(100)
             table.append(rows[0])
     s.results["sphere_table"] = table
+    write_gci_csv(s.out / "sphere_gci.csv", table)
     if table:
         fig, ax = plt.subplots(figsize=(6, 4))
         for re_num, mk in [(20, "o"), (100, "s")]:
@@ -405,6 +406,24 @@ def sphere(s, quick):
         fig.tight_layout()
         fig.savefig(s.out / "sphere_cd.png", dpi=120)
         plt.close(fig)
+
+
+def write_gci_csv(path, table):
+    """Grid study rows in the format ml/cli.py gci reads"""
+    cols = ["name", "group", "grid", "char_length", "reynolds", "cd", "cd_sem"]
+    lines = [",".join(cols)]
+    for r in table:
+        if r["path"] != "analytic" or r["smag"] != 0 or r["op"] != "mrt":
+            continue
+        if not r["grid"].startswith(str(int(16 * r["D"]))):
+            continue
+        # One window per D/U, mean over the last quarter
+        n = max(5, round(r["tstar"]) // 4)
+        sem = r["cd_sd"] / math.sqrt(n)
+        name = f"sphere_re{int(r['re'])}_d{int(r['D'])}"
+        row = [name, f"sphere_re{int(r['re'])}", r["grid"], r["D"], r["re"], r["cd"], sem]
+        lines.append(",".join(str(x) for x in row))
+    path.write_text("\n".join(lines) + "\n")
 
 
 def ahmed(s, quick):
