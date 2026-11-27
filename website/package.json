@@ -10,6 +10,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "typecheck": "next typegen && tsc --noEmit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "test": "vitest run",
     "test:e2e": "playwright test"
   },
@@ -31,6 +34,7 @@
     "eslint": "^10.16.0",
     "eslint-config-next": "^16.4.6",
     "jsdom": "^31.0.1",
+    "prettier": "^3.10.1",
     "tailwindcss": "^4.3.5",
     "typescript": "~6.0.3",
     "vite": "^8.4.0",
