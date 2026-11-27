@@ -21,11 +21,12 @@ Usage:
 from pathlib import Path
 
 import numpy as np
+from numpy.typing import ArrayLike
 
 # Bernstein basis
 
 
-def _binomial_coeffs(n):
+def _binomial_coeffs(n: int) -> np.ndarray:
     """Row n of Pascal's triangle, computed iteratively to avoid scipy."""
     c = np.ones(n + 1, dtype=np.float64)
     for k in range(1, n + 1):
@@ -33,7 +34,7 @@ def _binomial_coeffs(n):
     return c
 
 
-def _bernstein_basis(n, t):
+def _bernstein_basis(n: int, t: np.ndarray) -> np.ndarray:
     """
     Evaluate all Bernstein basis polynomials of degree n at parameter values t.
 
@@ -53,7 +54,12 @@ def _bernstein_basis(n, t):
 class FFDLattice:
     """Trivariate Bernstein FFD lattice for deforming 3D meshes."""
 
-    def __init__(self, bbox_min, bbox_max, n_control=(4, 3, 3)):
+    def __init__(
+        self,
+        bbox_min: ArrayLike,
+        bbox_max: ArrayLike,
+        n_control: tuple[int, int, int] = (4, 3, 3),
+    ) -> None:
         """
         Create an FFD lattice around a bounding box.
 
@@ -84,7 +90,7 @@ class FFDLattice:
 
     # Core deformation
 
-    def deform(self, vertices, displacements):
+    def deform(self, vertices: ArrayLike, displacements: ArrayLike) -> np.ndarray:
         """
         Deform mesh vertices through the FFD lattice.
 
@@ -128,7 +134,7 @@ class FFDLattice:
 
     # Symmetry
 
-    def enforce_symmetry(self, displacements, axis=1):
+    def enforce_symmetry(self, displacements: ArrayLike, axis: int = 1) -> np.ndarray:
         """
         Mirror displacements across the specified axis for bilateral symmetry.
 
@@ -151,7 +157,7 @@ class FFDLattice:
         half = n_ax // 2
 
         # Build axis slicing helpers so the code works for any axis.
-        def _slice(ax_idx):
+        def _slice(ax_idx: int) -> tuple[slice | int, ...]:
             """Return a tuple of slices selecting ax_idx along `axis`."""
             s = [slice(None)] * 3
             s[axis] = ax_idx
@@ -184,11 +190,11 @@ class FFDLattice:
 
     # Parameter counts
 
-    def get_num_params(self):
+    def get_num_params(self) -> int:
         """Total displacement DOFs: nx * ny * nz * 3."""
         return self.nx * self.ny * self.nz * 3
 
-    def get_num_free_params(self):
+    def get_num_free_params(self) -> int:
         """
         Number of independent parameters after Y-symmetry reduction.
 
@@ -208,7 +214,9 @@ class FFDLattice:
 
     # Clamping
 
-    def clamp_displacements(self, displacements, max_fraction=0.15):
+    def clamp_displacements(
+        self, displacements: ArrayLike, max_fraction: float = 0.15
+    ) -> np.ndarray:
         """
         Clamp each displacement component to +/- max_fraction * bbox extent
         along the corresponding axis.
@@ -228,7 +236,13 @@ class FFDLattice:
 
     # Random sampling (Latin Hypercube)
 
-    def sample_random(self, n_samples, max_fraction=0.15, symmetric=True):
+    def sample_random(
+        self,
+        n_samples: int,
+        max_fraction: float = 0.15,
+        symmetric: bool = True,
+        rng: np.random.Generator | None = None,
+    ) -> np.ndarray:
         """
         Latin Hypercube Sampling of the FFD displacement space.
 
@@ -237,6 +251,7 @@ class FFDLattice:
             max_fraction: fraction of bbox extent for displacement bounds.
             symmetric: if True, sample only free (half-lattice) parameters
                 and expand them via enforce_symmetry.
+            rng: numpy Generator for reproducible samples, fresh if None.
 
         Returns:
             (n_samples, nx*ny*nz*3) array of displacement vectors.
@@ -246,7 +261,7 @@ class FFDLattice:
         limits = max_fraction * self.extent  # (3,)
 
         # LHS: for each dimension, create a stratified random permutation
-        rng = np.random.default_rng()
+        rng = rng if rng is not None else np.random.default_rng()
         samples = np.empty((n_samples, n_dim), dtype=np.float64)
 
         for d in range(n_dim):
@@ -270,13 +285,13 @@ class FFDLattice:
             result[i] = self.enforce_symmetry(full)
         return result
 
-    def _build_full_axis_map(self):
+    def _build_full_axis_map(self) -> np.ndarray:
         """Map from flat full-param index to axis (0, 1, or 2)."""
         # Layout: (nx, ny, nz, 3) in C order, so last axis is xyz component.
         n_pts = self.nx * self.ny * self.nz
         return np.tile(np.arange(3), n_pts)
 
-    def _build_free_param_axis_map(self):
+    def _build_free_param_axis_map(self) -> np.ndarray:
         """Map from flat free-param index to axis (0, 1, or 2)."""
         axes = []
         half = self.ny // 2
@@ -289,7 +304,7 @@ class FFDLattice:
                 axes.extend([0, 2])
         return np.array(axes, dtype=int)
 
-    def _expand_free_to_full(self, free_params):
+    def _expand_free_to_full(self, free_params: np.ndarray) -> np.ndarray:
         """
         Expand free (symmetry-reduced) parameters into a full displacement
         vector. The upper-half Y control points get zeros; enforce_symmetry
@@ -321,7 +336,7 @@ class FFDLattice:
 # OBJ I/O
 
 
-def load_obj(path):
+def load_obj(path: str | Path) -> tuple[np.ndarray, np.ndarray]:
     """
     Parse a Wavefront OBJ file.
 
@@ -347,7 +362,7 @@ def load_obj(path):
     return np.array(vertices, dtype=np.float64), np.array(faces, dtype=np.int64)
 
 
-def save_obj(path, vertices, faces):
+def save_obj(path: str | Path, vertices: ArrayLike, faces: ArrayLike) -> None:
     """
     Write a Wavefront OBJ file with 1-indexed faces.
 
@@ -364,7 +379,7 @@ def save_obj(path, vertices, faces):
             f.write(f"f {face[0] + 1} {face[1] + 1} {face[2] + 1}\n")
 
 
-def compute_bbox(vertices, padding=0.05):
+def compute_bbox(vertices: ArrayLike, padding: float = 0.05) -> tuple[np.ndarray, np.ndarray]:
     """
     Compute axis-aligned bounding box with padding.
 
@@ -383,7 +398,12 @@ def compute_bbox(vertices, padding=0.05):
     return vmin - pad, vmax + pad
 
 
-def deform_obj(input_path, output_path, displacements, n_control=(4, 3, 3)):
+def deform_obj(
+    input_path: str | Path,
+    output_path: str | Path,
+    displacements: ArrayLike,
+    n_control: tuple[int, int, int] = (4, 3, 3),
+) -> None:
     """
     Load an OBJ, apply FFD deformation, and write the result.
 
@@ -400,163 +420,12 @@ def deform_obj(input_path, output_path, displacements, n_control=(4, 3, 3)):
     save_obj(output_path, deformed, faces)
 
 
-# Self-tests
-
 if __name__ == "__main__":
     import sys
-    import tempfile
 
-    passed = 0
-    failed = 0
-
-    def check(name, condition):
-        global passed, failed
-        if condition:
-            print(f"  PASS  {name}")
-            passed += 1
-        else:
-            print(f"  FAIL  {name}")
-            failed += 1
-
-    # Unit cube vertices
-    cube_verts = np.array(
-        [
-            [0, 0, 0],
-            [1, 0, 0],
-            [1, 1, 0],
-            [0, 1, 0],
-            [0, 0, 1],
-            [1, 0, 1],
-            [1, 1, 1],
-            [0, 1, 1],
-        ],
-        dtype=np.float64,
-    )
-    cube_faces = np.array(
-        [
-            [0, 1, 2],
-            [0, 2, 3],
-            [4, 5, 6],
-            [4, 6, 7],
-            [0, 1, 5],
-            [0, 5, 4],
-            [2, 3, 7],
-            [2, 7, 6],
-            [0, 3, 7],
-            [0, 7, 4],
-            [1, 2, 6],
-            [1, 6, 5],
-        ],
-        dtype=np.int64,
-    )
-
-    # Test 1: Identity deformation
-    print("Test 1: Zero displacements preserve vertex positions")
-    bbox_min, bbox_max = compute_bbox(cube_verts, padding=0.0)
-    lattice = FFDLattice(bbox_min, bbox_max, n_control=(4, 3, 3))
-    zero_disp = np.zeros(lattice.get_num_params())
-    deformed = lattice.deform(cube_verts, zero_disp)
-    max_err = np.max(np.abs(deformed - cube_verts))
-    check("max error < 1e-12", max_err < 1e-12)
-
-    # Test 2: Uniform translation
-    print("Test 2: Uniform displacement translates all vertices equally")
-    lattice2 = FFDLattice(bbox_min, bbox_max, n_control=(2, 2, 2))
-    shift = np.zeros((2, 2, 2, 3))
-    shift[..., 0] = 0.5  # shift all control points +0.5 in X
-    deformed2 = lattice2.deform(cube_verts, shift.ravel())
-    expected = cube_verts.copy()
-    expected[:, 0] += 0.5
-    max_err2 = np.max(np.abs(deformed2 - expected))
-    check("uniform X shift matches", max_err2 < 1e-12)
-
-    # Test 3: Parameter counts
-    print("Test 3: Parameter counts")
-    lattice3 = FFDLattice([0, 0, 0], [1, 1, 1], n_control=(4, 3, 3))
-    check("total params = 4*3*3*3 = 108", lattice3.get_num_params() == 108)
-    # ny=3: half=1 paired, 1 midplane. Free = 4*1*3*3 + 4*1*3*2 = 36 + 24 = 60
-    check("free params after Y-symmetry = 60", lattice3.get_num_free_params() == 60)
-
-    # Test 4: Symmetry enforcement
-    print("Test 4: Symmetry enforcement")
-    rng = np.random.default_rng(42)
-    raw = rng.standard_normal(lattice3.get_num_params()) * 0.01
-    sym = lattice3.enforce_symmetry(raw, axis=1)
-    sym_4d = sym.reshape(4, 3, 3, 3)
-
-    # Paired points: j=0 and j=2 should have equal x,z and negated y
-    x_match = np.allclose(sym_4d[:, 0, :, 0], sym_4d[:, 2, :, 0])
-    z_match = np.allclose(sym_4d[:, 0, :, 2], sym_4d[:, 2, :, 2])
-    y_neg = np.allclose(sym_4d[:, 0, :, 1], -sym_4d[:, 2, :, 1])
-    check("x displacements mirrored (same sign)", x_match)
-    check("z displacements mirrored (same sign)", z_match)
-    check("y displacements mirrored (negated)", y_neg)
-
-    # Midplane Y should be zero
-    mid_y_zero = np.allclose(sym_4d[:, 1, :, 1], 0.0)
-    check("midplane y displacement = 0", mid_y_zero)
-
-    # Test 5: Clamping
-    print("Test 5: Displacement clamping")
-    big_disp = np.ones(lattice3.get_num_params()) * 10.0
-    clamped = lattice3.clamp_displacements(big_disp, max_fraction=0.15)
-    clamped_4d = clamped.reshape(4, 3, 3, 3)
-    limit = 0.15 * lattice3.extent
-    within = True
-    for comp in range(3):
-        if np.any(np.abs(clamped_4d[..., comp]) > limit[comp] + 1e-14):
-            within = False
-    check("all components within limits", within)
-
-    # Test 6: OBJ round-trip
-    print("Test 6: OBJ I/O round-trip")
-    with tempfile.NamedTemporaryFile(suffix=".obj", delete=False, mode="w") as tmp:
-        tmp_path = tmp.name
-    save_obj(tmp_path, cube_verts, cube_faces)
-    loaded_v, loaded_f = load_obj(tmp_path)
-    check("vertices survive round-trip", np.allclose(loaded_v, cube_verts, atol=1e-7))
-    check("faces survive round-trip", np.array_equal(loaded_f, cube_faces))
-    Path(tmp_path).unlink()
-
-    # Test 7: deform_obj convenience
-    print("Test 7: deform_obj end-to-end")
-    with tempfile.NamedTemporaryFile(suffix=".obj", delete=False, mode="w") as src:
-        src_path = src.name
-    with tempfile.NamedTemporaryFile(suffix=".obj", delete=False, mode="w") as dst:
-        dst_path = dst.name
-    save_obj(src_path, cube_verts, cube_faces)
-    n_ctrl = (3, 3, 3)
-    n_params = n_ctrl[0] * n_ctrl[1] * n_ctrl[2] * 3
-    deform_obj(src_path, dst_path, np.zeros(n_params), n_control=n_ctrl)
-    v_out, f_out = load_obj(dst_path)
-    # With padding in compute_bbox the vertices won't be exactly identical
-    # because parametric coords map through the padded box, but zero
-    # displacement should still reconstruct the original positions.
-    check("deform_obj identity preserves shape", np.allclose(v_out, cube_verts, atol=1e-10))
-    Path(src_path).unlink()
-    Path(dst_path).unlink()
-
-    # Test 8: LHS sampling shape
-    print("Test 8: Latin Hypercube Sampling")
-    samples = lattice3.sample_random(10, max_fraction=0.15, symmetric=True)
-    check("LHS output shape (10, 108)", samples.shape == (10, 108))
-    # Each sample should be symmetric
-    sym_ok = True
-    for i in range(samples.shape[0]):
-        resym = lattice3.enforce_symmetry(samples[i])
-        if not np.allclose(samples[i], resym, atol=1e-12):
-            sym_ok = False
-            break
-    check("all LHS samples are symmetric", sym_ok)
-
-    # Test 9: Bernstein partition of unity
-    print("Test 9: Bernstein basis partition of unity")
-    t_vals = np.linspace(0, 1, 50)
-    for deg in [2, 3, 5]:
-        basis = _bernstein_basis(deg, t_vals)
-        sums = basis.sum(axis=1)
-        check(f"degree {deg} sums to 1", np.allclose(sums, 1.0, atol=1e-14))
-
-    # Summary
-    print(f"\n{passed} passed, {failed} failed")
-    sys.exit(1 if failed else 0)
+    try:
+        import pytest
+    except ImportError:
+        sys.exit("pytest is required for the self-tests, install it with `uv sync`")
+    test_file = Path(__file__).resolve().parents[2] / "tests" / "test_ffd.py"
+    sys.exit(pytest.main(["-q", str(test_file)]))

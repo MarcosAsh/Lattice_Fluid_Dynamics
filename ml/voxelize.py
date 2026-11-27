@@ -55,7 +55,7 @@ MODES = (MODE_SOLID, MODE_SURFACE, MODE_AUTO)
 # Mesh loading
 
 
-def _read_text(source):
+def _read_text(source: str | bytes | Path) -> str:
     """Return OBJ text from a path, raw bytes, or inline OBJ text."""
     if isinstance(source, (bytes, bytearray)):
         return bytes(source).decode("utf-8", "replace")
@@ -65,7 +65,7 @@ def _read_text(source):
         return f.read()
 
 
-def load_obj_triangles(source):
+def load_obj_triangles(source: str | bytes | Path) -> tuple[np.ndarray, np.ndarray]:
     """
     Parse an OBJ into a vertex array and a triangle index array.
 
@@ -95,7 +95,9 @@ def load_obj_triangles(source):
     return vertices, triangles
 
 
-def canonicalize(vertices, padding=DEFAULT_PADDING, align_longest_x=True):
+def canonicalize(
+    vertices: np.ndarray, padding: float = DEFAULT_PADDING, align_longest_x: bool = True
+) -> np.ndarray | None:
     """
     Center the mesh, rotate its longest axis to X, scale into [-1, 1]^3.
 
@@ -135,7 +137,7 @@ def canonicalize(vertices, padding=DEFAULT_PADDING, align_longest_x=True):
 # Voxelization
 
 
-def _voxelize_surface(verts, tris, R, grid):
+def _voxelize_surface(verts: np.ndarray, tris: np.ndarray, R: int, grid: np.ndarray) -> None:
     """Mark every cell whose extent overlaps a triangle's bounding box."""
     v0 = verts[tris[:, 0]]
     v1 = verts[tris[:, 1]]
@@ -155,7 +157,7 @@ def _voxelize_surface(verts, tris, R, grid):
             grid[x0:x1, y0:y1, z0:z1] = 1
 
 
-def _voxelize_solid(verts, tris, R, grid):
+def _voxelize_solid(verts: np.ndarray, tris: np.ndarray, R: int, grid: np.ndarray) -> None:
     """
     Parity-fill voxelization via +X ray casting at cell centers.
 
@@ -239,13 +241,13 @@ def _voxelize_solid(verts, tris, R, grid):
 
 
 def voxelize_mesh(
-    vertices,
-    triangles,
-    resolution=DEFAULT_RESOLUTION,
-    mode=MODE_AUTO,
-    padding=DEFAULT_PADDING,
-    align_longest_x=True,
-):
+    vertices: np.ndarray,
+    triangles: np.ndarray,
+    resolution: int = DEFAULT_RESOLUTION,
+    mode: str = MODE_AUTO,
+    padding: float = DEFAULT_PADDING,
+    align_longest_x: bool = True,
+) -> np.ndarray:
     """
     Voxelize an in-memory triangle mesh into an occupancy grid.
 
@@ -289,18 +291,18 @@ def voxelize_mesh(
 
 
 def voxelize_obj(
-    source,
-    resolution=DEFAULT_RESOLUTION,
-    mode=MODE_AUTO,
-    padding=DEFAULT_PADDING,
-    align_longest_x=True,
-):
+    source: str | bytes | Path,
+    resolution: int = DEFAULT_RESOLUTION,
+    mode: str = MODE_AUTO,
+    padding: float = DEFAULT_PADDING,
+    align_longest_x: bool = True,
+) -> np.ndarray:
     """Load an OBJ (path, bytes, or text) and voxelize it. See voxelize_mesh."""
     vertices, triangles = load_obj_triangles(source)
     return voxelize_mesh(vertices, triangles, resolution, mode, padding, align_longest_x)
 
 
-def solid_fraction(grid):
+def solid_fraction(grid: np.ndarray) -> float:
     """Fraction of cells marked solid, in [0, 1]."""
     grid = np.asarray(grid)
     return float(grid.mean()) if grid.size else 0.0
@@ -309,7 +311,7 @@ def solid_fraction(grid):
 # Binary I/O (VOXB, shared with simulation/src/voxelize.c)
 
 
-def write_voxbin(grid, path):
+def write_voxbin(grid: np.ndarray, path: str | Path) -> None:
     """
     Write a grid to the VOXB binary format read by the C inference path.
 
@@ -327,7 +329,7 @@ def write_voxbin(grid, path):
         f.write(grid.tobytes(order="F"))
 
 
-def read_voxbin(path):
+def read_voxbin(path: str | Path) -> np.ndarray:
     """Read a VOXB file written by this module or the C voxelizer."""
     with Path(path).open("rb") as f:
         magic = f.read(4)
@@ -344,134 +346,16 @@ def read_voxbin(path):
     return grid.reshape((R, R, R), order="F").copy()
 
 
-# Self-tests (run in CI; mirror simulation/test/test_voxelize.c)
+def _selftest() -> int:
+    try:
+        import pytest
+    except ImportError:
+        sys.exit("pytest is required for --selftest, install it with `uv sync`")
+    test_file = Path(__file__).resolve().parents[1] / "tests" / "test_voxelize.py"
+    return pytest.main(["-q", str(test_file)])
 
 
-def _cube(h):
-    """Watertight axis-aligned cube of half-extent h, centered at origin."""
-    verts = np.array(
-        [
-            [-h, -h, -h],
-            [h, -h, -h],
-            [h, h, -h],
-            [-h, h, -h],
-            [-h, -h, h],
-            [h, -h, h],
-            [h, h, h],
-            [-h, h, h],
-        ],
-        dtype=np.float64,
-    )
-    # 1-based winding from test_voxelize.c, shifted to 0-based.
-    faces = np.array(
-        [
-            [0, 1, 2],
-            [0, 2, 3],
-            [4, 6, 5],
-            [4, 7, 6],
-            [0, 4, 5],
-            [0, 5, 1],
-            [3, 2, 6],
-            [3, 6, 7],
-            [0, 3, 7],
-            [0, 7, 4],
-            [1, 5, 6],
-            [1, 6, 2],
-        ],
-        dtype=np.int32,
-    )
-    return verts, faces
-
-
-def _selftest():
-    failures = 0
-    total = 0
-
-    def check(cond, msg):
-        nonlocal failures, total
-        total += 1
-        if not cond:
-            failures += 1
-            print(f"  FAIL: {msg}")
-
-    verts, faces = _cube(1.0)
-
-    g = voxelize_mesh(verts, faces, 16, MODE_SOLID)
-    frac = solid_fraction(g)
-    print(f"cube solid fraction: {frac:.3f}")
-    check(frac > 0.80, "cube should be mostly solid")
-    check(frac <= 1.0, "solid fraction <= 1")
-
-    g = voxelize_mesh(verts, faces, 16, MODE_SURFACE)
-    frac = solid_fraction(g)
-    print(f"cube surface fraction: {frac:.3f}")
-    check(0.20 < frac < 0.95, "surface fraction in plausible range")
-    check(g[8, 8, 8] == 0, "surface mode leaves the interior empty")
-
-    # Z-elongated slab must be realigned so it spans more cells in X.
-    slab_v = np.array(
-        [
-            [-0.1, -0.2, -0.8],
-            [0.1, -0.2, -0.8],
-            [0.1, 0.2, -0.8],
-            [-0.1, 0.2, -0.8],
-            [-0.1, -0.2, 0.8],
-            [0.1, -0.2, 0.8],
-            [0.1, 0.2, 0.8],
-            [-0.1, 0.2, 0.8],
-        ],
-        dtype=np.float64,
-    )
-    g = voxelize_mesh(slab_v, faces, 32, MODE_SOLID)
-    xs = np.nonzero(g.any(axis=(1, 2)))[0]
-    zs = np.nonzero(g.any(axis=(0, 1)))[0]
-    x_span = xs.max() - xs.min()
-    z_span = zs.max() - zs.min()
-    print(f"slab x_span={x_span} z_span={z_span}")
-    check(x_span > z_span, "longest axis realigned to X")
-
-    g1 = voxelize_mesh(verts, faces, 16, MODE_SOLID)
-    g2 = voxelize_mesh(verts, faces, 16, MODE_SOLID)
-    check(np.array_equal(g1, g2), "voxelization is deterministic")
-
-    # Quad faces must be fan-triangulated into a solid quad sheet.
-    quad = "v -1 -1 0\nv 1 -1 0\nv 1 1 0\nv -1 1 0\nf 1 2 3 4\n"
-    _qv, qt = load_obj_triangles(quad)
-    check(qt.shape[0] == 2, "quad triangulated into two triangles")
-
-    # AUTO must fall back to surface for an open (non-watertight) sheet.
-    # A 3D-tilted quad has no enclosed volume, so solid fill comes out
-    # empty and only the surface pass marks any cells.
-    tilted = "v -1 -1 -1\nv 1 -1 -1\nv 1 1 1\nv -1 1 1\nf 1 2 3 4\n"
-    tv, tt = load_obj_triangles(tilted)
-    check(
-        solid_fraction(voxelize_mesh(tv, tt, 16, MODE_SOLID)) < 0.001,
-        "open sheet has no solid fill",
-    )
-    check(
-        solid_fraction(voxelize_mesh(tv, tt, 16, MODE_AUTO)) > 0.0,
-        "auto falls back to surface for an open mesh",
-    )
-
-    # VOXB round-trip, including the x + R*(y + R*z) byte order.
-    import tempfile
-    from pathlib import Path
-
-    probe = np.zeros((8, 8, 8), dtype=np.uint8)
-    probe[1, 2, 3] = 1
-    with tempfile.NamedTemporaryFile(suffix=".voxbin", delete=False) as f:
-        path = Path(f.name)
-    write_voxbin(probe, path)
-    back = read_voxbin(path)
-    path.unlink()
-    check(back.shape == (8, 8, 8), "round-trip resolution preserved")
-    check(np.array_equal(back, probe), "round-trip preserves byte order")
-
-    print(f"{total - failures}/{total} checks passed")
-    return failures
-
-
-def _build_parser():
+def _build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description="Voxelize an OBJ mesh into a VOXB occupancy grid")
     ap.add_argument("input", nargs="?", help="input OBJ path")
     ap.add_argument("--resolution", type=int, default=DEFAULT_RESOLUTION)
@@ -488,10 +372,10 @@ def _build_parser():
     return ap
 
 
-def main(argv=None):
+def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
     if args.selftest:
-        return 1 if _selftest() else 0
+        return int(_selftest())
     if not args.input:
         _build_parser().error("input OBJ required (or pass --selftest)")
 

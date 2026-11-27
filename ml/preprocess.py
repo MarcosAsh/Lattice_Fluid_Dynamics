@@ -46,7 +46,7 @@ EPS = 1e-12
 # Mesh loading
 
 
-def _read_text(source):
+def _read_text(source: str | bytes | Path) -> str:
     """Return OBJ text from a path, raw bytes, or inline OBJ text."""
     if isinstance(source, (bytes, bytearray)):
         return bytes(source).decode("utf-8", "replace")
@@ -56,7 +56,7 @@ def _read_text(source):
         return f.read()
 
 
-def load_obj(source):
+def load_obj(source: str | bytes | Path) -> tuple[np.ndarray, list[list[int]]]:
     """
     Parse an OBJ into vertices and raw (un-triangulated) faces.
 
@@ -88,7 +88,7 @@ def load_obj(source):
 # Triangulation
 
 
-def triangulate(vertices, faces):
+def triangulate(vertices: np.ndarray, faces: list[list[int]]) -> tuple[np.ndarray, int, int]:
     """
     Triangulate faces: quads along the shorter diagonal, n-gons by a fan.
 
@@ -124,7 +124,9 @@ def triangulate(vertices, faces):
 # Center and scale
 
 
-def center_and_scale(vertices, domain=DEFAULT_DOMAIN):
+def center_and_scale(
+    vertices: np.ndarray, domain: float = DEFAULT_DOMAIN
+) -> tuple[np.ndarray, dict]:
     """
     Center the bounding box at the origin and scale the longest axis.
 
@@ -148,7 +150,7 @@ def center_and_scale(vertices, domain=DEFAULT_DOMAIN):
 # Geometry helpers
 
 
-def face_areas(vertices, triangles):
+def face_areas(vertices: np.ndarray, triangles: np.ndarray) -> np.ndarray:
     """Per-triangle area (float64, shape (M,))."""
     v0 = vertices[triangles[:, 0]]
     v1 = vertices[triangles[:, 1]]
@@ -156,7 +158,7 @@ def face_areas(vertices, triangles):
     return 0.5 * np.linalg.norm(np.cross(v1 - v0, v2 - v0), axis=1)
 
 
-def signed_volume6(vertices, triangles):
+def signed_volume6(vertices: np.ndarray, triangles: np.ndarray) -> float:
     """Six times the signed volume (sign encodes winding orientation)."""
     v0 = vertices[triangles[:, 0]]
     v1 = vertices[triangles[:, 1]]
@@ -164,7 +166,7 @@ def signed_volume6(vertices, triangles):
     return float(np.einsum("ij,ij->i", v0, np.cross(v1, v2)).sum())
 
 
-def _edge_counts(triangles):
+def _edge_counts(triangles: np.ndarray) -> dict[tuple[int, int], list[int]]:
     """Map each undirected edge to (count_ab, count_ba) directed totals."""
     directed = {}
     for a, b, c in triangles:
@@ -183,11 +185,11 @@ def _edge_counts(triangles):
     return edges
 
 
-def _count_components(triangles, n_vertices):
+def _count_components(triangles: np.ndarray, n_vertices: int) -> int:
     """Number of connected components over vertices sharing a triangle."""
     parent = list(range(n_vertices))
 
-    def find(x):
+    def find(x: int) -> int:
         root = x
         while parent[root] != root:
             root = parent[root]
@@ -207,7 +209,7 @@ def _count_components(triangles, n_vertices):
 # Validation
 
 
-def validate(vertices, triangles):
+def validate(vertices: np.ndarray, triangles: np.ndarray) -> dict:
     """
     Check a triangle mesh for the defects that break the solver.
 
@@ -255,7 +257,9 @@ def validate(vertices, triangles):
 # Normals
 
 
-def compute_normals(vertices, triangles):
+def compute_normals(
+    vertices: np.ndarray, triangles: np.ndarray
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Per-face and area-weighted per-vertex normals, oriented outward.
 
@@ -289,7 +293,9 @@ def compute_normals(vertices, triangles):
 # Statistics
 
 
-def mesh_stats(vertices, triangles, n_quads=0, n_ngons=0):
+def mesh_stats(
+    vertices: np.ndarray, triangles: np.ndarray, n_quads: int = 0, n_ngons: int = 0
+) -> dict:
     """Summary statistics for a triangulated mesh."""
     lo = vertices.min(axis=0)
     hi = vertices.max(axis=0)
@@ -311,7 +317,9 @@ def mesh_stats(vertices, triangles, n_quads=0, n_ngons=0):
 # Pipeline
 
 
-def preprocess(source, domain=DEFAULT_DOMAIN, recenter=True):
+def preprocess(
+    source: str | bytes | Path, domain: float = DEFAULT_DOMAIN, recenter: bool = True
+) -> dict:
     """
     Run the full preprocessing pipeline on an OBJ source.
 
@@ -376,7 +384,12 @@ def preprocess(source, domain=DEFAULT_DOMAIN, recenter=True):
     }
 
 
-def write_obj(path, vertices, triangles, normals=None):
+def write_obj(
+    path: str | Path,
+    vertices: np.ndarray,
+    triangles: np.ndarray,
+    normals: np.ndarray | None = None,
+) -> None:
     """Write a triangulated mesh (optionally with per-vertex normals)."""
     lines = []
     for x, y, z in vertices:
@@ -393,124 +406,16 @@ def write_obj(path, vertices, triangles, normals=None):
         f.write("\n".join(lines) + "\n")
 
 
-# Self-tests (run in CI; numpy-only, no asset or network dependency)
+def _selftest() -> int:
+    try:
+        import pytest
+    except ImportError:
+        sys.exit("pytest is required for --selftest, install it with `uv sync`")
+    test_file = Path(__file__).resolve().parents[1] / "tests" / "test_preprocess.py"
+    return pytest.main(["-q", str(test_file)])
 
 
-def _cube(h=1.0, center=(0.0, 0.0, 0.0)):
-    cx, cy, cz = center
-    verts = np.array(
-        [
-            [-h, -h, -h],
-            [h, -h, -h],
-            [h, h, -h],
-            [-h, h, -h],
-            [-h, -h, h],
-            [h, -h, h],
-            [h, h, h],
-            [-h, h, h],
-        ],
-        dtype=np.float64,
-    ) + np.array([cx, cy, cz])
-    faces = [
-        [0, 1, 2],
-        [0, 2, 3],
-        [4, 6, 5],
-        [4, 7, 6],
-        [0, 4, 5],
-        [0, 5, 1],
-        [3, 2, 6],
-        [3, 6, 7],
-        [0, 3, 7],
-        [0, 7, 4],
-        [1, 5, 6],
-        [1, 6, 2],
-    ]
-    return verts, faces
-
-
-def _selftest():
-    failures = 0
-    total = 0
-
-    def check(cond, msg):
-        nonlocal failures, total
-        total += 1
-        if not cond:
-            failures += 1
-            print(f"  FAIL: {msg}")
-
-    # Watertight cube: closed, manifold, consistently wound, one piece.
-    verts, faces = _cube()
-    tris, _nq, _ = triangulate(verts, faces)
-    val = validate(verts, tris)
-    check(val["watertight"], "cube is watertight")
-    check(val["boundary_edges"] == 0, "cube has no boundary edges")
-    check(val["non_manifold_edges"] == 0, "cube has no non-manifold edges")
-    check(val["flipped_edges"] == 0, "cube winding is consistent")
-    check(val["components"] == 1, "cube is one component")
-    check(val["degenerate_triangles"] == 0, "cube has no degenerate tris")
-
-    # Outward normals: every face normal points away from the center.
-    _, fn, _ = compute_normals(verts, tris)
-    centroids = verts[tris].mean(axis=1)
-    check(bool(np.all(np.einsum("ij,ij->i", fn, centroids) > 0)), "face normals point outward")
-
-    # Quad triangulation along the shorter diagonal.
-    quad_v = np.array([[0, 0, 0], [2, 0, 0], [2, 1, 0], [0, 1, 0]], dtype=np.float64)
-    quad_t, nq2, _ = triangulate(quad_v, [[0, 1, 2, 3]])
-    check(quad_t.shape[0] == 2 and nq2 == 1, "quad split into two triangles")
-
-    # Open box (cube minus its +Z cap) has boundary edges and is not closed.
-    open_faces = [f for f in faces if f not in ([4, 6, 5], [4, 7, 6])]
-    open_t, _, _ = triangulate(verts, open_faces)
-    open_val = validate(verts, open_t)
-    check(open_val["boundary_edges"] > 0, "open mesh has boundary edges")
-    check(not open_val["watertight"], "open mesh is not watertight")
-
-    # One reversed face makes the winding inconsistent.
-    flip_faces = [list(f) for f in faces]
-    flip_faces[0] = flip_faces[0][::-1]
-    flip_t, _, _ = triangulate(verts, flip_faces)
-    check(
-        validate(verts, flip_t)["flipped_edges"] > 0,
-        "reversed face flagged as inconsistent winding",
-    )
-
-    # Degenerate triangle (repeated vertex) is detected.
-    deg_t = np.vstack([tris, [[0, 0, 1]]])
-    check(validate(verts, deg_t)["degenerate_triangles"] >= 1, "degenerate triangle detected")
-
-    # Two separate cubes are two components.
-    v2, f2 = _cube(center=(5.0, 0.0, 0.0))
-    both_v = np.vstack([verts, v2])
-    both_f = faces + [[i + 8 for i in f] for f in f2]
-    both_t, _, _ = triangulate(both_v, both_f)
-    check(validate(both_v, both_t)["components"] == 2, "two cubes are two components")
-
-    # center_and_scale centers the bbox and scales the longest axis.
-    raw = np.array([[1, 2, 3], [5, 2, 3], [1, 4, 3], [1, 2, 9]], dtype=np.float64)
-    scaled, _tf = center_and_scale(raw, domain=2.0)
-    lo, hi = scaled.min(axis=0), scaled.max(axis=0)
-    check(np.allclose(0.5 * (lo + hi), 0.0), "scaled mesh is centered")
-    check(np.isclose((hi - lo).max(), 2.0), "longest axis scaled to domain")
-
-    # Full pipeline on a quad cube reports clean geometry.
-    quad_cube = (
-        "v -1 -1 -1\nv 1 -1 -1\nv 1 1 -1\nv -1 1 -1\n"
-        "v -1 -1 1\nv 1 -1 1\nv 1 1 1\nv -1 1 1\n"
-        "f 1 2 3 4\nf 5 8 7 6\nf 1 5 6 2\n"
-        "f 3 7 8 4\nf 1 4 8 5\nf 2 6 7 3\n"
-    )
-    res = preprocess(quad_cube)
-    check(res["ok"], "pipeline accepts a clean quad cube")
-    check(res["stats"]["quads_split"] == 6, "all six quads triangulated")
-    check(res["validation"]["watertight"], "quad cube is watertight")
-
-    print(f"{total - failures}/{total} checks passed")
-    return failures
-
-
-def _format_report(name, result):
+def _format_report(name: object, result: dict) -> str:
     s = result["stats"]
     v = result["validation"]
     lines = [
@@ -528,7 +433,7 @@ def _format_report(name, result):
     return "\n".join(lines)
 
 
-def _build_parser():
+def _build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description="Preprocess an OBJ mesh")
     ap.add_argument("input", nargs="?", help="input OBJ path")
     ap.add_argument(
@@ -546,10 +451,10 @@ def _build_parser():
     return ap
 
 
-def main(argv=None):
+def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
     if args.selftest:
-        return 1 if _selftest() else 0
+        return int(_selftest())
 
     if not args.input:
         root = Path(__file__).resolve().parent.parent / "simulation"
