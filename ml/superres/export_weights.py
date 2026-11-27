@@ -4,7 +4,8 @@ for loading in the GLSL compute shader.
 
 Usage:
     python export_weights.py --checkpoint sr_model_best.pt --output sr_model.bin
-    python export_weights.py --checkpoint sr_model_best.pt --output sr_model.bin --normalizer sr_normalizer.npz
+    python export_weights.py --checkpoint sr_model_best.pt --output sr_model.bin \\
+        --normalizer sr_normalizer.npz
 """
 
 import argparse
@@ -35,10 +36,10 @@ def export_ltws(state_dict: dict, output_path: str):
         t = state_dict[name].cpu().float().numpy()
         params.append((name, t))
 
-    with open(output_path, "wb") as f:
+    with Path(output_path).open("wb") as f:
         f.write(struct.pack("<III", LTWS_MAGIC, LTWS_VERSION, len(params)))
 
-        for name, arr in params:
+        for _name, arr in params:
             ndim = len(arr.shape)
             f.write(struct.pack("<I", ndim))
             for d in arr.shape:
@@ -63,7 +64,7 @@ def export_normalizer(npz_path: str, output_path: str):
     mean = data["mean"].astype(np.float32)
     std = data["std"].astype(np.float32)
 
-    with open(output_path, "wb") as f:
+    with Path(output_path).open("wb") as f:
         f.write(mean.tobytes())
         f.write(std.tobytes())
 

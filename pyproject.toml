@@ -65,11 +65,24 @@ exclude = ["ml/dataset"]
 exclude = ["ml/anyobj/**"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I"]
-ignore = ["E722", "E741"]
+select = ["E", "F", "I", "UP", "B", "SIM", "NPY", "C4", "PIE", "RUF", "PERF", "PTH"]
+ignore = ["E741"]
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["E501", "F401"]
+# paper branch owns these files, silence instead of editing
+"ml/anyobj/**" = [
+    "B905",
+    "F541",
+    "I001",
+    "PERF403",
+    "PTH123",
+    "RUF005",
+    "RUF007",
+    "RUF010",
+    "RUF059",
+    "RUF100",
+]
 
 [tool.ruff.lint.isort]
 force-single-line = true

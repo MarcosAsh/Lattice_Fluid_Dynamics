@@ -4,6 +4,7 @@ Deploy: modal deploy modal_worker.py
 Test: modal run modal_worker.py --duration=5 --model=ahmed25
 """
 
+import contextlib
 import json
 import logging
 import math
@@ -614,10 +615,7 @@ def render_simulation(
         def _parse_float(line: str, prefix: str, suffix: str | None = None) -> float | None:
             try:
                 raw = line.split(prefix)[1]
-                if suffix:
-                    raw = raw.split(suffix)[0]
-                else:
-                    raw = raw.split()[0]
+                raw = raw.split(suffix)[0] if suffix else raw.split()[0]
                 val = float(raw.strip())
                 if not math.isfinite(val):
                     log.warning("non-finite value", extra={"prefix": prefix, "raw": raw})
@@ -999,7 +997,6 @@ def generate_vtk_field(
     paired coarse/fine velocity fields without needing a local binary.
     """
     import base64
-    import numpy as np
 
     executable = Path("/cache/build/3d_fluid_simulation_car")
     source_dir = Path("/cache/source/simulation")
@@ -1070,14 +1067,13 @@ def generate_vtk_field(
             }
 
         # Read each VTI and return the raw binary data
-        fields = []
-        for vti in vtk_files:
-            fields.append(
-                {
-                    "filename": vti.name,
-                    "data": base64.b64encode(vti.read_bytes()).decode(),
-                }
-            )
+        fields = [
+            {
+                "filename": vti.name,
+                "data": base64.b64encode(vti.read_bytes()).decode(),
+            }
+            for vti in vtk_files
+        ]
 
         return {
             "status": "complete",
@@ -1181,7 +1177,7 @@ def main(
             import base64
 
             b64_data = url.split(",")[1]
-            with open(f"render_{job_id}.mp4", "wb") as f:
+            with Path(f"render_{job_id}.mp4").open("wb") as f:
                 f.write(base64.b64decode(b64_data))
             print(f"Saved: render_{job_id}.mp4")
         else:
@@ -1207,11 +1203,10 @@ def run_tests(grid: str = "256x128x128", duration: int = 120):
 
     Usage: modal run modal_worker.py::run_tests --grid 256x128x128
     """
-    import subprocess
-    from pathlib import Path
-
     # Force clean rebuild to pick up latest changes
     import shutil
+    import subprocess
+    from pathlib import Path
 
     build_dir = Path("/cache/build")
     if build_dir.exists():
@@ -1440,18 +1435,14 @@ def grid_sweep(
 
                 m = re_eff.search(line)
                 if m and effective_re is None:
-                    try:
+                    with contextlib.suppress(ValueError):
                         effective_re = float(m.group(1))
-                    except ValueError:
-                        pass
 
                 m = re_cap.search(line)
                 if m:
                     re_clamped = True
-                    try:
+                    with contextlib.suppress(ValueError):
                         requested_re = float(m.group(1))
-                    except ValueError:
-                        pass
 
                 m = re_body.search(line)
                 if m and body_cells is None:
@@ -1463,10 +1454,8 @@ def grid_sweep(
 
                 m = re_char.search(line)
                 if m and char_length is None:
-                    try:
+                    with contextlib.suppress(ValueError):
                         char_length = float(m.group(1))
-                    except ValueError:
-                        pass
 
             proc.wait()
             wall = _time.monotonic() - t0

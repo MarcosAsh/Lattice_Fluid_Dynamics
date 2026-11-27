@@ -26,8 +26,9 @@ from pathlib import Path
 import numpy as np
 import requests
 import yaml
-
-from ffd import FFDLattice, load_obj, save_obj, compute_bbox
+from ffd import FFDLattice
+from ffd import compute_bbox
+from ffd import load_obj
 
 # Paths
 
@@ -53,7 +54,7 @@ SOBIN_VERSION = 1
 
 
 def load_config(config_path: str) -> dict:
-    with open(config_path) as f:
+    with Path(config_path).open() as f:
         return yaml.safe_load(f)
 
 
@@ -158,7 +159,7 @@ def load_completed_samples() -> set[str]:
     if not MANIFEST_FILE.exists():
         return set()
     completed = set()
-    with open(MANIFEST_FILE) as f:
+    with MANIFEST_FILE.open() as f:
         reader = csv.DictReader(f)
         for row in reader:
             if row.get("status") == "complete":
@@ -177,7 +178,7 @@ def save_manifest_row(
 ):
     DATASET_DIR.mkdir(parents=True, exist_ok=True)
     write_header = not MANIFEST_FILE.exists()
-    with open(MANIFEST_FILE, "a", newline="") as f:
+    with MANIFEST_FILE.open("a", newline="") as f:
         writer = csv.writer(f)
         if write_header:
             writer.writerow(
@@ -209,7 +210,7 @@ def save_results_row(
 ):
     DATASET_DIR.mkdir(parents=True, exist_ok=True)
     write_header = not RESULTS_FILE.exists()
-    with open(RESULTS_FILE, "a", newline="") as f:
+    with RESULTS_FILE.open("a", newline="") as f:
         writer = csv.writer(f)
         if write_header:
             writer.writerow(
@@ -257,7 +258,7 @@ def export_sobin(results_file: Path, output_file: Path):
         return 0
 
     records = []
-    with open(results_file) as f:
+    with results_file.open() as f:
         reader = csv.DictReader(f)
         for row in reader:
             if not row["cd_value"] or not row["cl_value"]:
@@ -282,7 +283,7 @@ def export_sobin(results_file: Path, output_file: Path):
             continue
 
     output_file.parent.mkdir(parents=True, exist_ok=True)
-    with open(output_file, "wb") as f:
+    with output_file.open("wb") as f:
         f.write(struct.pack("<I", SOBIN_MAGIC))
         f.write(struct.pack("<I", SOBIN_VERSION))
         f.write(struct.pack("<I", len(records)))
@@ -419,7 +420,7 @@ def compute_stats():
         return
 
     stats = {"total": 0, "complete": 0, "failed": 0, "by_model": {}}
-    with open(MANIFEST_FILE) as f:
+    with MANIFEST_FILE.open() as f:
         reader = csv.DictReader(f)
         for row in reader:
             stats["total"] += 1
@@ -445,14 +446,15 @@ def compute_stats():
             model_stats["cd_std"] = (sum((x - mean) ** 2 for x in cd_vals) / len(cd_vals)) ** 0.5
 
     DATASET_DIR.mkdir(parents=True, exist_ok=True)
-    with open(STATS_FILE, "w") as f:
+    with STATS_FILE.open("w") as f:
         json.dump(stats, f, indent=2)
 
     print(f"\nStats: {stats['complete']} complete, {stats['failed']} failed")
     for model, ms in stats["by_model"].items():
         if "cd_mean" in ms:
             print(
-                f"  {model}: {ms['count']} samples, Cd mean={ms['cd_mean']:.4f} std={ms['cd_std']:.4f}"
+                f"  {model}: {ms['count']} samples, "
+                f"Cd mean={ms['cd_mean']:.4f} std={ms['cd_std']:.4f}"
             )
 
     return stats

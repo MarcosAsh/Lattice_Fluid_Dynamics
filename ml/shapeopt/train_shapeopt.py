@@ -19,7 +19,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from torch.utils.data import DataLoader, TensorDataset
+from torch.utils.data import DataLoader
+from torch.utils.data import TensorDataset
 
 SOBIN_MAGIC = 0x534F5054
 LTWS_MAGIC = 0x4C545753
@@ -37,7 +38,7 @@ def load_sobin(path: str) -> tuple[np.ndarray, np.ndarray]:
         displacements: float32 array (N, num_ffd_params)
         outputs: float32 array (N, 2) -- [cd, cl] per sample
     """
-    with open(path, "rb") as f:
+    with Path(path).open("rb") as f:
         magic, version, num_samples, num_ffd_params, num_outputs = struct.unpack(
             "<IIIII", f.read(20)
         )
@@ -128,10 +129,10 @@ def export_ltws(state_dict: dict, output_path: str):
         t = state_dict[name].cpu().float().numpy()
         params.append((name, t))
 
-    with open(output_path, "wb") as f:
+    with Path(output_path).open("wb") as f:
         f.write(struct.pack("<III", LTWS_MAGIC, LTWS_VERSION, len(params)))
 
-        for name, arr in params:
+        for _name, arr in params:
             ndim = len(arr.shape)
             f.write(struct.pack("<I", ndim))
             for d in arr.shape:
@@ -152,7 +153,7 @@ def save_normalizer(means: np.ndarray, stds: np.ndarray, output_path: str):
     """
     means = means.astype(np.float32)
     stds = stds.astype(np.float32)
-    with open(output_path, "wb") as f:
+    with Path(output_path).open("wb") as f:
         f.write(means.tobytes())
         f.write(stds.tobytes())
     print(f"Saved normalizer ({len(means)} dims) to {output_path}")
@@ -321,7 +322,7 @@ def train(args):
         final_path,
     )
 
-    print(f"\nTraining complete.")
+    print("\nTraining complete.")
     print(f"  Best val Cd MAE: {best_val_cd_mae:.6f}")
     print(f"  Best weights: {best_path}")
     print(f"  Final weights: {final_path}")

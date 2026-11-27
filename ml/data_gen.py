@@ -100,7 +100,7 @@ class RunResult:
 
 
 def load_sweep_config(config_path: str) -> dict:
-    with open(config_path) as f:
+    with Path(config_path).open() as f:
         return yaml.safe_load(f)
 
 
@@ -125,21 +125,21 @@ def generate_run_configs(config: dict) -> list[RunConfig]:
         mesh_dir = Path(__file__).parent / config["meshes_dir"]
         bodies += [(p.stem, str(p)) for p in sorted(mesh_dir.glob("*.obj"))]
 
-    for name, obj_path in bodies:
-        for wind_speed in wind_speeds:
-            for reynolds in config["reynolds_numbers"]:
-                runs.append(
-                    RunConfig(
-                        model=name,
-                        obj_path=obj_path,
-                        wind_speed=wind_speed,
-                        reynolds=float(reynolds),
-                        duration=config["duration"],
-                        viz_mode=config.get("viz_mode", 1),
-                        collision_mode=config.get("collision_mode", 2),
-                        grid=config.get("grid", "256x128x128"),
-                    )
-                )
+    runs.extend(
+        RunConfig(
+            model=name,
+            obj_path=obj_path,
+            wind_speed=wind_speed,
+            reynolds=float(reynolds),
+            duration=config["duration"],
+            viz_mode=config.get("viz_mode", 1),
+            collision_mode=config.get("collision_mode", 2),
+            grid=config.get("grid", "256x128x128"),
+        )
+        for name, obj_path in bodies
+        for wind_speed in wind_speeds
+        for reynolds in config["reynolds_numbers"]
+    )
     return runs
 
 
@@ -148,7 +148,7 @@ def load_completed_runs() -> set[str]:
     if not MANIFEST_FILE.exists():
         return set()
     completed = set()
-    with open(MANIFEST_FILE) as f:
+    with MANIFEST_FILE.open() as f:
         reader = csv.DictReader(f)
         for row in reader:
             if row.get("status") == "complete":
@@ -182,15 +182,15 @@ def submit_run(run: RunConfig, render_fn, timeout: int = 2400) -> RunResult:
             error=msg,
         )
 
-    kwargs = dict(
-        job_id=f"datagen_{run.run_id}",
-        wind_speed=run.wind_speed,
-        viz_mode=run.viz_mode,
-        collision_mode=run.collision_mode,
-        duration=run.duration,
-        reynolds=run.reynolds,
-        grid=run.grid,
-    )
+    kwargs = {
+        "job_id": f"datagen_{run.run_id}",
+        "wind_speed": run.wind_speed,
+        "viz_mode": run.viz_mode,
+        "collision_mode": run.collision_mode,
+        "duration": run.duration,
+        "reynolds": run.reynolds,
+        "grid": run.grid,
+    }
     if run.obj_path:
         import base64
 
@@ -270,7 +270,7 @@ def save_manifest_row(result: RunResult):
     with _csv_lock:
         write_header = not MANIFEST_FILE.exists()
 
-        with open(MANIFEST_FILE, "a", newline="") as f:
+        with MANIFEST_FILE.open("a", newline="") as f:
             writer = csv.writer(f)
             if write_header:
                 writer.writerow(
@@ -320,7 +320,7 @@ def save_results_csv(result: RunResult):
     with _csv_lock:
         write_header = not RESULTS_FILE.exists()
 
-        with open(RESULTS_FILE, "a", newline="") as f:
+        with RESULTS_FILE.open("a", newline="") as f:
             writer = csv.writer(f)
             if write_header:
                 writer.writerow(
@@ -375,7 +375,7 @@ def export_binary_dataset():
     model_ids = {"car": 0.0, "ahmed25": 1.0, "ahmed35": 2.0}
     records = []
 
-    with open(RESULTS_FILE) as f:
+    with RESULTS_FILE.open() as f:
         reader = csv.DictReader(f)
         for row in reader:
             if not row["cd_value"] or not row["cl_value"]:
@@ -396,7 +396,7 @@ def export_binary_dataset():
             )
 
     DATASET_DIR.mkdir(parents=True, exist_ok=True)
-    with open(BINARY_FILE, "wb") as f:
+    with BINARY_FILE.open("wb") as f:
         # Header
         f.write(struct.pack("<I", 0x4C415454))  # magic
         f.write(struct.pack("<I", 1))  # version
@@ -424,7 +424,7 @@ def compute_stats():
         "by_model": {},
     }
 
-    with open(MANIFEST_FILE) as f:
+    with MANIFEST_FILE.open() as f:
         reader = csv.DictReader(f)
         for row in reader:
             stats["total"] += 1
@@ -457,7 +457,7 @@ def compute_stats():
             model_stats["cd_std"] = (sum((x - mean) ** 2 for x in cd_vals) / len(cd_vals)) ** 0.5
 
     DATASET_DIR.mkdir(parents=True, exist_ok=True)
-    with open(STATS_FILE, "w") as f:
+    with STATS_FILE.open("w") as f:
         json.dump(stats, f, indent=2)
 
     return stats

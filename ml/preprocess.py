@@ -35,6 +35,7 @@ Usage:
 import argparse
 import json
 import sys
+from pathlib import Path
 
 import numpy as np
 
@@ -51,7 +52,7 @@ def _read_text(source):
         return bytes(source).decode("utf-8", "replace")
     if isinstance(source, str) and "\n" in source and "v " in source:
         return source
-    with open(source) as f:
+    with Path(source).open() as f:
         return f.read()
 
 
@@ -115,8 +116,7 @@ def triangulate(vertices, faces):
                 tris.append((b, d, a))
         elif k > 4:
             n_ngons += 1
-            for i in range(1, k - 1):
-                tris.append((face[0], face[i], face[i + 1]))
+            tris.extend((face[0], face[i], face[i + 1]) for i in range(1, k - 1))
     triangles = np.asarray(tris, dtype=np.int64).reshape(-1, 3)
     return triangles, n_quads, n_ngons
 
@@ -389,7 +389,7 @@ def write_obj(path, vertices, triangles, normals=None):
     else:
         for a, b, c in triangles + 1:
             lines.append(f"f {a} {b} {c}")
-    with open(path, "w") as f:
+    with Path(path).open("w") as f:
         f.write("\n".join(lines) + "\n")
 
 
@@ -441,7 +441,7 @@ def _selftest():
 
     # Watertight cube: closed, manifold, consistently wound, one piece.
     verts, faces = _cube()
-    tris, nq, _ = triangulate(verts, faces)
+    tris, _nq, _ = triangulate(verts, faces)
     val = validate(verts, tris)
     check(val["watertight"], "cube is watertight")
     check(val["boundary_edges"] == 0, "cube has no boundary edges")
@@ -489,7 +489,7 @@ def _selftest():
 
     # center_and_scale centers the bbox and scales the longest axis.
     raw = np.array([[1, 2, 3], [5, 2, 3], [1, 4, 3], [1, 2, 9]], dtype=np.float64)
-    scaled, tf = center_and_scale(raw, domain=2.0)
+    scaled, _tf = center_and_scale(raw, domain=2.0)
     lo, hi = scaled.min(axis=0), scaled.max(axis=0)
     check(np.allclose(0.5 * (lo + hi), 0.0), "scaled mesh is centered")
     check(np.isclose((hi - lo).max(), 2.0), "longest axis scaled to domain")
@@ -524,8 +524,7 @@ def _format_report(name, result):
         f"boundary={v['boundary_edges']} non_manifold={v['non_manifold_edges']}"
         f" flipped={v['flipped_edges']}",
     ]
-    for w in result["warnings"]:
-        lines.append(f"  WARN: {w}")
+    lines.extend(f"  WARN: {w}" for w in result["warnings"])
     return "\n".join(lines)
 
 
@@ -553,8 +552,6 @@ def main(argv=None):
         return 1 if _selftest() else 0
 
     if not args.input:
-        from pathlib import Path
-
         root = Path(__file__).resolve().parent.parent / "simulation"
         root = root / "assets" / "3d-files"
         bundled = ["ahmed_25deg_m.obj", "ahmed_35deg_m.obj", "car-model.obj"]

@@ -18,7 +18,8 @@ import math
 import time
 from pathlib import Path
 
-from modal_worker import app, render_simulation
+from modal_worker import app
+from modal_worker import render_simulation
 
 # grid -> simulated seconds. Finer grids need more wall-clock seconds per
 # flow-through, so duration scales up to keep the averaging window (in
@@ -129,7 +130,7 @@ def sweep(
         return
 
     csv_path = OUT_DIR / f"results_{suffix}.csv"
-    with open(csv_path, "w", newline="") as fh:
+    with csv_path.open("w", newline="") as fh:
         writer = csv.DictWriter(fh, fieldnames=list(rows[0].keys()))
         writer.writeheader()
         writer.writerows(rows)

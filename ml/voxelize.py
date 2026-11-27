@@ -35,6 +35,7 @@ import argparse
 import math
 import struct
 import sys
+from pathlib import Path
 
 import numpy as np
 
@@ -60,7 +61,7 @@ def _read_text(source):
         return bytes(source).decode("utf-8", "replace")
     if isinstance(source, str) and "\n" in source and "v " in source:
         return source
-    with open(source) as f:
+    with Path(source).open() as f:
         return f.read()
 
 
@@ -88,8 +89,7 @@ def load_obj_triangles(source):
             for tok in tokens:
                 raw = int(tok.split("/")[0])
                 idx.append(raw - 1 if raw > 0 else len(verts) + raw)
-            for i in range(1, len(idx) - 1):
-                tris.append((idx[0], idx[i], idx[i + 1]))
+            tris.extend((idx[0], idx[i], idx[i + 1]) for i in range(1, len(idx) - 1))
     vertices = np.asarray(verts, dtype=np.float64).reshape(-1, 3)
     triangles = np.asarray(tris, dtype=np.int32).reshape(-1, 3)
     return vertices, triangles
@@ -188,10 +188,10 @@ def _voxelize_solid(verts, tris, R, grid):
         if y_max < -1.0 or y_min > 1.0 or z_max < -1.0 or z_min > 1.0:
             continue
 
-        gy_lo = max(int(math.floor((y_min + 1.0) * 0.5 * R)), 0)
-        gy_hi = min(int(math.ceil((y_max + 1.0) * 0.5 * R)) + 1, R)
-        gz_lo = max(int(math.floor((z_min + 1.0) * 0.5 * R)), 0)
-        gz_hi = min(int(math.ceil((z_max + 1.0) * 0.5 * R)) + 1, R)
+        gy_lo = max(math.floor((y_min + 1.0) * 0.5 * R), 0)
+        gy_hi = min(math.ceil((y_max + 1.0) * 0.5 * R) + 1, R)
+        gz_lo = max(math.floor((z_min + 1.0) * 0.5 * R), 0)
+        gz_hi = min(math.ceil((z_max + 1.0) * 0.5 * R) + 1, R)
         if gy_lo >= gy_hi or gz_lo >= gz_hi:
             continue
 
@@ -216,7 +216,7 @@ def _voxelize_solid(verts, tris, R, grid):
             continue
         cols = (gy_lo + ay) * R + (gz_lo + az)
         tvals = t[ay, az]
-        for col, tv in zip(cols.tolist(), tvals.tolist()):
+        for col, tv in zip(cols.tolist(), tvals.tolist(), strict=True):
             hits[col].append(tv)
 
     for gy in range(R):
@@ -232,8 +232,8 @@ def _voxelize_solid(verts, tris, R, grid):
                     dedup.append(x)
             for i in range(0, len(dedup) - 1, 2):
                 x0, x1 = dedup[i], dedup[i + 1]
-                gx0 = max(int(math.ceil((x0 + 1.0) * 0.5 * R - 0.5)), 0)
-                gx1 = min(int(math.floor((x1 + 1.0) * 0.5 * R - 0.5)) + 1, R)
+                gx0 = max(math.ceil((x0 + 1.0) * 0.5 * R - 0.5), 0)
+                gx1 = min(math.floor((x1 + 1.0) * 0.5 * R - 0.5) + 1, R)
                 if gx0 < gx1:
                     grid[gx0:gx1, gy, gz] = 1
 
@@ -320,7 +320,7 @@ def write_voxbin(grid, path):
     R = grid.shape[0]
     if grid.shape != (R, R, R):
         raise ValueError("grid must be a cubic (R, R, R) array")
-    with open(path, "wb") as f:
+    with Path(path).open("wb") as f:
         f.write(VOXB_MAGIC)
         f.write(struct.pack("<I", VOXB_VERSION))
         f.write(struct.pack("<I", R))
@@ -329,7 +329,7 @@ def write_voxbin(grid, path):
 
 def read_voxbin(path):
     """Read a VOXB file written by this module or the C voxelizer."""
-    with open(path, "rb") as f:
+    with Path(path).open("rb") as f:
         magic = f.read(4)
         if magic != VOXB_MAGIC:
             raise ValueError(f"bad magic: {magic!r}")
@@ -436,7 +436,7 @@ def _selftest():
 
     # Quad faces must be fan-triangulated into a solid quad sheet.
     quad = "v -1 -1 0\nv 1 -1 0\nv 1 1 0\nv -1 1 0\nf 1 2 3 4\n"
-    qv, qt = load_obj_triangles(quad)
+    _qv, qt = load_obj_triangles(quad)
     check(qt.shape[0] == 2, "quad triangulated into two triangles")
 
     # AUTO must fall back to surface for an open (non-watertight) sheet.

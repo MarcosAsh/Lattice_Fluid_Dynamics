@@ -41,7 +41,7 @@ def _md5(path: Path) -> str:
 
 
 def _has_ltws_header(path: Path) -> bool:
-    with open(path, "rb") as f:
+    with path.open("rb") as f:
         head = f.read(4)
     return len(head) == 4 and struct.unpack("<I", head)[0] == LTWS_MAGIC
 

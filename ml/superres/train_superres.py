@@ -13,14 +13,14 @@ Usage:
 
 import argparse
 import struct
-import sys
 from pathlib import Path
 
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader, TensorDataset
+from torch.utils.data import DataLoader
+from torch.utils.data import TensorDataset
 
 SRBIN_MAGIC = 0x53524553
 COARSE_DIM = 3 * 3 * 3 * 4  # 108: 3x3x3 neighborhood, 4 channels
@@ -29,8 +29,8 @@ FINE_DIM = 2 * 2 * 2 * 4  # 32: 2x2x2 output, 4 channels
 
 def load_srbin(path: str) -> tuple[np.ndarray, np.ndarray]:
     """Load super-resolution patch dataset from .srbin file."""
-    with open(path, "rb") as f:
-        magic, version, num_patches, channels = struct.unpack("<IIII", f.read(16))
+    with Path(path).open("rb") as f:
+        magic, version, num_patches, _channels = struct.unpack("<IIII", f.read(16))
         if magic != SRBIN_MAGIC:
             raise ValueError(f"Bad magic: 0x{magic:08X}")
         if version != 1:
@@ -263,7 +263,7 @@ def train(args):
 
     # Save final and best
     torch.save(model.state_dict(), weights_path)
-    print(f"\nTraining complete.")
+    print("\nTraining complete.")
     print(f"  Best val loss: {best_val_loss:.6f}")
     print(f"  Best PSNR: {compute_psnr(best_val_loss):.1f} dB")
     print(f"  Weights: {weights_path}")

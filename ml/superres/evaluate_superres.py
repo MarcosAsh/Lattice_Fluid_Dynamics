@@ -6,12 +6,13 @@ and reports PSNR, per-channel MSE, and divergence error.
 Optionally generates comparison plots.
 
 Usage:
-    python evaluate_superres.py --data dataset/superres_data.srbin --checkpoint dataset/sr_model_best.pt
-    python evaluate_superres.py --data dataset/superres_data.srbin --checkpoint dataset/sr_model_best.pt --plot
+    python evaluate_superres.py --data dataset/superres_data.srbin \\
+        --checkpoint dataset/sr_model_best.pt
+    python evaluate_superres.py --data dataset/superres_data.srbin \\
+        --checkpoint dataset/sr_model_best.pt --plot
 """
 
 import argparse
-import struct
 import sys
 from pathlib import Path
 
@@ -20,14 +21,9 @@ import torch
 
 # Re-use model and data loading from training script
 sys.path.insert(0, str(Path(__file__).parent))
-from train_superres import (
-    COARSE_DIM,
-    FINE_DIM,
-    SRBIN_MAGIC,
-    SuperResNet,
-    load_srbin,
-    trilinear_upsample,
-)
+from train_superres import SuperResNet
+from train_superres import load_srbin
+from train_superres import trilinear_upsample
 
 CHANNEL_NAMES = ["ux", "uy", "uz", "rho"]
 
@@ -73,14 +69,12 @@ def evaluate(args):
         ch_std[ch_std < 1e-8] = 1.0
 
     coarse_norm = ((coarse.reshape(-1, 4) - ch_mean) / ch_std).reshape(coarse.shape)
-    fine_norm = ((fine.reshape(-1, 4) - ch_mean) / ch_std).reshape(fine.shape)
 
     # Val split (same seed as training)
     n = len(coarse_norm)
     idx = np.random.RandomState(42).permutation(n)
     val_idx = idx[int(0.8 * n) :]
     val_coarse = coarse_norm[val_idx]
-    val_fine = fine_norm[val_idx]
     val_fine_raw = fine[val_idx]
 
     print(f"  Val patches: {len(val_coarse)}")
@@ -145,7 +139,7 @@ def evaluate(args):
     true_div = compute_divergence(val_fine_raw, None)
     skip_div = compute_divergence(skip_raw, None)
 
-    print(f"\n=== Divergence Error (lower = better mass conservation) ===")
+    print("\n=== Divergence Error (lower = better mass conservation) ===")
     print(f"  Ground truth: {true_div.mean():.6f} +/- {true_div.std():.6f}")
     print(f"  Trilinear:    {skip_div.mean():.6f} +/- {skip_div.std():.6f}")
     print(f"  Model:        {pred_div.mean():.6f} +/- {pred_div.std():.6f}")
@@ -175,14 +169,15 @@ def generate_plots(pred, skip, truth, args):
     out_dir.mkdir(exist_ok=True)
 
     # Scatter: predicted vs true for each channel
-    fig, axes = plt.subplots(1, 4, figsize=(16, 4))
+    _fig, axes = plt.subplots(1, 4, figsize=(16, 4))
+    rng = np.random.default_rng(0)
     for ch_idx, ch_name in enumerate(CHANNEL_NAMES):
         ax = axes[ch_idx]
         p = pred.reshape(-1, 4)[:, ch_idx]
         t = truth.reshape(-1, 4)[:, ch_idx]
         # Subsample for plotting
         n = min(5000, len(p))
-        idx = np.random.choice(len(p), n, replace=False)
+        idx = rng.choice(len(p), n, replace=False)
         ax.scatter(t[idx], p[idx], alpha=0.1, s=1)
         lims = [min(t.min(), p.min()), max(t.max(), p.max())]
         ax.plot(lims, lims, "r--", linewidth=0.5)
@@ -195,7 +190,7 @@ def generate_plots(pred, skip, truth, args):
     plt.close()
 
     # Error distribution
-    fig, axes = plt.subplots(1, 4, figsize=(16, 4))
+    _fig, axes = plt.subplots(1, 4, figsize=(16, 4))
     for ch_idx, ch_name in enumerate(CHANNEL_NAMES):
         ax = axes[ch_idx]
         err = pred.reshape(-1, 4)[:, ch_idx] - truth.reshape(-1, 4)[:, ch_idx]
@@ -218,7 +213,7 @@ def generate_plots(pred, skip, truth, args):
         model_errs.append(np.abs(p - t).mean())
         trilin_errs.append(np.abs(s - t).mean())
 
-    fig, ax = plt.subplots(figsize=(6, 4))
+    _fig, ax = plt.subplots(figsize=(6, 4))
     x = np.arange(4)
     width = 0.35
     ax.bar(x - width / 2, trilin_errs, width, label="Trilinear")

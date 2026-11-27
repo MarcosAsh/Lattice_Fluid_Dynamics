@@ -24,9 +24,8 @@ import subprocess
 import sys
 import tempfile
 import time
-import xml.etree.ElementTree as ET
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from dataclasses import field
 from pathlib import Path
 
 import numpy as np
@@ -101,27 +100,25 @@ class PatchAccumulator:
 
 
 def load_config(config_path: str) -> dict:
-    with open(config_path) as f:
+    with Path(config_path).open() as f:
         return yaml.safe_load(f)
 
 
 def generate_pair_configs(config: dict) -> list[PairConfig]:
-    pairs = []
-    for model in config["models"]:
-        for ws in config["wind_speeds"]:
-            for re_num in config["reynolds_numbers"]:
-                pairs.append(
-                    PairConfig(
-                        model=model,
-                        wind_speed=float(ws),
-                        reynolds=float(re_num),
-                        coarse_grid=config["coarse_grid"],
-                        fine_grid=config["fine_grid"],
-                        duration=config["duration"],
-                        vtk_interval=config["vtk_interval"],
-                    )
-                )
-    return pairs
+    return [
+        PairConfig(
+            model=model,
+            wind_speed=float(ws),
+            reynolds=float(re_num),
+            coarse_grid=config["coarse_grid"],
+            fine_grid=config["fine_grid"],
+            duration=config["duration"],
+            vtk_interval=config["vtk_interval"],
+        )
+        for model in config["models"]
+        for ws in config["wind_speeds"]
+        for re_num in config["reynolds_numbers"]
+    ]
 
 
 # VTI parsing
@@ -494,6 +491,7 @@ def run_simulation_modal(
     base64-encoded VTI files, and writes them to vtk_dir.
     """
     import base64
+
     import modal
 
     vtk_dir.mkdir(parents=True, exist_ok=True)
@@ -545,13 +543,13 @@ def write_srbin(
     num_patches = len(coarse_patches)
     filepath.parent.mkdir(parents=True, exist_ok=True)
 
-    with open(filepath, "wb") as f:
+    with filepath.open("wb") as f:
         f.write(struct.pack("<I", SRBIN_MAGIC))
         f.write(struct.pack("<I", SRBIN_VERSION))
         f.write(struct.pack("<I", num_patches))
         f.write(struct.pack("<I", CHANNELS))
 
-        for coarse, fine in zip(coarse_patches, fine_patches):
+        for coarse, fine in zip(coarse_patches, fine_patches, strict=True):
             f.write(coarse.astype("<f4").tobytes())
             f.write(fine.astype("<f4").tobytes())
 
@@ -566,7 +564,7 @@ def read_srbin(filepath: Path) -> tuple[np.ndarray, np.ndarray]:
         coarse: float32 array of shape (N, 3, 3, 3, 4)
         fine:   float32 array of shape (N, 2, 2, 2, 4)
     """
-    with open(filepath, "rb") as f:
+    with filepath.open("rb") as f:
         magic = struct.unpack("<I", f.read(4))[0]
         if magic != SRBIN_MAGIC:
             raise ValueError(f"Bad magic: 0x{magic:08X}, expected 0x{SRBIN_MAGIC:08X}")
@@ -599,14 +597,14 @@ def read_srbin(filepath: Path) -> tuple[np.ndarray, np.ndarray]:
 
 def load_manifest() -> dict:
     if MANIFEST_FILE.exists():
-        with open(MANIFEST_FILE) as f:
+        with MANIFEST_FILE.open() as f:
             return json.load(f)
     return {"completed": {}, "failed": {}}
 
 
 def save_manifest(manifest: dict):
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    with open(MANIFEST_FILE, "w") as f:
+    with MANIFEST_FILE.open("w") as f:
         json.dump(manifest, f, indent=2)
 
 
@@ -625,7 +623,6 @@ def process_pair(
     use_modal: bool = False,
 ) -> PairResult:
     """Run coarse and fine simulations, extract patches, accumulate them."""
-    coarse_vtk_dir = work_dir / f"{pc.pair_id}_coarse"
     fine_vtk_dir = work_dir / f"{pc.pair_id}_fine"
 
     runner = run_simulation_modal if use_modal else run_simulation
@@ -657,7 +654,7 @@ def process_pair(
 
     for vti_path in fine_vtk_files:
         try:
-            fine_vel, fine_rho, fine_solid, (fnx, fny, fnz) = parse_vti(vti_path)
+            fine_vel, fine_rho, fine_solid, _ = parse_vti(vti_path)
         except Exception as e:
             print(f"    WARN: Failed to parse {vti_path.name}: {e}")
             continue
@@ -800,10 +797,10 @@ def save_stats(manifest: dict, accumulator: PatchAccumulator):
     }
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    with open(STATS_FILE, "w") as f:
+    with STATS_FILE.open("w") as f:
         json.dump(stats, f, indent=2)
 
-    print(f"\nStatistics:")
+    print("\nStatistics:")
     print(f"  Configs completed: {stats['completed_configs']}")
     print(f"  Configs failed:    {stats['failed_configs']}")
     print(f"  Total patches:     {stats['total_patches']}")
@@ -846,7 +843,7 @@ def show_status():
             print(f"    {model}: {ms['configs']} configs, {ms['patches']} patches")
 
     if failed:
-        print(f"\n  Failed configs:")
+        print("\n  Failed configs:")
         for pid, entry in list(failed.items())[:10]:
             print(
                 f"    {pid}: {entry['model']} wind={entry['wind_speed']} -- {entry['error'][:80]}"
@@ -858,10 +855,10 @@ def show_status():
         size_mb = SRBIN_FILE.stat().st_size / (1024 * 1024)
         print(f"\n  Binary: {SRBIN_FILE} ({size_mb:.1f} MB)")
     else:
-        print(f"\n  Binary: not yet written")
+        print("\n  Binary: not yet written")
 
     if STATS_FILE.exists():
-        with open(STATS_FILE) as f:
+        with STATS_FILE.open() as f:
             stats = json.load(f)
         print(f"  Bytes per patch: {stats.get('bytes_per_patch', '?')}")
 

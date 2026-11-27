@@ -7,8 +7,10 @@ optimized mesh as OBJ. Optionally validates the result against an
 actual LBM simulation on Modal.
 
 Usage:
-    python optimize.py --weights dataset/shapeopt_model_best.pt --base-model ahmed25 --output optimized.obj
-    python optimize.py --weights dataset/shapeopt_model_best.pt --base-model ahmed25 --validate --endpoint https://...
+    python optimize.py --weights dataset/shapeopt_model_best.pt \\
+        --base-model ahmed25 --output optimized.obj
+    python optimize.py --weights dataset/shapeopt_model_best.pt \\
+        --base-model ahmed25 --validate --endpoint https://...
 """
 
 import argparse
@@ -22,8 +24,10 @@ import numpy as np
 import requests
 import torch
 import torch.nn.functional as F
-
-from ffd import FFDLattice, load_obj, save_obj, compute_bbox
+from ffd import FFDLattice
+from ffd import compute_bbox
+from ffd import load_obj
+from ffd import save_obj
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -232,7 +236,7 @@ def optimize(args):
     # Report optimization trajectory
     cd_start = trajectory[0][1]
     cd_end = trajectory[-1][1]
-    print(f"\nOptimization complete.")
+    print("\nOptimization complete.")
     print(f"  Cd: {cd_start:.6f} -> {cd_end:.6f} (delta = {cd_end - cd_start:+.6f})")
     if cd_start > 1e-9:
         print(f"  Relative Cd reduction: {(cd_end - cd_start) / cd_start * 100:+.2f}%")
@@ -249,7 +253,7 @@ def optimize(args):
             print("Error: --validate requires --endpoint", file=sys.stderr)
             sys.exit(1)
 
-        print(f"\nValidating against LBM simulation...")
+        print("\nValidating against LBM simulation...")
         print(f"  Endpoint: {args.endpoint}")
 
         obj_b64 = obj_to_base64(deformed, faces)
@@ -281,7 +285,7 @@ def optimize(args):
 
     # Print full trajectory if requested
     if args.verbose:
-        print(f"\nFull trajectory:")
+        print("\nFull trajectory:")
         print(f"{'Step':>6s}  {'Cd':>10s}  {'Cl':>10s}  {'|disp|_max':>12s}")
         print("-" * 44)
         for step, cd, cl, md in trajectory:

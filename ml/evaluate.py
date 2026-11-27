@@ -27,7 +27,7 @@ MODEL_IDS = {0: "car", 1: "ahmed25", 2: "ahmed35"}
 
 def load_weights(path: str) -> list[np.ndarray]:
     """Load parameter tensors from a LTWS binary file."""
-    with open(path, "rb") as f:
+    with Path(path).open("rb") as f:
         magic, version, count = struct.unpack("<III", f.read(12))
         if magic != 0x4C545753:
             raise ValueError(f"Bad magic: 0x{magic:08X} (expected 0x4C545753)")
@@ -48,7 +48,7 @@ def load_weights(path: str) -> list[np.ndarray]:
 
 def load_normalizer(path: str) -> tuple[np.ndarray, np.ndarray]:
     """Load z-score normalization params (3 means + 3 stds)."""
-    with open(path, "rb") as f:
+    with Path(path).open("rb") as f:
         mean = np.frombuffer(f.read(12), dtype=np.float32).copy()
         std = np.frombuffer(f.read(12), dtype=np.float32).copy()
     return mean, std
@@ -62,8 +62,8 @@ def load_dataset(path: str) -> np.ndarray:
     Load binary dataset. Returns (N, 5) array:
     columns = [wind_speed, reynolds, model_id, cd, cl]
     """
-    with open(path, "rb") as f:
-        magic, version, num_records, num_features = struct.unpack("<IIII", f.read(16))
+    with Path(path).open("rb") as f:
+        magic, _version, num_records, num_features = struct.unpack("<IIII", f.read(16))
         if magic != 0x4C415454:
             raise ValueError(f"Bad magic: 0x{magic:08X}")
         if num_features != 5:
@@ -330,7 +330,7 @@ def main():
 
     print(f"Loaded {len(params)} parameter tensors:")
     for i, p in enumerate(params):
-        print(f"  [{i:2d}] shape={str(list(p.shape)):20s}  numel={p.size}")
+        print(f"  [{i:2d}] shape={list(p.shape)!s:20s}  numel={p.size}")
     total_params = sum(p.size for p in params)
     print(f"  Total: {total_params:,} parameters")
     print()
