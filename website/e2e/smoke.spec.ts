@@ -148,3 +148,21 @@ test('unknown pages get the styled 404', async ({ page }) => {
     page.getByRole('heading', { name: 'Simulation Parameters' }),
   ).toBeVisible();
 });
+
+test('reduced motion stops autoplay and transitions', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('/');
+  await page
+    .getByTestId('demo-gallery')
+    .getByRole('button', { name: /^Car/ })
+    .click();
+
+  const video = page.locator('video').first();
+  await expect(video).toBeAttached();
+  await expect(video).not.toHaveAttribute('autoplay');
+
+  const duration = await page
+    .getByRole('button', { name: 'Export CSV' })
+    .evaluate((el) => getComputedStyle(el).transitionDuration);
+  expect(parseFloat(duration)).toBeLessThan(0.001);
+});

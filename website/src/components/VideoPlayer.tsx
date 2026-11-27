@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { usePrefersReducedMotion } from '../lib/motion';
 import type { BackendStatus, JobStatus } from '../lib/types';
 
 interface VideoPlayerProps {
@@ -18,6 +19,7 @@ export default function VideoPlayer({
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [gifProgress, setGifProgress] = useState<string | null>(null);
+  const reducedMotion = usePrefersReducedMotion();
 
   useEffect(() => {
     const onChange = () => {
@@ -148,7 +150,7 @@ export default function VideoPlayer({
             ref={videoRef}
             src={videoUrl}
             controls
-            autoPlay
+            autoPlay={!reducedMotion}
             loop
             className="w-full h-full object-contain"
           />
