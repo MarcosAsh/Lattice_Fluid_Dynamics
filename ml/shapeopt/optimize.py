@@ -24,10 +24,12 @@ import numpy as np
 import requests
 import torch
 import torch.nn.functional as F
+
 from ffd import FFDLattice
 from ffd import compute_bbox
 from ffd import load_obj
 from ffd import save_obj
+from train_shapeopt import load_checkpoint
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -42,7 +44,7 @@ MODEL_OBJ_PATHS = {
 
 
 class SwiGLU(torch.nn.Module):
-    def __init__(self, in_dim: int, hidden_dim: int):
+    def __init__(self, in_dim: int, hidden_dim: int) -> None:
         super().__init__()
         self.w_gate = torch.nn.Linear(in_dim, hidden_dim, bias=False)
         self.w_up = torch.nn.Linear(in_dim, hidden_dim, bias=False)
@@ -53,7 +55,7 @@ class SwiGLU(torch.nn.Module):
 
 
 class ShapeOptSurrogate(torch.nn.Module):
-    def __init__(self, input_dim: int):
+    def __init__(self, input_dim: int) -> None:
         super().__init__()
         self.fc1 = torch.nn.Linear(input_dim, 256)
         self.swiglu1 = SwiGLU(256, 512)
@@ -121,7 +123,7 @@ def submit_and_poll(
 # Optimization
 
 
-def optimize(args):
+def optimize(args: argparse.Namespace) -> None:
     # Load base mesh
     obj_path = MODEL_OBJ_PATHS.get(args.base_model)
     if obj_path is None or not obj_path.exists():
@@ -136,7 +138,7 @@ def optimize(args):
 
     # Load checkpoint
     print(f"Loading weights: {args.weights}")
-    ckpt = torch.load(args.weights, map_location="cpu", weights_only=False)
+    ckpt = load_checkpoint(args.weights)
 
     input_dim = ckpt["input_dim"]
     num_ffd_params = ckpt["num_ffd_params"]
@@ -295,7 +297,7 @@ def optimize(args):
 # CLI
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         description="Optimize shape via gradient descent through the surrogate"
     )

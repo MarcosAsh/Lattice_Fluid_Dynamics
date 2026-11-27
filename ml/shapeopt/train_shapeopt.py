@@ -72,7 +72,7 @@ class SwiGLU(nn.Module):
     Output dimension: in_dim (same as input for residual-friendly stacking)
     """
 
-    def __init__(self, in_dim: int, hidden_dim: int):
+    def __init__(self, in_dim: int, hidden_dim: int) -> None:
         super().__init__()
         self.w_gate = nn.Linear(in_dim, hidden_dim, bias=False)
         self.w_up = nn.Linear(in_dim, hidden_dim, bias=False)
@@ -97,7 +97,7 @@ class ShapeOptSurrogate(nn.Module):
     Output: [Cd, Cl]
     """
 
-    def __init__(self, input_dim: int):
+    def __init__(self, input_dim: int) -> None:
         super().__init__()
         self.fc1 = nn.Linear(input_dim, 256)
         self.swiglu1 = SwiGLU(256, 512)
@@ -113,10 +113,26 @@ class ShapeOptSurrogate(nn.Module):
         return self.fc3(h)
 
 
+# Checkpoint loading
+
+
+def load_checkpoint(path: str | Path) -> dict:
+    """Load a training checkpoint without unpickling arbitrary objects."""
+    safe = [
+        np._core.multiarray._reconstruct,
+        np.ndarray,
+        np.dtype,
+        type(np.dtype(np.float32)),
+        type(np.dtype(np.float64)),
+    ]
+    with torch.serialization.safe_globals(safe):
+        return torch.load(path, map_location="cpu", weights_only=True)
+
+
 # LTWS export (matches ml/superres/export_weights.py)
 
 
-def export_ltws(state_dict: dict, output_path: str):
+def export_ltws(state_dict: dict, output_path: str) -> None:
     """
     Export PyTorch state dict to LTWS binary format.
 
@@ -145,7 +161,7 @@ def export_ltws(state_dict: dict, output_path: str):
         print(f"  {name}: {list(arr.shape)}")
 
 
-def save_normalizer(means: np.ndarray, stds: np.ndarray, output_path: str):
+def save_normalizer(means: np.ndarray, stds: np.ndarray, output_path: str) -> None:
     """
     Save z-score normalizer as raw binary.
 
@@ -162,7 +178,7 @@ def save_normalizer(means: np.ndarray, stds: np.ndarray, output_path: str):
 # Training loop
 
 
-def train(args):
+def train(args: argparse.Namespace) -> None:
     print(f"Loading dataset: {args.data}")
     displacements, outputs = load_sobin(args.data)
     num_samples, num_ffd_params = displacements.shape
@@ -328,7 +344,7 @@ def train(args):
     print(f"  Final weights: {final_path}")
 
     # Export LTWS format
-    best_ckpt = torch.load(best_path, map_location="cpu", weights_only=False)
+    best_ckpt = load_checkpoint(best_path)
     ltws_path = out_dir / "shapeopt_model.bin"
     export_ltws(best_ckpt["model_state_dict"], str(ltws_path))
 
@@ -340,7 +356,7 @@ def train(args):
 # CLI
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Train geometry-aware Cd/Cl surrogate model")
     parser.add_argument(
         "--data",
