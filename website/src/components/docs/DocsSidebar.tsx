@@ -146,14 +146,36 @@ function SidebarContent({
   );
 }
 
-export function DocsSidebar({
-  groups,
-  activeSection,
-}: {
-  groups: DocGroup[];
-  activeSection: string;
-}) {
+// Highlights the section in the upper part of the viewport
+function useActiveSection(ids: string[]): string {
+  const [active, setActive] = useState(ids[0] ?? '');
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) setActive(entry.target.id);
+        }
+      },
+      { rootMargin: '-20% 0px -70% 0px' },
+    );
+    for (const id of ids) {
+      const el = document.getElementById(id);
+      if (el) observer.observe(el);
+    }
+    return () => observer.disconnect();
+  }, [ids]);
+
+  return active;
+}
+
+export function DocsSidebar({ groups }: { groups: DocGroup[] }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const ids = useMemo(
+    () => groups.flatMap((g) => g.sections.map((s) => s.id)),
+    [groups],
+  );
+  const activeSection = useActiveSection(ids);
 
   // Close drawer on escape
   useEffect(() => {

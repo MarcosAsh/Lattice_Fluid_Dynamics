@@ -95,3 +95,19 @@ test('viewing an older run shows its results', async ({ page }) => {
   await page.getByRole('button', { name: 'View' }).click();
   await expect(dragCard).toContainText('0.7772');
 });
+
+test('docs page is server rendered and tracks the section in view', async ({
+  page,
+  request,
+}) => {
+  const html = await (await request.get('/docs')).text();
+  expect(html).toContain('Lattice Documentation');
+  expect(html).toContain('cmake -B build -S simulation');
+
+  await page.goto('/docs');
+  const sidebar = page.locator('aside').first();
+  await page.locator('#cli').scrollIntoViewIfNeeded();
+  await expect(
+    sidebar.getByRole('link', { name: 'CLI Reference' }),
+  ).toHaveClass(/border-ctp-mauve/);
+});

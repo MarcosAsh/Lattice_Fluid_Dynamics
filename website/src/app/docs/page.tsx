@@ -1,9 +1,6 @@
-'use client';
-
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
 
-import { SECTION_GROUPS, ALL_SECTIONS } from '../../lib/docs-sections';
+import { SECTION_GROUPS } from '../../lib/docs-sections';
 import { DocsSidebar } from '../../components/docs/DocsSidebar';
 import { CodeBlock } from '../../components/docs/CodeBlock';
 import { InlineCode } from '../../components/docs/InlineCode';
@@ -39,29 +36,9 @@ function P({ children }: { children: React.ReactNode }) {
 }
 
 export default function DocsPage() {
-  const [active, setActive] = useState('quickstart');
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            setActive(entry.target.id);
-          }
-        }
-      },
-      { rootMargin: '-20% 0px -70% 0px' },
-    );
-    for (const s of ALL_SECTIONS) {
-      const el = document.getElementById(s.id);
-      if (el) observer.observe(el);
-    }
-    return () => observer.disconnect();
-  }, []);
-
   return (
     <div className="min-h-screen flex">
-      <DocsSidebar groups={SECTION_GROUPS} activeSection={active} />
+      <DocsSidebar groups={SECTION_GROUPS} />
 
       <main className="flex-1 max-w-3xl mx-auto px-6 lg:px-10 py-8">
         {/* Breadcrumb */}
