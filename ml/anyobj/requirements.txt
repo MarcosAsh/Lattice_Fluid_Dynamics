@@ -1,8 +1,8 @@
 # mirrors pyproject.toml, prefer uv sync
 numpy>=2.5.0
 scipy>=1.17
-trimesh>=5.0.0
+trimesh>=5.2.2
 rtree>=1.4.1          # trimesh mesh.contains() voxelization backend
 embreex; python_version < "3.14"   # fast ray backend for big meshes
 jax>=0.6.2
-optax>=0.2.8
+optax>=0.2.9
