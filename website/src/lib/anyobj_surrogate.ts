@@ -47,7 +47,9 @@ function forward(
 
   let x = new Float64Array(desc.length + 1);
   x.set(desc);
-  x[desc.length] = Math.log10(reynolds);
+  // Auto (0) has no Re to give, so use the training set's typical value
+  x[desc.length] =
+    reynolds > 0 ? Math.log10(reynolds) : (model.xMean[desc.length] ?? 0);
   for (let i = 0; i < x.length; i++) {
     x[i] = (x[i] - model.xMean[i]) / model.xStd[i];
   }
