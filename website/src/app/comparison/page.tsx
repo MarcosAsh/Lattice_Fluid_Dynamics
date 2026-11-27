@@ -109,7 +109,13 @@ function ComparisonChart({
       <div className="text-[10px] text-ctp-overlay0 uppercase tracking-wider mb-1">
         {coeff}: ML vs LBM
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxWidth: W }}>
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        className="w-full"
+        style={{ maxWidth: W }}
+        role="img"
+        aria-label={`${coeff} from the ML surrogate against LBM for ${pairs.length} runs`}
+      >
         {/* Grid */}
         {ticks.map((v, i) => (
           <g key={i}>
@@ -228,17 +234,28 @@ function SweepTable({
       <div className="text-[10px] text-ctp-overlay0 uppercase tracking-wider mb-2">
         ML sweep: {MODEL_LABELS[model]} at Re={reynolds}
       </div>
-      <div className="overflow-x-auto max-h-64 overflow-y-auto">
+      <div
+        tabIndex={0}
+        role="region"
+        aria-label="ML sweep predictions"
+        className="overflow-x-auto max-h-64 overflow-y-auto"
+      >
         <table className="w-full text-left text-xs">
           <thead className="sticky top-0 bg-ctp-mantle">
             <tr className="border-b border-ctp-surface1">
-              <th className="py-1.5 pr-3 text-ctp-subtext0 font-medium">
+              <th
+                scope="col"
+                className="py-1.5 pr-3 text-ctp-subtext0 font-medium"
+              >
                 Wind
               </th>
-              <th className="py-1.5 pr-3 text-ctp-subtext0 font-medium">
+              <th
+                scope="col"
+                className="py-1.5 pr-3 text-ctp-subtext0 font-medium"
+              >
                 C<sub>d</sub> (ML)
               </th>
-              <th className="py-1.5 text-ctp-subtext0 font-medium">
+              <th scope="col" className="py-1.5 text-ctp-subtext0 font-medium">
                 C<sub>l</sub> (ML)
               </th>
             </tr>
@@ -333,9 +350,11 @@ export default function ComparisonPage() {
       <div className="mb-6 flex items-center gap-3">
         <Link
           href="/"
+          aria-label="Back to the simulator"
           className="text-ctp-overlay1 hover:text-ctp-text transition-colors"
         >
           <svg
+            aria-hidden="true"
             className="w-5 h-5"
             fill="none"
             viewBox="0 0 24 24"
@@ -374,10 +393,14 @@ export default function ComparisonPage() {
       {/* Controls */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
         <div className="border border-ctp-surface1 rounded-lg p-3 bg-ctp-mantle">
-          <label className="text-[10px] text-ctp-overlay0 uppercase tracking-wider block mb-1">
+          <label
+            htmlFor="cmp-model"
+            className="text-[10px] text-ctp-overlay0 uppercase tracking-wider block mb-1"
+          >
             Model
           </label>
           <select
+            id="cmp-model"
             value={model}
             onChange={(e) => setModel(e.target.value)}
             className="w-full bg-ctp-surface0 border border-ctp-surface1 rounded px-2 py-1.5 text-sm text-ctp-text accent-ctp-mauve"
@@ -390,10 +413,14 @@ export default function ComparisonPage() {
           </select>
         </div>
         <div className="border border-ctp-surface1 rounded-lg p-3 bg-ctp-mantle">
-          <label className="text-[10px] text-ctp-overlay0 uppercase tracking-wider block mb-1">
+          <label
+            htmlFor="cmp-wind"
+            className="text-[10px] text-ctp-overlay0 uppercase tracking-wider block mb-1"
+          >
             Wind Speed: {windSpeed.toFixed(2)}
           </label>
           <input
+            id="cmp-wind"
             type="range"
             min={0.5}
             max={5.0}
@@ -404,10 +431,14 @@ export default function ComparisonPage() {
           />
         </div>
         <div className="border border-ctp-surface1 rounded-lg p-3 bg-ctp-mantle">
-          <label className="text-[10px] text-ctp-overlay0 uppercase tracking-wider block mb-1">
+          <label
+            htmlFor="cmp-reynolds"
+            className="text-[10px] text-ctp-overlay0 uppercase tracking-wider block mb-1"
+          >
             Reynolds Number
           </label>
           <input
+            id="cmp-reynolds"
             type="number"
             min={0}
             max={100000}
@@ -438,7 +469,10 @@ export default function ComparisonPage() {
       {!matchingLbm && lbmHistory.length === 0 && (
         <div className="mb-6 p-3 bg-ctp-surface0 border border-ctp-surface1 rounded text-xs text-ctp-subtext0">
           No LBM results found. Run a simulation on the{' '}
-          <Link href="/" className="text-ctp-blue hover:text-ctp-lavender">
+          <Link
+            href="/"
+            className="text-ctp-blue hover:text-ctp-lavender underline underline-offset-2"
+          >
             main page
           </Link>{' '}
           to see side-by-side comparisons.
@@ -514,28 +548,52 @@ export default function ComparisonPage() {
             <table className="w-full text-left text-xs">
               <thead>
                 <tr className="border-b border-ctp-surface1">
-                  <th className="py-1.5 pr-2 text-ctp-subtext0 font-medium">
+                  <th
+                    scope="col"
+                    className="py-1.5 pr-2 text-ctp-subtext0 font-medium"
+                  >
                     Model
                   </th>
-                  <th className="py-1.5 pr-2 text-ctp-subtext0 font-medium">
+                  <th
+                    scope="col"
+                    className="py-1.5 pr-2 text-ctp-subtext0 font-medium"
+                  >
                     Wind
                   </th>
-                  <th className="py-1.5 pr-2 text-ctp-subtext0 font-medium">
+                  <th
+                    scope="col"
+                    className="py-1.5 pr-2 text-ctp-subtext0 font-medium"
+                  >
                     LBM C<sub>d</sub>
                   </th>
-                  <th className="py-1.5 pr-2 text-ctp-subtext0 font-medium">
+                  <th
+                    scope="col"
+                    className="py-1.5 pr-2 text-ctp-subtext0 font-medium"
+                  >
                     ML C<sub>d</sub>
                   </th>
-                  <th className="py-1.5 pr-2 text-ctp-subtext0 font-medium">
+                  <th
+                    scope="col"
+                    className="py-1.5 pr-2 text-ctp-subtext0 font-medium"
+                  >
                     C<sub>d</sub> Err
                   </th>
-                  <th className="py-1.5 pr-2 text-ctp-subtext0 font-medium">
+                  <th
+                    scope="col"
+                    className="py-1.5 pr-2 text-ctp-subtext0 font-medium"
+                  >
                     LBM C<sub>l</sub>
                   </th>
-                  <th className="py-1.5 pr-2 text-ctp-subtext0 font-medium">
+                  <th
+                    scope="col"
+                    className="py-1.5 pr-2 text-ctp-subtext0 font-medium"
+                  >
                     ML C<sub>l</sub>
                   </th>
-                  <th className="py-1.5 text-ctp-subtext0 font-medium">
+                  <th
+                    scope="col"
+                    className="py-1.5 text-ctp-subtext0 font-medium"
+                  >
                     C<sub>l</sub> Err
                   </th>
                 </tr>

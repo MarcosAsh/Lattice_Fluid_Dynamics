@@ -84,13 +84,21 @@ function CdChart({
   }
 
   const yTicks = [0, yMax / 2, yMax];
+  const lastCd = cdSeries[cdSeries.length - 1] ?? 0;
+  const cdLabel = `Cd and Cl over ${n} measurement steps, last Cd ${lastCd.toFixed(3)}`;
 
   return (
     <div className="mb-3">
       <div className="text-[10px] text-ctp-overlay0 uppercase tracking-wider mb-1">
         Convergence
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxWidth: W }}>
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        className="w-full"
+        style={{ maxWidth: W }}
+        role="img"
+        aria-label={cdLabel}
+      >
         {/* Grid lines */}
         {yTicks.map((v) => {
           const y = pad.top + plotH - (v / yMax) * plotH;
@@ -227,13 +235,20 @@ function SpectrumChart({ spectrum }: { spectrum: SpectrumResult }) {
   const peakX = pad.left + (peakIndex / (power.length - 1)) * plotW;
   const peakY = pad.top + plotH - (power[peakIndex] / pMax) * plotH;
   const peakFreqLabel = frequencies[peakIndex].toExponential(2);
+  const spectrumLabel = `Cl power spectrum with its peak at frequency ${peakFreqLabel}`;
 
   return (
     <div className="mb-3">
       <div className="text-[10px] text-ctp-overlay0 uppercase tracking-wider mb-1">
         Cl Power Spectrum
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxWidth: W }}>
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        className="w-full"
+        style={{ maxWidth: W }}
+        role="img"
+        aria-label={spectrumLabel}
+      >
         {/* Axes */}
         <line
           x1={pad.left}
@@ -335,13 +350,22 @@ function SweepChart({ history }: { history: SimulationResult[] }) {
   const wsRange = wsMax - wsMin || 1;
 
   const colors = ['#cba6f7', '#89b4fa', '#a6e3a1', '#f9e2af'];
+  const sweepLabel = `Cd against wind speed for ${sweepData
+    .map((d) => MODEL_LABELS[d.model] ?? d.model)
+    .join(', ')}`;
 
   return (
     <div className="mb-3">
       <div className="text-[10px] text-ctp-overlay0 uppercase tracking-wider mb-1">
         C<sub>d</sub> vs Wind Speed
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxWidth: W }}>
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        className="w-full"
+        style={{ maxWidth: W }}
+        role="img"
+        aria-label={sweepLabel}
+      >
         <rect
           x={pad.left}
           y={pad.top}
@@ -528,22 +552,42 @@ export default function ResultsPanel({
             <table className="w-full text-left text-xs">
               <thead>
                 <tr className="border-b border-ctp-surface1">
-                  <th className="py-1.5 pr-2 text-ctp-subtext0 font-medium">
+                  <th
+                    scope="col"
+                    className="py-1.5 pr-2 text-ctp-subtext0 font-medium"
+                  >
                     Model
                   </th>
-                  <th className="py-1.5 pr-2 text-ctp-subtext0 font-medium">
+                  <th
+                    scope="col"
+                    className="py-1.5 pr-2 text-ctp-subtext0 font-medium"
+                  >
                     Wind
                   </th>
-                  <th className="py-1.5 pr-2 text-ctp-subtext0 font-medium">
+                  <th
+                    scope="col"
+                    className="py-1.5 pr-2 text-ctp-subtext0 font-medium"
+                  >
                     C<sub>d</sub>
                   </th>
-                  <th className="py-1.5 pr-2 text-ctp-subtext0 font-medium">
+                  <th
+                    scope="col"
+                    className="py-1.5 pr-2 text-ctp-subtext0 font-medium"
+                  >
                     C<sub>l</sub>
                   </th>
-                  <th className="py-1.5 pr-2 text-ctp-subtext0 font-medium">
+                  <th
+                    scope="col"
+                    className="py-1.5 pr-2 text-ctp-subtext0 font-medium"
+                  >
                     St
                   </th>
-                  <th className="py-1.5 text-ctp-subtext0 font-medium"></th>
+                  <th
+                    scope="col"
+                    className="py-1.5 text-ctp-subtext0 font-medium"
+                  >
+                    <span className="sr-only">Actions</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -585,6 +629,7 @@ export default function ResultsPanel({
                         {!isCurrent && (
                           <button
                             onClick={() => onSelect(result)}
+                            aria-label={`View ${MODEL_LABELS[result.model] ?? result.model} at ${result.windSpeed.toFixed(1)} m/s`}
                             className="text-ctp-blue hover:text-ctp-lavender transition-colors"
                           >
                             View

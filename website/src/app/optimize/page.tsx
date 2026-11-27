@@ -115,7 +115,13 @@ function ConvergenceChart({ cdHistory }: { cdHistory: number[] }) {
   const yTicks = [yMin, yMin + yRange * 0.5, yMax];
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxWidth: W }}>
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      className="w-full"
+      style={{ maxWidth: W }}
+      role="img"
+      aria-label={`Cd over ${cdHistory.length} optimization iterations`}
+    >
       {/* Grid lines */}
       {yTicks.map((v, i) => (
         <g key={i}>
@@ -277,9 +283,11 @@ export default function OptimizePage() {
       <div className="mb-6 flex items-center gap-3">
         <Link
           href="/"
+          aria-label="Back to the simulator"
           className="text-ctp-overlay1 hover:text-ctp-text transition-colors"
         >
           <svg
+            aria-hidden="true"
             className="w-5 h-5"
             fill="none"
             viewBox="0 0 24 24"
@@ -307,10 +315,14 @@ export default function OptimizePage() {
       {/* Controls */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         <div className="border border-ctp-surface1 rounded-lg p-3 bg-ctp-mantle">
-          <label className="text-[10px] text-ctp-overlay0 uppercase tracking-wider block mb-1">
+          <label
+            htmlFor="opt-model"
+            className="text-[10px] text-ctp-overlay0 uppercase tracking-wider block mb-1"
+          >
             Base Model
           </label>
           <select
+            id="opt-model"
             value={baseModel}
             onChange={(e) => setBaseModel(e.target.value)}
             disabled={isRunning}
@@ -325,10 +337,14 @@ export default function OptimizePage() {
         </div>
 
         <div className="border border-ctp-surface1 rounded-lg p-3 bg-ctp-mantle">
-          <label className="text-[10px] text-ctp-overlay0 uppercase tracking-wider block mb-1">
+          <label
+            htmlFor="opt-wind"
+            className="text-[10px] text-ctp-overlay0 uppercase tracking-wider block mb-1"
+          >
             Wind Speed: {windSpeed.toFixed(2)}
           </label>
           <input
+            id="opt-wind"
             type="range"
             min={0.5}
             max={5.0}
@@ -341,10 +357,14 @@ export default function OptimizePage() {
         </div>
 
         <div className="border border-ctp-surface1 rounded-lg p-3 bg-ctp-mantle">
-          <label className="text-[10px] text-ctp-overlay0 uppercase tracking-wider block mb-1">
+          <label
+            htmlFor="opt-reynolds"
+            className="text-[10px] text-ctp-overlay0 uppercase tracking-wider block mb-1"
+          >
             Reynolds Number
           </label>
           <input
+            id="opt-reynolds"
             type="number"
             min={0}
             max={100000}
@@ -359,10 +379,14 @@ export default function OptimizePage() {
         </div>
 
         <div className="border border-ctp-surface1 rounded-lg p-3 bg-ctp-mantle">
-          <label className="text-[10px] text-ctp-overlay0 uppercase tracking-wider block mb-1">
+          <label
+            htmlFor="opt-steps"
+            className="text-[10px] text-ctp-overlay0 uppercase tracking-wider block mb-1"
+          >
             Max Iterations
           </label>
           <input
+            id="opt-steps"
             type="number"
             min={10}
             max={1000}
@@ -544,14 +568,25 @@ export default function OptimizePage() {
             Optimized FFD Parameters ({NUM_FFD} values)
           </summary>
           <div className="px-4 pb-4">
-            <div className="overflow-x-auto max-h-48 overflow-y-auto">
+            <div
+              tabIndex={0}
+              role="region"
+              aria-label="Optimized FFD parameters"
+              className="overflow-x-auto max-h-48 overflow-y-auto"
+            >
               <table className="w-full text-left text-xs">
                 <thead className="sticky top-0 bg-ctp-mantle">
                   <tr className="border-b border-ctp-surface1">
-                    <th className="py-1 pr-3 text-ctp-subtext0 font-medium w-16">
+                    <th
+                      scope="col"
+                      className="py-1 pr-3 text-ctp-subtext0 font-medium w-16"
+                    >
                       Index
                     </th>
-                    <th className="py-1 text-ctp-subtext0 font-medium">
+                    <th
+                      scope="col"
+                      className="py-1 text-ctp-subtext0 font-medium"
+                    >
                       Displacement
                     </th>
                   </tr>

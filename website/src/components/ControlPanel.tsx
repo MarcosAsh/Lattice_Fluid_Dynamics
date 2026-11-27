@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useId, useRef, useState } from 'react';
 import type { SimulationParams } from '../lib/types';
 import type { Prediction, ModelStatus } from '../lib/surrogate';
 import { validateObj, ObjValidationResult } from '../lib/validateObj';
@@ -81,16 +81,29 @@ function Slider({
   hint?: string;
   disabled?: boolean;
 }) {
+  const id = useId();
   return (
     <div className="flex flex-col gap-1">
       <div className="flex justify-between text-xs">
-        <span className="text-ctp-subtext0">{label}</span>
-        <span className="text-ctp-text font-mono">{display ?? value}</span>
+        <label htmlFor={id} className="text-ctp-subtext0">
+          {label}
+        </label>
+        <span className="text-ctp-text font-mono" aria-hidden="true">
+          {display ?? value}
+        </span>
       </div>
       {hint && (
-        <p className="text-[10px] text-ctp-overlay0 leading-tight">{hint}</p>
+        <p
+          id={`${id}-hint`}
+          className="text-[10px] text-ctp-overlay0 leading-tight"
+        >
+          {hint}
+        </p>
       )}
       <input
+        id={id}
+        aria-describedby={hint ? `${id}-hint` : undefined}
+        aria-valuetext={display}
         type="range"
         min={min}
         max={max}
@@ -122,31 +135,48 @@ function ReynoldsPresets({
   onChange: (v: number) => void;
   disabled?: boolean;
 }) {
+  const id = useId();
   const activeIdx = rePresets.findIndex((p) => p.value === value);
   const display = value === 0 ? 'Auto' : value.toFixed(0);
+  const tag = activeIdx >= 0 ? rePresets[activeIdx]?.tag : '';
 
   return (
     <div className="flex flex-col gap-1">
       <div className="flex justify-between text-xs">
-        <span className="text-ctp-subtext0">Reynolds Number</span>
-        <span className="text-ctp-text font-mono">{display}</span>
+        <label htmlFor={id} className="text-ctp-subtext0">
+          Reynolds Number
+        </label>
+        <span className="text-ctp-text font-mono" aria-hidden="true">
+          {display}
+        </span>
       </div>
-      <p className="text-[10px] text-ctp-overlay0 leading-tight">
+      <p
+        id={`${id}-hint`}
+        className="text-[10px] text-ctp-overlay0 leading-tight"
+      >
         Target Re. Auto derives from wind speed.
       </p>
       <input
+        id={id}
+        aria-describedby={`${id}-hint`}
+        aria-valuetext={tag ? `${display}, ${tag}` : display}
         type="range"
         min={0}
         max={rePresets.length - 1}
         step={1}
         value={activeIdx >= 0 ? activeIdx : 0}
-        onChange={(e) => onChange(rePresets[parseInt(e.target.value)].value)}
+        onChange={(e) =>
+          onChange(rePresets[parseInt(e.target.value)]?.value ?? 0)
+        }
         className="w-full accent-ctp-mauve"
         disabled={disabled}
       />
-      {activeIdx >= 0 && rePresets[activeIdx].tag && (
-        <div className="text-[10px] text-ctp-overlay1 -mt-0.5">
-          {rePresets[activeIdx].tag}
+      {tag && (
+        <div
+          className="text-[10px] text-ctp-overlay1 -mt-0.5"
+          aria-hidden="true"
+        >
+          {tag}
         </div>
       )}
     </div>
@@ -167,6 +197,7 @@ export default function ControlPanel({
   mlPrediction,
   mlStatus,
 }: ControlPanelProps) {
+  const id = useId();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [objValidation, setObjValidation] =
     useState<ObjValidationResult | null>(null);
@@ -214,6 +245,8 @@ export default function ControlPanel({
       <div className="flex items-center justify-between lg:hidden">
         <button
           onClick={() => setMobileOpen(!mobileOpen)}
+          aria-expanded={mobileOpen}
+          aria-controls={`${id}-body`}
           className="flex items-center gap-2 text-xs font-semibold text-ctp-overlay1 uppercase tracking-wider"
         >
           <svg
@@ -222,6 +255,7 @@ export default function ControlPanel({
             viewBox="0 0 24 24"
             stroke="currentColor"
             strokeWidth={2}
+            aria-hidden="true"
           >
             <path
               strokeLinecap="round"
@@ -247,11 +281,15 @@ export default function ControlPanel({
 
       {/* Controls body */}
       <div
+        id={`${id}-body`}
         className={`flex flex-col gap-4 ${mobileOpen ? '' : 'hidden'} lg:flex`}
       >
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-ctp-subtext0">Model</label>
+          <label htmlFor={`${id}-model`} className="text-xs text-ctp-subtext0">
+            Model
+          </label>
           <select
+            id={`${id}-model`}
             value={params.model}
             onChange={(e) => {
               setParams({ ...params, model: e.target.value });
@@ -277,7 +315,7 @@ export default function ControlPanel({
         {/* Custom OBJ upload */}
         {isCustom && (
           <div className="flex flex-col gap-1">
-            <label className="text-xs text-ctp-subtext0">OBJ File</label>
+            <span className="text-xs text-ctp-subtext0">OBJ File</span>
             <input
               ref={fileInputRef}
               type="file"
@@ -288,6 +326,11 @@ export default function ControlPanel({
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={disabled || validating}
+              aria-label={
+                objFile
+                  ? `OBJ file ${objFile.name}, choose another`
+                  : 'Choose an OBJ file'
+              }
               className="bg-ctp-surface0 hover:bg-ctp-surface1 text-ctp-text text-xs font-medium py-1.5 px-3 rounded border border-ctp-surface1 transition-colors text-left"
             >
               {validating
@@ -311,7 +354,7 @@ export default function ControlPanel({
               </p>
             )}
             {objValidation && objValidation.errors.length > 0 && (
-              <div className="flex flex-col gap-0.5 mt-0.5">
+              <div role="alert" className="flex flex-col gap-0.5 mt-0.5">
                 {objValidation.errors.map((err, i) => (
                   <p key={i} className="text-[10px] text-ctp-red leading-tight">
                     {err}
@@ -396,10 +439,11 @@ export default function ControlPanel({
         <hr className="border-ctp-surface1" />
 
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-ctp-subtext0">
+          <label htmlFor={`${id}-viz`} className="text-xs text-ctp-subtext0">
             Visualization Mode
           </label>
           <select
+            id={`${id}-viz`}
             value={params.vizMode}
             onChange={(e) =>
               setParams({ ...params, vizMode: parseInt(e.target.value) })
@@ -419,8 +463,14 @@ export default function ControlPanel({
         </div>
 
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-ctp-subtext0">Collision Mode</label>
+          <label
+            htmlFor={`${id}-collision`}
+            className="text-xs text-ctp-subtext0"
+          >
+            Collision Mode
+          </label>
           <select
+            id={`${id}-collision`}
             value={params.collisionMode}
             onChange={(e) =>
               setParams({ ...params, collisionMode: parseInt(e.target.value) })
@@ -467,8 +517,15 @@ export default function ControlPanel({
             </div>
             <div className="grid grid-cols-3 gap-2">
               <div className="flex flex-col gap-0.5">
-                <label className="text-[10px] text-ctp-subtext0">Min</label>
+                <label
+                  htmlFor={`${id}-sweep-min`}
+                  className="text-[10px] text-ctp-subtext0"
+                >
+                  Min
+                  <span className="sr-only"> sweep wind speed</span>
+                </label>
                 <input
+                  id={`${id}-sweep-min`}
                   type="number"
                   min={0}
                   max={5}
@@ -480,8 +537,15 @@ export default function ControlPanel({
                 />
               </div>
               <div className="flex flex-col gap-0.5">
-                <label className="text-[10px] text-ctp-subtext0">Max</label>
+                <label
+                  htmlFor={`${id}-sweep-max`}
+                  className="text-[10px] text-ctp-subtext0"
+                >
+                  Max
+                  <span className="sr-only"> sweep wind speed</span>
+                </label>
                 <input
+                  id={`${id}-sweep-max`}
                   type="number"
                   min={0}
                   max={5}
@@ -493,8 +557,15 @@ export default function ControlPanel({
                 />
               </div>
               <div className="flex flex-col gap-0.5">
-                <label className="text-[10px] text-ctp-subtext0">Step</label>
+                <label
+                  htmlFor={`${id}-sweep-step`}
+                  className="text-[10px] text-ctp-subtext0"
+                >
+                  Step
+                  <span className="sr-only"> sweep wind speed</span>
+                </label>
                 <input
+                  id={`${id}-sweep-step`}
                   type="number"
                   min={0.5}
                   max={2}
@@ -509,7 +580,10 @@ export default function ControlPanel({
               </div>
             </div>
             {sweepProgress && (
-              <div className="text-xs text-ctp-overlay1 font-mono">
+              <div
+                role="status"
+                className="text-xs text-ctp-overlay1 font-mono"
+              >
                 {sweepProgress}
               </div>
             )}

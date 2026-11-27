@@ -32,3 +32,10 @@
   --color-ctp-mantle: #181825;
   --color-ctp-crust: #11111b;
 }
+
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--color-ctp-mauve);
+    outline-offset: 2px;
+  }
+}

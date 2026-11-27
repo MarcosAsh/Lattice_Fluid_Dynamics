@@ -81,10 +81,14 @@ export function GridCalculator() {
           { label: 'Z (vertical)', value: gridZ, set: setGridZ },
         ].map(({ label, value, set }) => (
           <div key={label}>
-            <label className="text-xs text-ctp-overlay1 block mb-1">
+            <label
+              htmlFor={`grid-${label[0]}`}
+              className="text-xs text-ctp-overlay1 block mb-1"
+            >
               {label}
             </label>
             <input
+              id={`grid-${label[0]}`}
               type="number"
               min={16}
               max={1024}

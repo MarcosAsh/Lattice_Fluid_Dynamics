@@ -3,6 +3,7 @@ const styles = {
     border: 'border-l-ctp-blue',
     icon: (
       <svg
+        aria-hidden="true"
         className="w-4 h-4 text-ctp-blue shrink-0"
         fill="none"
         viewBox="0 0 24 24"
@@ -18,6 +19,7 @@ const styles = {
     border: 'border-l-ctp-yellow',
     icon: (
       <svg
+        aria-hidden="true"
         className="w-4 h-4 text-ctp-yellow shrink-0"
         fill="none"
         viewBox="0 0 24 24"
@@ -36,6 +38,7 @@ const styles = {
     border: 'border-l-ctp-green',
     icon: (
       <svg
+        aria-hidden="true"
         className="w-4 h-4 text-ctp-green shrink-0"
         fill="none"
         viewBox="0 0 24 24"

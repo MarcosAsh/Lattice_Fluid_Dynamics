@@ -8,6 +8,7 @@ import { type DocGroup } from '../../lib/docs-sections';
 function ChevronIcon({ open }: { open: boolean }) {
   return (
     <svg
+      aria-hidden="true"
       className={`w-3 h-3 text-ctp-overlay0 transition-transform ${open ? 'rotate-90' : ''}`}
       fill="none"
       viewBox="0 0 24 24"
@@ -60,13 +61,14 @@ function SidebarContent({
         />
       </Link>
 
-      <nav className="space-y-4">
+      <nav aria-label="Documentation sections" className="space-y-4">
         {groups.map((g) => {
           const isOpen = expanded[g.label] ?? false;
           return (
             <div key={g.label}>
               <button
                 onClick={() => toggle(g.label)}
+                aria-expanded={isOpen}
                 className="flex items-center gap-1.5 w-full text-left text-[10px] text-ctp-overlay0 uppercase tracking-wider font-medium hover:text-ctp-subtext0 transition-colors py-1"
               >
                 <ChevronIcon open={isOpen} />
@@ -81,6 +83,7 @@ function SidebarContent({
                         <a
                           href={`#${s.id}`}
                           onClick={onLinkClick}
+                          aria-current={isActive ? 'location' : undefined}
                           className={`block text-xs py-1 px-3 rounded-r transition-colors border-l-2 ${
                             isActive
                               ? 'border-ctp-mauve text-ctp-text bg-ctp-surface0/50 font-medium'
@@ -213,6 +216,7 @@ export function DocsSidebar({ groups }: { groups: DocGroup[] }) {
         aria-label="Open navigation"
       >
         <svg
+          aria-hidden="true"
           className="w-5 h-5"
           fill="none"
           viewBox="0 0 24 24"
@@ -237,6 +241,8 @@ export function DocsSidebar({ groups }: { groups: DocGroup[] }) {
 
       {/* Mobile drawer */}
       <aside
+        inert={!drawerOpen}
+        aria-label="Navigation"
         className={`lg:hidden fixed inset-y-0 left-0 z-50 w-64 bg-ctp-base border-r border-ctp-surface1 p-6 overflow-y-auto transition-transform duration-200 ${
           drawerOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
@@ -248,6 +254,7 @@ export function DocsSidebar({ groups }: { groups: DocGroup[] }) {
             aria-label="Close navigation"
           >
             <svg
+              aria-hidden="true"
               className="w-5 h-5"
               fill="none"
               viewBox="0 0 24 24"

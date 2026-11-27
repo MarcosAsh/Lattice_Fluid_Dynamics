@@ -748,7 +748,7 @@ python ml/anyobj/export_web.py`}</CodeBlock>
               href="https://github.com/MarcosAsh/3dFluidDynamicsInC/blob/master/CONTRIBUTING.md"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-ctp-blue hover:text-ctp-lavender transition-colors"
+              className="text-ctp-blue hover:text-ctp-lavender underline underline-offset-2 transition-colors"
             >
               CONTRIBUTING.md
             </a>{' '}
@@ -769,7 +769,7 @@ python ml/anyobj/export_web.py`}</CodeBlock>
               href="https://developercertificate.org/"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-ctp-blue hover:text-ctp-lavender transition-colors"
+              className="text-ctp-blue hover:text-ctp-lavender underline underline-offset-2 transition-colors"
             >
               Developer Certificate of Origin
             </a>

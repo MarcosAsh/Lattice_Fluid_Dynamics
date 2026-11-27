@@ -36,21 +36,23 @@ export default function Home() {
   return (
     <main className="min-h-screen p-4 md:p-6 lg:p-10 max-w-7xl mx-auto">
       <div className="mb-4 lg:mb-8 flex items-center gap-3 lg:gap-4">
-        <Image
-          src="/logo.png"
-          alt="Lattice"
-          width={96}
-          height={64}
-          loading="eager"
-          className="h-12 lg:h-16 w-auto"
-        />
+        <h1>
+          <Image
+            src="/logo.png"
+            alt="Lattice"
+            width={96}
+            height={64}
+            loading="eager"
+            className="h-12 lg:h-16 w-auto"
+          />
+        </h1>
         <p className="text-xs lg:text-sm text-ctp-subtext0">
           GPU-accelerated wind tunnel simulation{' '}
           <a
             href="https://github.com/MarcosAsh/3dFluidDynamicsInC"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-ctp-blue hover:text-ctp-lavender transition-colors"
+            className="text-ctp-blue hover:text-ctp-lavender underline underline-offset-2 transition-colors"
           >
             (GitHub)
           </a>

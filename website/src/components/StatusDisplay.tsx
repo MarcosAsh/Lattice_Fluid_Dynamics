@@ -90,16 +90,26 @@ export default function StatusDisplay({
     <div className="border border-ctp-surface1 rounded-lg p-4 bg-ctp-mantle">
       <div className="flex items-center gap-3">
         <div
+          aria-hidden="true"
           className={`w-2.5 h-2.5 rounded-full ${config.color} ${
             isRendering ? 'animate-pulse' : ''
           }`}
         />
-        <span className="text-sm text-ctp-text">{config.text}</span>
+        <span role="status" className="text-sm text-ctp-text">
+          {config.text}
+        </span>
       </div>
 
       {isRendering && (
         <div className="mt-3">
-          <div className="h-1.5 bg-ctp-surface0 rounded-full overflow-hidden">
+          <div
+            role="progressbar"
+            aria-label="Estimated render progress"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(progress * 100)}
+            className="h-1.5 bg-ctp-surface0 rounded-full overflow-hidden"
+          >
             <div
               className="h-full bg-ctp-mauve rounded-full transition-all duration-500 ease-out"
               style={{ width: `${progress * 100}%` }}

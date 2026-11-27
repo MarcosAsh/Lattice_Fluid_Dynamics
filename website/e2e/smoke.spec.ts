@@ -54,7 +54,7 @@ test('shared params and saved runs hydrate without errors', async ({
   await page.goto('/#ws=3.5&m=ahmed35');
 
   await expect(page.getByText('3.5', { exact: true })).toBeVisible();
-  await expect(page.getByRole('combobox').first()).toHaveValue('ahmed35');
+  await expect(page.getByLabel('Model')).toHaveValue('ahmed35');
   await expect(page.getByText('0.4321').first()).toBeVisible();
   expect(pageErrors, `uncaught page errors: ${pageErrors.join('; ')}`).toEqual(
     [],
@@ -92,7 +92,7 @@ test('viewing an older run shows its results', async ({ page }) => {
   const dragCard = page.getByText('Drag Coefficient').locator('..');
   await expect(dragCard).toContainText('2.3002');
 
-  await page.getByRole('button', { name: 'View' }).click();
+  await page.getByRole('button', { name: /^View Car/ }).click();
   await expect(dragCard).toContainText('0.7772');
 });
 
