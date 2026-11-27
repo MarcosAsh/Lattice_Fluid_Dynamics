@@ -28,7 +28,7 @@ GRID_RE = re.compile(r"^\d+x\d+x\d+$")
 
 
 class ConfigError(ValueError):
-    """Raised with every problem found in a config file."""
+    """Raised with every problem found in a config file"""
 
     def __init__(self, path: str | Path, problems: list[str]) -> None:
         self.path = str(path)
@@ -228,7 +228,7 @@ def _cross_checks(kind: str, data: dict, problems: list[str]) -> None:
 
 
 def validate(kind: str, data: Any) -> list[str]:
-    """Return a list of problems, empty when the config is valid."""
+    """Return a list of problems, empty when the config is valid"""
     if not isinstance(data, dict):
         return ["top level must be a mapping of keys to values"]
     problems: list[str] = []
@@ -239,7 +239,7 @@ def validate(kind: str, data: Any) -> list[str]:
 
 
 def load_config(kind: str, path: str | Path) -> dict:
-    """Read a YAML file and validate it against the schema for `kind`."""
+    """Read a YAML file and validate it against the schema for `kind`"""
     if kind not in SCHEMAS:
         raise ValueError(f"unknown config kind {kind!r}, expected one of {sorted(SCHEMAS)}")
     try:
@@ -266,7 +266,7 @@ def load_superres_config(path: str | Path) -> dict:
 
 
 def guess_kind(data: Any) -> str | None:
-    """Pick the config kind from its distinguishing keys."""
+    """Pick the config kind from its distinguishing keys"""
     if not isinstance(data, dict):
         return None
     if "base_models" in data or "ffd_grid" in data:

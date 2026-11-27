@@ -2,7 +2,7 @@
 name = "lattice-ml"
 version = "0.1.0"
 description = "ML drag surrogates and data pipeline for the Lattice fluid dynamics wind tunnel"
-# numpy>=2.5 needs 3.12 and the training box runs 3.12
+# numpy>=2.5 needs 3.12
 requires-python = ">=3.12"
 dependencies = [
     "numpy>=2.5.0",
@@ -56,14 +56,13 @@ addopts = "-ra"
 
 [tool.ruff]
 target-version = "py312"
-# 80 wrapped too many existing lines, 100 leaves 8 over
 line-length = 100
 exclude = ["ml/dataset"]
 # scripts import siblings by bare name
 src = ["ml", "ml/shapeopt", "ml/superres", "simulation", "tests"]
 
 [tool.ruff.format]
-# paper branch rewrites these files, keep them out until it lands
+# pending anyobj rewrite, leave unformatted
 exclude = ["ml/anyobj/**"]
 
 [tool.ruff.lint]
@@ -72,7 +71,7 @@ ignore = ["E741"]
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["E501", "F401"]
-# paper branch owns these files, silence instead of editing
+# pending anyobj rewrite, leave unedited
 "ml/anyobj/**" = [
     "B905",
     "F541",

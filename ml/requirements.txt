@@ -1,4 +1,4 @@
-# Core dependencies plus the "torch" extra in pyproject.toml, uv sync is the source of truth
+# mirrors pyproject.toml, prefer uv sync
 pyyaml>=6.0.3
 requests>=2.34.2
 torch>=2.13.0

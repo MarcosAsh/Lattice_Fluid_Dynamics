@@ -1,4 +1,4 @@
-# Mirrors the "torch" and "plots" extras in pyproject.toml, uv sync is the source of truth
+# mirrors pyproject.toml, prefer uv sync
 pyyaml>=6.0.3
 numpy>=2.5.0
 torch>=2.13.0

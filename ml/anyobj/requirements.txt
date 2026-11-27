@@ -1,4 +1,4 @@
-# Mirrors the "anyobj" extra in pyproject.toml, uv sync is the source of truth
+# mirrors pyproject.toml, prefer uv sync
 numpy>=2.5.0
 scipy>=1.17
 trimesh>=5.0.0

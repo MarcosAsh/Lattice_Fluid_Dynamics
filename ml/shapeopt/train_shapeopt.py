@@ -120,7 +120,7 @@ class ShapeOptSurrogate(nn.Module):
 
 
 def load_checkpoint(path: str | Path) -> dict:
-    """Load a training checkpoint without unpickling arbitrary objects."""
+    """Load a training checkpoint without unpickling arbitrary objects"""
     safe = [
         np._core.multiarray._reconstruct,
         np.ndarray,
