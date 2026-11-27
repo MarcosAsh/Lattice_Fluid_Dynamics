@@ -623,7 +623,8 @@ int main(int argc, char *argv[]) {
             printf("Outlet sponge enabled: %d cells (tau ramps to %.1f)\n",
                    lbmGrid->spongeCells, lbmGrid->spongeTauMax);
 
-        if (!LBM_InitializeFlow(lbmGrid, latticeVelocity, 0.0f, 0.0f)) {
+        // Start at rest to match the inlet ramp
+        if (!LBM_InitializeFlow(lbmGrid, 0.0f, 0.0f, 0.0f)) {
             fprintf(stderr, "FATAL: LBM flow initialization failed\n");
             LBM_Free(lbmGrid);
             return 1;
