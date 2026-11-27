@@ -182,4 +182,7 @@ if(BUILD_TESTING)
         LABELS gl
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
         TIMEOUT 1800)
+
+    # GPU validation suite, slow: ctest -L validation
+    add_subdirectory(validation)
 endif()

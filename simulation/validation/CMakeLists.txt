@@ -1,0 +1,3 @@
+add_executable(lbm_validate lbm_validate.c)
+target_link_libraries(lbm_validate PRIVATE lattice_gl)
+lattice_warnings(lbm_validate)
