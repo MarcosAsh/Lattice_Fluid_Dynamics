@@ -52,7 +52,7 @@ def compute_divergence(fine_field: np.ndarray, shape: tuple) -> np.ndarray:
     return np.abs(div).mean(axis=(1, 2))
 
 
-def evaluate(args):
+def evaluate(args: argparse.Namespace) -> None:
     print(f"Loading dataset: {args.data}")
     coarse, fine = load_srbin(args.data)
 
@@ -154,7 +154,9 @@ def evaluate(args):
         generate_plots(pred_raw, skip_raw, val_fine_raw, args)
 
 
-def generate_plots(pred, skip, truth, args):
+def generate_plots(
+    pred: np.ndarray, skip: np.ndarray, truth: np.ndarray, args: argparse.Namespace
+) -> None:
     """Generate evaluation plots."""
     try:
         import matplotlib
@@ -230,7 +232,7 @@ def generate_plots(pred, skip, truth, args):
     print(f"\nPlots saved to {out_dir}/")
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Evaluate super-resolution upscaler")
     parser.add_argument("--data", required=True, help="Path to .srbin dataset")
     parser.add_argument("--checkpoint", required=True, help="Model .pt file")

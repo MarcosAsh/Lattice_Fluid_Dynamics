@@ -19,7 +19,7 @@ LTWS_MAGIC = 0x4C545753
 LTWS_VERSION = 1
 
 
-def export_ltws(state_dict: dict, output_path: str):
+def export_ltws(state_dict: dict, output_path: str) -> None:
     """
     Export PyTorch state dict to LTWS binary format.
 
@@ -54,7 +54,7 @@ def export_ltws(state_dict: dict, output_path: str):
         print(f"  {name}: {arr.shape}")
 
 
-def export_normalizer(npz_path: str, output_path: str):
+def export_normalizer(npz_path: str, output_path: str) -> None:
     """
     Export normalizer (mean, std) to a binary file.
 
@@ -72,7 +72,7 @@ def export_normalizer(npz_path: str, output_path: str):
     print(f"  File: {output_path}")
 
 
-def compute_weight_offsets(state_dict: dict):
+def compute_weight_offsets(state_dict: dict) -> None:
     """
     Compute flat byte offsets for each parameter in the packed weights
     buffer, for setting GLSL uniform offsets.
@@ -86,7 +86,7 @@ def compute_weight_offsets(state_dict: dict):
     print(f"  Total floats: {offset}")
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Export super-resolution weights to LTWS format")
     parser.add_argument("--checkpoint", required=True, help="PyTorch .pt file")
     parser.add_argument("--output", required=True, help="Output .bin file")

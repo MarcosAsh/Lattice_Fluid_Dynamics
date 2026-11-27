@@ -527,7 +527,7 @@ def write_srbin(
     filepath: Path,
     coarse_patches: list[np.ndarray],
     fine_patches: list[np.ndarray],
-):
+) -> None:
     """Write patch pairs to .srbin format.
 
     Header (16 bytes):
@@ -602,7 +602,7 @@ def load_manifest() -> dict:
     return {"completed": {}, "failed": {}}
 
 
-def save_manifest(manifest: dict):
+def save_manifest(manifest: dict) -> None:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     with MANIFEST_FILE.open("w") as f:
         json.dump(manifest, f, indent=2)
@@ -694,7 +694,7 @@ def process_pair(
 # Main pipeline
 
 
-def run_pipeline(config_path: str, resume: bool = False, use_modal: bool = False):
+def run_pipeline(config_path: str, resume: bool = False, use_modal: bool = False) -> None:
     config = load_config(config_path)
     pairs = generate_pair_configs(config)
     manifest = load_manifest() if resume else {"completed": {}, "failed": {}}
@@ -772,7 +772,7 @@ def run_pipeline(config_path: str, resume: bool = False, use_modal: bool = False
         print("No patches extracted. Check simulation output and grid dimensions.")
 
 
-def save_stats(manifest: dict, accumulator: PatchAccumulator):
+def save_stats(manifest: dict, accumulator: PatchAccumulator) -> None:
     """Write summary statistics to JSON."""
     completed = manifest.get("completed", {})
     failed = manifest.get("failed", {})
@@ -811,7 +811,7 @@ def save_stats(manifest: dict, accumulator: PatchAccumulator):
 # Status display
 
 
-def show_status():
+def show_status() -> None:
     """Show current state of data generation."""
     if not MANIFEST_FILE.exists():
         print("No data generated yet.")
@@ -863,7 +863,7 @@ def show_status():
         print(f"  Bytes per patch: {stats.get('bytes_per_patch', '?')}")
 
 
-def verify_srbin():
+def verify_srbin() -> None:
     """Quick sanity check on the .srbin file."""
     if not SRBIN_FILE.exists():
         print(f"No .srbin file at {SRBIN_FILE}")
@@ -881,7 +881,7 @@ def verify_srbin():
 # CLI
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         description="Generate paired coarse/fine data for super-resolution training"
     )

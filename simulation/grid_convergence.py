@@ -64,7 +64,7 @@ def sweep(
     reynolds: float = 0,
     entropic: bool = False,
     tag: str = "",
-):
+) -> None:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     suffix = f"{model}_{tag}" if tag else model
 

@@ -282,7 +282,7 @@ def _check_cache(cache_id: str) -> dict | None:
         return None
 
 
-def _save_cache(cache_id: str, result: dict):
+def _save_cache(cache_id: str, result: dict) -> None:
     """Save render result metadata to S3 for caching."""
     try:
         bucket = os.environ.get("S3_BUCKET", S3_BUCKET)
@@ -859,7 +859,7 @@ def upload_video(video_path: Path, job_id: str) -> str:
     return url
 
 
-def _save_job_result(job_id: str, result: dict):
+def _save_job_result(job_id: str, result: dict) -> None:
     """Write render result to S3 so the status endpoint can find it."""
     try:
         bucket = os.environ.get("S3_BUCKET", S3_BUCKET)
@@ -1134,7 +1134,7 @@ def main(
     entropic: bool = False,
     build_only: bool = False,
     rebuild: bool = False,
-):
+) -> None:
     import uuid
 
     if rebuild:
@@ -1198,7 +1198,7 @@ def main(
     volumes={"/cache": build_cache},
     timeout=7200,
 )
-def run_tests(grid: str = "256x128x128", duration: int = 120):
+def run_tests(grid: str = "256x128x128", duration: int = 120) -> None:
     """Run LBM test suite + Ahmed body at larger grid on GPU.
 
     Usage: modal run modal_worker.py::run_tests --grid 256x128x128

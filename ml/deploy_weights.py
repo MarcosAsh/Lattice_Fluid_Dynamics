@@ -105,7 +105,7 @@ def deploy_shapeopt(shapeopt_dir: Path) -> bool:
     return changed
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )

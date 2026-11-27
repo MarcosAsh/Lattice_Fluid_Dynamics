@@ -114,7 +114,7 @@ class SuperResNet(nn.Module):
     so the network only learns high-frequency corrections.
     """
 
-    def __init__(self, hidden=128):
+    def __init__(self, hidden: int = 128) -> None:
         super().__init__()
         self.net = nn.Sequential(
             nn.Linear(COARSE_DIM, hidden),
@@ -138,7 +138,7 @@ def compute_psnr(mse: float, data_range: float = 1.0) -> float:
     return 10.0 * np.log10(data_range**2 / mse)
 
 
-def train(args):
+def train(args: argparse.Namespace) -> None:
     print(f"Loading dataset: {args.data}")
     coarse, fine = load_srbin(args.data)
     print(f"  Patches: {len(coarse)}")
@@ -275,7 +275,7 @@ def train(args):
     print(f"  Normalizer: {norm_path}")
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Train super-resolution velocity field upscaler")
     parser.add_argument("--data", required=True, help="Path to .srbin dataset")
     parser.add_argument("--epochs", type=int, default=200)

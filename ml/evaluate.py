@@ -134,7 +134,7 @@ def compute_metrics(true: np.ndarray, pred: np.ndarray) -> dict:
     }
 
 
-def print_metrics(name: str, m: dict, indent: int = 0):
+def print_metrics(name: str, m: dict, indent: int = 0) -> None:
     pad = " " * indent
     print(f"{pad}{name}:")
     print(f"{pad}  MAE       = {m['mae']:.6f}")
@@ -153,7 +153,7 @@ def generate_plots(
     cd_pred: np.ndarray,
     cl_pred: np.ndarray,
     output_dir: Path,
-):
+) -> None:
     import matplotlib
 
     matplotlib.use("Agg")
@@ -284,7 +284,7 @@ def generate_plots(
 # Main
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Evaluate the Cd/Cl surrogate model")
     parser.add_argument(
         "--weights",
