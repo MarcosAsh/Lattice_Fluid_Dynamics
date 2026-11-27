@@ -55,8 +55,14 @@ pythonpath = ["ml", "ml/shapeopt", "ml/superres", "ml/anyobj", "simulation"]
 addopts = "-ra"
 
 [tool.ruff]
-line-length = 80
+target-version = "py312"
+# 80 wrapped too many existing lines, 100 leaves 8 over
+line-length = 100
 exclude = ["ml/dataset"]
+
+[tool.ruff.format]
+# paper branch rewrites these files, keep them out until it lands
+exclude = ["ml/anyobj/**"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]
