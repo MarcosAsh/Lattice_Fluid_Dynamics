@@ -74,6 +74,27 @@ const char *vizModeNames[] = {"Depth",
                               "Streamlines"};
 const int numVizModes = 10;
 
+static float randUnit(void) {
+    return (float)rand() / (float)RAND_MAX;
+}
+
+static void seedParticles(Particle *p, int count) {
+    for (int i = 0; i < count; i++) {
+        // Spread particles across the full domain so the flow looks
+        // continuous from the first frame instead of a single wave.
+        p[i].x = -4.0f + randUnit() * 8.0f;
+        p[i].y = (randUnit() - 0.5f) * 2.6f;
+        p[i].z = (randUnit() - 0.5f) * 2.6f;
+        p[i].padding1 = 0.0f;
+        p[i].vx = 0.3f + randUnit() * 0.1f;
+        p[i].vy = 0.0f;
+        p[i].vz = 0.0f;
+        // Stagger lifetimes so particles respawn at different times
+        // instead of all at once.
+        p[i].life = 0.2f + randUnit() * 0.8f;
+    }
+}
+
 int main(int argc, char *argv[]) {
     printf("Starting 3D Fluid Simulation...\n");
     srand(time(NULL));
@@ -97,7 +118,6 @@ int main(int argc, char *argv[]) {
     int scaleFromCLI = opts.scaleFromCLI;
     int gridX = opts.gridX, gridY = opts.gridY, gridZ = opts.gridZ;
     float smagorinskyCs = opts.smagorinskyCs;
-    int useMRT = opts.useMRT;
     int useEntropic = opts.useEntropic;
     float turbulenceIntensity = opts.turbulenceIntensity;
     int spongeCells = opts.spongeCells;
@@ -218,13 +238,12 @@ int main(int argc, char *argv[]) {
     checkGLError("After shader creation");
 
     glUseProgram(particleShaderProgram);
-    GLuint projectionLoc =
+    GLint projectionLoc =
         glGetUniformLocation(particleShaderProgram, "projection");
-    GLuint viewLoc = glGetUniformLocation(particleShaderProgram, "view");
-    GLuint vizModeLoc =
+    GLint viewLoc = glGetUniformLocation(particleShaderProgram, "view");
+    GLint vizModeLoc =
         glGetUniformLocation(particleShaderProgram, "visualizationMode");
-    GLuint maxSpeedLoc =
-        glGetUniformLocation(particleShaderProgram, "maxSpeed");
+    GLint maxSpeedLoc = glGetUniformLocation(particleShaderProgram, "maxSpeed");
 
     printf("Particle shader uniform locations: projection=%d, view=%d, "
            "vizMode=%d, maxSpeed=%d\n",
@@ -688,20 +707,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    for (int i = 0; i < GPU_PARTICLES; i++) {
-        // Spread particles across the full domain so the flow looks
-        // continuous from the first frame instead of a single wave.
-        particles[i].x = -4.0f + ((float)rand() / RAND_MAX) * 8.0f;
-        particles[i].y = ((float)rand() / RAND_MAX - 0.5f) * 2.6f;
-        particles[i].z = ((float)rand() / RAND_MAX - 0.5f) * 2.6f;
-        particles[i].padding1 = 0.0f;
-        particles[i].vx = 0.3f + ((float)rand() / RAND_MAX) * 0.1f;
-        particles[i].vy = 0.0f;
-        particles[i].vz = 0.0f;
-        // Stagger lifetimes so particles respawn at different times
-        // instead of all at once.
-        particles[i].life = 0.2f + ((float)rand() / RAND_MAX) * 0.8f;
-    }
+    seedParticles(particles, GPU_PARTICLES);
 
     printf("Creating particle buffer...\n");
     GLuint particleBuffer;
@@ -1043,16 +1049,7 @@ int main(int argc, char *argv[]) {
             Particle *fresh =
                 (Particle *)malloc(GPU_PARTICLES * sizeof(Particle));
             if (fresh) {
-                for (int i = 0; i < GPU_PARTICLES; i++) {
-                    fresh[i].x = -4.0f + ((float)rand() / RAND_MAX) * 8.0f;
-                    fresh[i].y = ((float)rand() / RAND_MAX - 0.5f) * 2.6f;
-                    fresh[i].z = ((float)rand() / RAND_MAX - 0.5f) * 2.6f;
-                    fresh[i].padding1 = 0.0f;
-                    fresh[i].vx = 0.3f + ((float)rand() / RAND_MAX) * 0.1f;
-                    fresh[i].vy = 0.0f;
-                    fresh[i].vz = 0.0f;
-                    fresh[i].life = 0.2f + ((float)rand() / RAND_MAX) * 0.8f;
-                }
+                seedParticles(fresh, GPU_PARTICLES);
                 glBindBuffer(GL_SHADER_STORAGE_BUFFER, particleBuffer);
                 glBufferSubData(GL_SHADER_STORAGE_BUFFER,
                                 0,

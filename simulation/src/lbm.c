@@ -426,7 +426,6 @@ void LBM_SetSolidAABB(LBMGrid *grid,
     for (size_t qi = 0; qi < qCount; qi++)
         qData[qi] = -1.0f;
 
-    int qLinks = 0;
     for (int gz = 0; gz < grid->sizeZ; gz++) {
         for (int gy = 0; gy < grid->sizeY; gy++) {
             for (int gx = 0; gx < grid->sizeX; gx++) {
@@ -440,10 +439,8 @@ void LBM_SetSolidAABB(LBMGrid *grid,
                         continue;
                     int ni =
                         nx + ny * grid->sizeX + nz * grid->sizeX * grid->sizeY;
-                    if (solidData[ni] == 1) {
+                    if (solidData[ni] == 1)
                         qData[ci * 19 + i] = 0.5f;
-                        qLinks++;
-                    }
                 }
             }
         }
