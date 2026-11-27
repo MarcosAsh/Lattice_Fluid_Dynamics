@@ -14,47 +14,72 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-simulation:
-    name: Build simulation (C)
-    runs-on: ubuntu-latest
+  simulation:
+    name: Simulation (C)
+    runs-on: ubuntu-24.04
+    env:
+      MESA_GL_VERSION_OVERRIDE: "4.3"
+      LIBGL_ALWAYS_SOFTWARE: "1"
+      USE_EGL: "0"
     steps:
       - uses: actions/checkout@v7
 
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential cmake pkg-config \
-            libsdl2-dev libsdl2-ttf-dev \
-            mesa-common-dev libgl1-mesa-dev libosmesa6-dev \
-            libegl1-mesa-dev xvfb mesa-utils
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake ninja-build pkg-config libsdl2-dev \
+            libgl1-mesa-dev libegl1-mesa-dev xvfb xauth mesa-utils
 
       - name: Configure
-        run: cmake -B build -S simulation -DCMAKE_BUILD_TYPE=Release
+        run: >
+          cmake -G Ninja -B build -S simulation
+          -DCMAKE_BUILD_TYPE=Release -DLATTICE_WERROR=ON
 
       - name: Build
-        run: cmake --build build -j$(nproc)
+        run: cmake --build build
 
-      - name: Smoke test
-        run: ./build/3d_fluid_simulation_car --help
+      - name: Test
+        run: xvfb-run -a ctest --test-dir build --output-on-failure
 
-      - name: Voxelize unit tests
-        run: ./build/test_voxelize
+  sanitizers:
+    name: Simulation (ASan, UBSan)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
 
-      - name: LBM unit tests
+      - name: Install dependencies
         run: |
-          export MESA_GL_VERSION_OVERRIDE=4.3
-          export LIBGL_ALWAYS_SOFTWARE=1
-          export USE_EGL=0
-          cd simulation
-          xvfb-run ../build/test_lbm
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake ninja-build pkg-config libsdl2-dev \
+            libgl1-mesa-dev libegl1-mesa-dev
 
-      - name: Integration test
-        run: |
-          export MESA_GL_VERSION_OVERRIDE=4.3
-          export LIBGL_ALWAYS_SOFTWARE=1
-          export USE_EGL=0
-          cd simulation
-          xvfb-run bash test/test_integration.sh
+      - name: Configure
+        run: >
+          cmake -G Ninja -B build -S simulation
+          -DCMAKE_BUILD_TYPE=Debug -DLATTICE_SANITIZE=address,undefined
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure -L cpu
+
+  framework:
+    name: ML framework (C++)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Configure
+        run: cmake -B build-ml -S ml -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build-ml -j"$(nproc)"
+
+      - name: Test
+        run: ctest --test-dir build-ml --output-on-failure
 
   python:
     name: Python (lint, tests)
