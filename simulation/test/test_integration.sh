@@ -1,9 +1,9 @@
 #!/bin/bash
 # Integration test: run the simulation headless and check output.
-# Needs Xvfb: xvfb-run bash test/test_integration.sh
+# Needs Xvfb: xvfb-run bash test/test_integration.sh [binary]
 set -e
 
-BINARY="./build/3d_fluid_simulation_car"
+BINARY="${1:-./build/3d_fluid_simulation_car}"
 MODEL="assets/3d-files/ahmed_25deg_m.obj"
 OUTDIR=$(mktemp -d)
 PASSED=0
