@@ -30,6 +30,8 @@ void compute_strouhal(float *clSeries,
 
     // Hann window + mean removal
     float *win = (float *)malloc(n * sizeof(float));
+    if (!win)
+        return;
     for (int i = 0; i < n; i++) {
         float w = 0.5f * (1.0f - cosf(2.0f * (float)M_PI * i / (n - 1)));
         win[i] = (sig[i] - mean) * w;

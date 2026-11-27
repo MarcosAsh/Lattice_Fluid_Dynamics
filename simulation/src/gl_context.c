@@ -25,6 +25,8 @@ static void warn_if_software_renderer(void) {
 
 GLContext *GLContext_CreateInteractive(int w, int h) {
     GLContext *ctx = (GLContext *)calloc(1, sizeof(*ctx));
+    if (!ctx)
+        return NULL;
     ctx->useEGL = 0;
     ctx->width = w;
     ctx->height = h;
@@ -101,6 +103,8 @@ static GLContext *headless_sdl_fallback(int w, int h) {
     setenv("MESA_GL_VERSION_OVERRIDE", "4.3", 0);
 
     GLContext *ctx = (GLContext *)calloc(1, sizeof(*ctx));
+    if (!ctx)
+        return NULL;
     ctx->useEGL = 0;
     ctx->width = w;
     ctx->height = h;
@@ -336,6 +340,13 @@ GLContext *GLContext_CreateHeadless(int w, int h) {
     }
 
     GLContext *ctx = (GLContext *)calloc(1, sizeof(*ctx));
+    if (!ctx) {
+        eglMakeCurrent(display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+        eglDestroySurface(display, surface);
+        eglDestroyContext(display, eglCtx);
+        eglTerminate(display);
+        return NULL;
+    }
     ctx->useEGL = 1;
     ctx->width = w;
     ctx->height = h;

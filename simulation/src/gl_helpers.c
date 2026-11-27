@@ -28,10 +28,12 @@ void saveFrameToPPM(const char *filename, int width, int height) {
 
     fprintf(f, "P6\n%d %d\n255\n", width, height);
 
-    for (int y = height - 1; y >= 0; y--) {
-        fwrite(pixels + y * width * 3, 1, width * 3, f);
-    }
+    size_t row = (size_t)width * 3;
+    int ok = 1;
+    for (int y = height - 1; y >= 0 && ok; y--)
+        ok = fwrite(pixels + (size_t)y * row, 1, row, f) == row;
 
-    fclose(f);
+    if (fclose(f) != 0 || !ok)
+        printf("Error: Could not write %s\n", filename);
     free(pixels);
 }

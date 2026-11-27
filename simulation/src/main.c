@@ -799,6 +799,10 @@ int main(int argc, char *argv[]) {
     {
         int idxCount = GPU_PARTICLES * (TRAIL_LEN + 1);
         GLuint *indices = (GLuint *)malloc(idxCount * sizeof(GLuint));
+        if (!indices) {
+            printf("Failed to allocate index buffer\n");
+            return 1;
+        }
         int k = 0;
         for (int i = 0; i < GPU_PARTICLES; i++) {
             for (int j = 0; j < TRAIL_LEN; j++)
@@ -850,6 +854,10 @@ int main(int argc, char *argv[]) {
     {
         int idxCount = STREAMLINE_SEEDS * (STREAMLINE_LEN + 1);
         GLuint *indices = (GLuint *)malloc(idxCount * sizeof(GLuint));
+        if (!indices) {
+            printf("Failed to allocate index buffer\n");
+            return 1;
+        }
         int k = 0;
         for (int i = 0; i < STREAMLINE_SEEDS; i++) {
             for (int j = 0; j < STREAMLINE_LEN; j++)

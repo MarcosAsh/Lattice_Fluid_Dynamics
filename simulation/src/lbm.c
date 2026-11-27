@@ -236,10 +236,14 @@ LBMGrid *LBM_Create(int sizeX, int sizeY, int sizeZ, float viscosity) {
     // (sentinel = no boundary link). Filled by LBM_SetSolidMesh.
     size_t qSize = (size_t)19 * grid->totalCells * sizeof(float);
     float *qInit = (float *)malloc(qSize);
-    if (qInit) {
-        for (size_t i = 0; i < (size_t)19 * grid->totalCells; i++)
-            qInit[i] = -1.0f;
+    if (!qInit) {
+        printf("ERROR: CPU alloc failed for qBuffer init (%.1f MB)\n",
+               qSize / (1024.0 * 1024.0));
+        LBM_Free(grid);
+        return NULL;
     }
+    for (size_t i = 0; i < (size_t)19 * grid->totalCells; i++)
+        qInit[i] = -1.0f;
     glGenBuffers(1, &grid->qBuffer);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->qBuffer);
     glBufferData(GL_SHADER_STORAGE_BUFFER, qSize, qInit, GL_STATIC_DRAW);
@@ -404,6 +408,14 @@ void LBM_SetSolidAABB(LBMGrid *grid,
            gMaxZ);
 
     int *solidData = (int *)calloc(grid->totalCells, sizeof(int));
+    size_t qCount = (size_t)19 * grid->totalCells;
+    float *qData = (float *)malloc(qCount * sizeof(float));
+    if (!solidData || !qData) {
+        printf("ERROR: out of memory in LBM_SetSolidAABB\n");
+        free(solidData);
+        free(qData);
+        return;
+    }
 
     for (int z = gMinZ; z <= gMaxZ; z++) {
         for (int y = gMinY; y <= gMaxY; y++) {
@@ -421,8 +433,6 @@ void LBM_SetSolidAABB(LBMGrid *grid,
     // Set Bouzidi q = 0.5 (midpoint) for all boundary links.
     // This is equivalent to standard bounce-back but lets the force
     // shader find the links via q_val >= 0.
-    size_t qCount = (size_t)19 * grid->totalCells;
-    float *qData = (float *)malloc(qCount * sizeof(float));
     for (size_t qi = 0; qi < qCount; qi++)
         qData[qi] = -1.0f;
 
@@ -459,6 +469,14 @@ void LBM_SetSolidSphere(
     float scaleZ = grid->sizeZ / 4.0f;
 
     int *solidData = (int *)calloc(grid->totalCells, sizeof(int));
+    size_t qCount = (size_t)19 * grid->totalCells;
+    float *qData = (float *)malloc(qCount * sizeof(float));
+    if (!solidData || !qData) {
+        printf("ERROR: out of memory in LBM_SetSolidSphere\n");
+        free(solidData);
+        free(qData);
+        return;
+    }
     int solidCount = 0;
 
     for (int gz = 0; gz < grid->sizeZ; gz++) {
@@ -490,8 +508,6 @@ void LBM_SetSolidSphere(
         GL_SHADER_STORAGE_BUFFER, 0, grid->totalCells * sizeof(int), solidData);
 
     // Bouzidi q via analytic ray-sphere intersection
-    size_t qCount = (size_t)19 * grid->totalCells;
-    float *qData = (float *)malloc(qCount * sizeof(float));
     for (size_t qi = 0; qi < qCount; qi++)
         qData[qi] = -1.0f;
 
@@ -562,12 +578,18 @@ void LBM_AddGroundPlane(LBMGrid *grid, float worldZ) {
 
     // Read back existing buffers
     int *solidData = (int *)malloc(grid->totalCells * sizeof(int));
+    size_t qCount = (size_t)19 * grid->totalCells;
+    float *qData = (float *)malloc(qCount * sizeof(float));
+    if (!solidData || !qData) {
+        printf("ERROR: out of memory in LBM_AddGroundPlane\n");
+        free(solidData);
+        free(qData);
+        return;
+    }
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->solidBuffer);
     glGetBufferSubData(
         GL_SHADER_STORAGE_BUFFER, 0, grid->totalCells * sizeof(int), solidData);
 
-    size_t qCount = (size_t)19 * grid->totalCells;
-    float *qData = (float *)malloc(qCount * sizeof(float));
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->qBuffer);
     glGetBufferSubData(
         GL_SHADER_STORAGE_BUFFER, 0, qCount * sizeof(float), qData);
@@ -633,6 +655,8 @@ void LBM_AddGroundPlane(LBMGrid *grid, float worldZ) {
 
 float LBM_ComputeProjectedArea(LBMGrid *grid, int axis) {
     int *solidData = (int *)malloc(grid->totalCells * sizeof(int));
+    if (!solidData)
+        return 0.0f;
     glMemoryBarrier(GL_BUFFER_UPDATE_BARRIER_BIT);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->solidBuffer);
     glGetBufferSubData(
@@ -1038,6 +1062,14 @@ void LBM_SetSolidMesh(LBMGrid *grid,
                       float maxZ) {
 
     int *solidData = (int *)calloc(grid->totalCells, sizeof(int));
+    size_t qCount = (size_t)19 * grid->totalCells;
+    float *qData = (float *)malloc(qCount * sizeof(float));
+    if (!solidData || !qData) {
+        printf("ERROR: out of memory in LBM_SetSolidMesh\n");
+        free(solidData);
+        free(qData);
+        return;
+    }
 
     // Precompute simple bounds per triangle so most tests can be skipped
     // quickly.
@@ -1169,8 +1201,6 @@ void LBM_SetSolidMesh(LBMGrid *grid,
     // Compute Bouzidi q values: for each fluid cell with a solid
     // neighbor, ray-cast along the lattice link to find the fractional
     // distance to the actual mesh surface.
-    size_t qCount = (size_t)19 * grid->totalCells;
-    float *qData = (float *)malloc(qCount * sizeof(float));
     for (size_t qi = 0; qi < qCount; qi++)
         qData[qi] = -1.0f;
 
