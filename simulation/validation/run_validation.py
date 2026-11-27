@@ -23,18 +23,14 @@ from pathlib import Path
 import matplotlib
 
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt  # noqa: E402
-import numpy as np  # noqa: E402
+import matplotlib.pyplot as plt
+import numpy as np
 
 
 def cgw(re_num):
     """Clift, Grace & Weber (1978) standard drag curve for a sphere."""
     if re_num <= 20:
-        return (
-            24
-            / re_num
-            * (1 + 0.1315 * re_num ** (0.82 - 0.05 * math.log10(re_num)))
-        )
+        return 24 / re_num * (1 + 0.1315 * re_num ** (0.82 - 0.05 * math.log10(re_num)))
     if re_num <= 260:
         return 24 / re_num * (1 + 0.1935 * re_num**0.6305)
     w = math.log10(re_num)
@@ -71,7 +67,7 @@ class Suite:
         self.results = {}
 
     def run(self, name, args, binary=None):
-        cmd = [binary or self.validate] + args
+        cmd = [binary or self.validate, *args]
         t0 = time.time()
         proc = subprocess.run(cmd, capture_output=True, text=True)
         dt = time.time() - t0
@@ -80,11 +76,9 @@ class Suite:
         rows = parse_result(text)
         for r in rows:
             r["wall_seconds"] = round(dt, 1)
-            r["command"] = " ".join(["./build/validation/lbm_validate"] + args)
+            r["command"] = " ".join(["./build/validation/lbm_validate", *args])
         self.results[name] = rows
-        print(
-            f"{name}: {len(rows)} result(s) in {dt:.0f} s, rc={proc.returncode}"
-        )
+        print(f"{name}: {len(rows)} result(s) in {dt:.0f} s, rc={proc.returncode}")
         return rows, text, proc.returncode
 
     def check(self, case, quantity, measured, reference, tol, ok, unit=""):
@@ -99,10 +93,7 @@ class Suite:
             }
         )
         flag = "PASS" if ok else "FAIL"
-        print(
-            f"  [{flag}] {case}: {quantity} = {measured}"
-            f" (ref {reference}, tol {tol}){unit}"
-        )
+        print(f"  [{flag}] {case}: {quantity} = {measured} (ref {reference}, tol {tol}){unit}")
 
 
 def uniform(s):
@@ -132,9 +123,7 @@ def tgv(s):
     table = []
     for op in ["bgk", "reg", "mrt", "ent"]:
         for n in [32, 64, 128]:
-            rows, _, _ = s.run(
-                f"tgv_{op}_{n}", ["tgv", f"--op={op}", f"--n={n}", "--tau=0.6"]
-            )
+            rows, _, _ = s.run(f"tgv_{op}_{n}", ["tgv", f"--op={op}", f"--n={n}", "--tau=0.6"])
             if not rows:
                 s.check(f"TGV {op} n={n}", "run", "no result", "", "", False)
                 continue
@@ -198,9 +187,7 @@ def tgv(s):
                 abs(ratio - 1) < 0.05,
             )
     # Periodic z seam across SSBO slabs
-    a, _, _ = s.run(
-        "tgv_xz_whole", ["tgv", "--op=bgk", "--n=64", "--tau=0.6", "--plane=xz"]
-    )
+    a, _, _ = s.run("tgv_xz_whole", ["tgv", "--op=bgk", "--n=64", "--tau=0.6", "--plane=xz"])
     b, _, _ = s.run(
         "tgv_xz_slabs",
         [
@@ -225,17 +212,15 @@ def tgv(s):
     s.results["tgv_table"] = table
     if table:
         fig, ax = plt.subplots(figsize=(6, 4))
-        for op, mk in zip(["bgk", "reg", "mrt", "ent"], "osd^"):
+        for op, mk in zip(["bgk", "reg", "mrt", "ent"], "osd^", strict=True):
             pts = [
                 (r["n"], abs(r["nu_err"]))
                 for r in table
-                if r.get("op") == op
-                and r.get("tau") == 0.6
-                and r.get("smag", 0) == 0
+                if r.get("op") == op and r.get("tau") == 0.6 and r.get("smag", 0) == 0
             ]
             if pts:
                 pts.sort()
-                ax.loglog(*zip(*pts), marker=mk, label=op)
+                ax.loglog(*zip(*pts, strict=True), marker=mk, label=op)
         ax.set_xlabel("N (cells per wavelength)")
         ax.set_ylabel("|nu_eff / nu - 1|")
         ax.set_title("Taylor-Green decay, tau = 0.6")
@@ -276,9 +261,7 @@ def poiseuille(s):
                     abs(r["force_err"]) < 1e-3 and r["resets"] == 0,
                 )
             if len(errs) >= 2:
-                order = math.log(errs[0][1] / errs[1][1]) / math.log(
-                    errs[1][0] / errs[0][0]
-                )
+                order = math.log(errs[0][1] / errs[1][1]) / math.log(errs[1][0] / errs[0][0])
                 s.check(
                     f"Poiseuille {op} q={q}",
                     "L2 order, H 8 to 16",
@@ -292,13 +275,9 @@ def poiseuille(s):
         fig, ax = plt.subplots(figsize=(6, 4))
         for op, ls in [("bgk", "-"), ("mrt", "--")]:
             for q, mk in [(0.5, "o"), (0.25, "s"), (0.75, "^")]:
-                pts = sorted(
-                    (r["h"], r["l2"])
-                    for r in table
-                    if r["op"] == op and r["q"] == q
-                )
+                pts = sorted((r["h"], r["l2"]) for r in table if r["op"] == op and r["q"] == q)
                 if pts:
-                    ax.loglog(*zip(*pts), ls=ls, marker=mk, label=f"{op} q={q}")
+                    ax.loglog(*zip(*pts, strict=True), ls=ls, marker=mk, label=f"{op} q={q}")
         h = np.array([8, 32])
         ax.loglog(h, 0.02 * (h / 8.0) ** -2, "k:", label="slope -2")
         ax.set_xlabel("H (fluid nodes across channel)")
@@ -349,13 +328,9 @@ def sphere(s, quick):
     if quick:
         cases = [(20, 8), (100, 8)]
     for re_num, d in cases:
-        rows, _, _ = s.run(
-            f"sphere_re{re_num}_d{d}", ["sphere", f"--re={re_num}", f"--d={d}"]
-        )
+        rows, _, _ = s.run(f"sphere_re{re_num}_d{d}", ["sphere", f"--re={re_num}", f"--d={d}"])
         if not rows:
-            s.check(
-                f"sphere Re={re_num} D={d}", "run", "no result", "", "", False
-            )
+            s.check(f"sphere Re={re_num} D={d}", "run", "no result", "", "", False)
             continue
         r = rows[0]
         ref = cgw(re_num)
@@ -403,6 +378,10 @@ def sphere(s, quick):
         if rows:
             rows[0]["cd_ref"] = cgw(100)
             table.append(rows[0])
+        rows, _, _ = s.run("sphere_re100_d12_bgk", ["sphere", "--re=100", "--d=12", "--op=bgk"])
+        if rows:
+            rows[0]["cd_ref"] = cgw(100)
+            table.append(rows[0])
     s.results["sphere_table"] = table
     if table:
         fig, ax = plt.subplots(figsize=(6, 4))
@@ -416,10 +395,8 @@ def sphere(s, quick):
                 and r["smag"] == 0
             )
             if pts:
-                ax.plot(*zip(*pts), marker=mk, label=f"LBM Re={re_num}")
-                ax.axhline(
-                    cgw(re_num), ls="--", color=ax.lines[-1].get_color(), lw=0.8
-                )
+                ax.plot(*zip(*pts, strict=True), marker=mk, label=f"LBM Re={re_num}")
+                ax.axhline(cgw(re_num), ls="--", color=ax.lines[-1].get_color(), lw=0.8)
         ax.set_xlabel("sphere diameter D (cells)")
         ax.set_ylabel("Cd")
         ax.set_title("Sphere drag, dashed = Clift, Grace & Weber")
@@ -437,19 +414,20 @@ def ahmed(s, quick):
         for grid in grids:
             dur = 20 if grid == "128x64x64" else 30
             name = f"ahmed{angle}_{grid}"
+            manifest = s.logs / f"{name}.json"
             args = [
                 f"--model=assets/3d-files/ahmed_{angle}deg_m.obj",
                 f"--grid={grid}",
                 "--wind=1.0",
                 f"--duration={dur}",
             ]
-            _, text, rc = s.run(name, args, binary=s.tunnel)
+            _, text, rc = s.run(name, [*args, f"--manifest={manifest}"], binary=s.tunnel)
+            # The per-sample series is only on stdout
             cd = [float(m) for m in re.findall(r" Cd=([-0-9.]+)", text)]
             cl = [float(m) for m in re.findall(r" Cl=([-0-9.]+)", text)]
-            re_eff = re.search(r"Effective Re = (\d+)", text)
-            area = re.search(
-                r"Reference area: ([0-9.]+) cells\^2 \(voxel ([0-9.]+)\)", text
-            )
+            man = json.loads(manifest.read_text()) if manifest.exists() else {}
+            lat = man.get("lattice", {})
+            area = re.search(r"Reference area: ([0-9.]+) cells\^2 \(voxel ([0-9.]+)\)", text)
             if len(cd) < 8:
                 s.check(
                     f"Ahmed {angle} {grid}",
@@ -464,7 +442,10 @@ def ahmed(s, quick):
             row = {
                 "angle": angle,
                 "grid": grid,
-                "re": float(re_eff.group(1)) if re_eff else float("nan"),
+                "re": lat.get("reynolds_effective", float("nan")),
+                "tau": lat.get("tau", float("nan")),
+                "mach": lat.get("mach", float("nan")),
+                "operator": lat.get("collision_operator", "?"),
                 "cd_mean": float(tail.mean()),
                 "cd_sd": float(tail.std()),
                 "cl_mean": float(np.mean(cl[len(cl) // 2 :])),
@@ -516,9 +497,7 @@ def write_table(s):
         lines.append("| " + " | ".join(str(x) for x in cells) + " |")
     (s.out / "results.md").write_text("\n".join(lines) + "\n")
     (s.out / "results.json").write_text(
-        json.dumps(
-            {"checks": s.checks, "results": s.results}, indent=1, default=str
-        )
+        json.dumps({"checks": s.checks, "results": s.results}, indent=1, default=str)
     )
 
 
@@ -526,13 +505,9 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--build", default="build")
     ap.add_argument("--out", default="../docs/validation")
-    ap.add_argument(
-        "--logs", default=None, help="raw run logs (default: <out>/logs)"
-    )
+    ap.add_argument("--logs", default=None, help="raw run logs (default: <out>/logs)")
     ap.add_argument("--quick", action="store_true", help="small grids only")
-    ap.add_argument(
-        "--cases", default="uniform,tgv,poiseuille,qcheck,sphere,ahmed"
-    )
+    ap.add_argument("--cases", default="uniform,tgv,poiseuille,qcheck,sphere,ahmed")
     a = ap.parse_args()
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
