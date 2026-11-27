@@ -166,3 +166,28 @@ test('reduced motion stops autoplay and transitions', async ({ page }) => {
     .evaluate((el) => getComputedStyle(el).transitionDuration);
   expect(parseFloat(duration)).toBeLessThan(0.001);
 });
+
+test('docs open with the annotated getting started tutorial', async ({
+  page,
+}) => {
+  await page.goto('/docs');
+  const tutorial = page.locator('#tutorial');
+  await expect(
+    tutorial.getByRole('heading', { name: 'Using the Simulator' }),
+  ).toBeVisible();
+  await expect(
+    tutorial.getByRole('heading', { name: 'Read the drag coefficient' }),
+  ).toBeVisible();
+
+  const images = tutorial.getByRole('img');
+  await expect(images).toHaveCount(2);
+  for (const img of await images.all()) {
+    await img.scrollIntoViewIfNeeded();
+    await expect
+      .poll(() => img.evaluate((el: HTMLImageElement) => el.naturalWidth))
+      .toBeGreaterThan(0);
+  }
+  await expect(
+    tutorial.getByTestId('annotated-shot').locator('span[aria-hidden]'),
+  ).toHaveCount(4);
+});

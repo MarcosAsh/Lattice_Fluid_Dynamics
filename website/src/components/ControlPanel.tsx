@@ -240,7 +240,10 @@ export default function ControlPanel({
     disabled || !canRender || (isCustom && !objFile) || validating;
 
   return (
-    <div className="flex flex-col gap-4 p-4 border border-ctp-surface1 rounded-lg overflow-y-auto bg-ctp-mantle">
+    <div
+      data-testid="control-panel"
+      className="flex flex-col gap-4 p-4 border border-ctp-surface1 rounded-lg overflow-y-auto bg-ctp-mantle"
+    >
       {/* Mobile: compact header with toggle + run button */}
       <div className="flex items-center justify-between lg:hidden">
         <button

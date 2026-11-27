@@ -1,0 +1,36 @@
+{
+  "controls": {
+    "src": "/docs/tutorial-controls.png",
+    "width": 240,
+    "height": 865,
+    "markers": [
+      {
+        "n": 1,
+        "x": 92.9,
+        "y": 8
+      },
+      {
+        "n": 2,
+        "x": 92.9,
+        "y": 19.7
+      },
+      {
+        "n": 3,
+        "x": 92.9,
+        "y": 75.5
+      }
+    ]
+  },
+  "results": {
+    "src": "/docs/tutorial-results.png",
+    "width": 936,
+    "height": 510,
+    "markers": [
+      {
+        "n": 4,
+        "x": 25.3,
+        "y": 8.8
+      }
+    ]
+  }
+}

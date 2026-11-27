@@ -472,7 +472,10 @@ export default function ResultsPanel({
   if (history.length === 0) return null;
 
   return (
-    <div className="border border-ctp-surface1 rounded-lg p-4 bg-ctp-mantle">
+    <div
+      data-testid="results-panel"
+      className="border border-ctp-surface1 rounded-lg p-4 bg-ctp-mantle"
+    >
       <h2 className="text-xs font-semibold text-ctp-overlay1 uppercase tracking-wider mb-3">
         Results
       </h2>

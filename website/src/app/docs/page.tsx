@@ -10,6 +10,8 @@ import { DocTable } from '../../components/docs/DocTable';
 import { MathBlock } from '../../components/docs/MathBlock';
 import { SrcLink } from '../../components/docs/SrcLink';
 import { GridCalculator } from '../../components/docs/GridCalculator';
+import { AnnotatedShot, StepBadge } from '../../components/docs/AnnotatedShot';
+import shots from '../../components/docs/tutorial-shots.json';
 
 export const metadata: Metadata = {
   title: 'Documentation',
@@ -33,6 +35,26 @@ function Section({
       </h2>
       {children}
     </section>
+  );
+}
+
+function Step({
+  n,
+  title,
+  children,
+}: {
+  n: number;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <li className="flex gap-3">
+      <StepBadge n={n} />
+      <div>
+        <h3 className="text-base font-semibold mb-1">{title}</h3>
+        <p className="text-sm text-ctp-subtext1 leading-relaxed">{children}</p>
+      </div>
+    </li>
   );
 }
 
@@ -65,6 +87,66 @@ export default function DocsPage() {
             and includes an ML surrogate for instant predictions.
           </P>
         </header>
+
+        <Section id="tutorial" title="Using the Simulator">
+          <P>
+            A first run takes four steps on the home page. The numbered badges
+            on the screenshots match the steps.
+          </P>
+
+          <div className="grid gap-6 md:grid-cols-[240px_1fr] items-start mb-8">
+            <AnnotatedShot
+              className="max-w-60 mx-auto md:mx-0"
+              shot={shots.controls}
+              alt="The Simulation Parameters panel, with the Model menu, the Wind Speed slider and the Start Render button marked 1 to 3"
+            />
+            <ol className="space-y-6">
+              <Step n={1} title="Pick a model">
+                Open the Model menu. Car is a generic road car, and the two
+                Ahmed bodies are standard CFD benchmark shapes with a 25 or 35
+                degree rear slant. Custom OBJ lets you upload your own mesh.
+              </Step>
+              <Step n={2} title="Set the wind speed">
+                Drag the Wind Speed slider between 0 and 5. Leave Reynolds
+                Number on Auto to derive it from the wind speed, or pick a
+                preset. The ML Estimate box shows an instant Cd and Cl from the
+                surrogate model before you run anything.
+              </Step>
+              <Step n={3} title="Start the render">
+                Press Start Render. The status box under the controls follows
+                the job from starting a GPU through running the simulation to
+                encoding the video. A 5 second clip usually takes under a
+                minute, longer when the GPU has to cold start.
+              </Step>
+            </ol>
+          </div>
+
+          <div className="mb-6">
+            <AnnotatedShot
+              shot={shots.results}
+              alt="The Results panel after a run, with the Drag Coefficient card marked 4"
+            />
+          </div>
+          <ol className="mb-6">
+            <Step n={4} title="Read the drag coefficient">
+              When the run finishes, the Results panel shows Cd and Cl, the
+              Strouhal number when the lift signal is long enough, and a
+              convergence chart. A flat tail on the Cd line means the value has
+              settled. Export CSV saves every sample.
+            </Step>
+          </ol>
+
+          <Callout type="tip">
+            With two or more runs saved, tick two rows in the All Runs table to
+            compare them side by side. The page address keeps your settings, so
+            you can copy it to share a setup.
+          </Callout>
+          <Callout type="note">
+            If the backend status reads Not configured, the site has no GPU
+            worker and cannot render. The Examples on the home page hold results
+            from earlier runs, so steps 1, 2 and 4 still work.
+          </Callout>
+        </Section>
 
         {/* ------------------------------------------------------------ */}
         {/* Quick Start                                                   */}

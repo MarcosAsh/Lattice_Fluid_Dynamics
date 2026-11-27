@@ -14,6 +14,7 @@ export const SECTION_GROUPS: DocGroup[] = [
   {
     label: 'Getting Started',
     sections: [
+      { id: 'tutorial', label: 'Using the Simulator' },
       { id: 'quickstart', label: 'Quick Start' },
       { id: 'how-it-works', label: 'How It Works' },
       { id: 'architecture', label: 'Architecture' },
