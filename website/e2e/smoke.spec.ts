@@ -135,3 +135,16 @@ for (const [path, title] of [
     expect(problems, problems.join('; ')).toEqual([]);
   });
 }
+
+test('unknown pages get the styled 404', async ({ page }) => {
+  const res = await page.goto('/no-such-page');
+  expect(res?.status()).toBe(404);
+  await expect(
+    page.getByRole('heading', { name: 'Page not found' }),
+  ).toBeVisible();
+  await expect(page).toHaveTitle('Page not found | Lattice');
+  await page.getByRole('link', { name: 'Open the simulator' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Simulation Parameters' }),
+  ).toBeVisible();
+});
