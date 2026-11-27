@@ -83,6 +83,50 @@ else
     fail "no Cd with SR fallback"
 fi
 
+# Test 6: run manifest lands in the output directory
+echo "test: manifest written with --output"
+MANIFEST="$OUTDIR/manifest.json"
+if [ -s "$MANIFEST" ] && grep -q '"schema_version": 1' "$MANIFEST"; then
+    pass "manifest.json written"
+else
+    fail "no manifest.json"
+fi
+if command -v python3 >/dev/null 2>&1; then
+    if python3 - "$MANIFEST" <<'PY'
+import json, sys
+m = json.load(open(sys.argv[1]))
+for k in ("git", "gl", "parameters", "lattice", "model", "run", "results",
+          "convergence", "start_time_utc", "wall_seconds"):
+    assert k in m, k
+assert m["results"]["cd_samples"] > 0
+assert m["lattice"]["tau"] > 0.5
+assert m["model"]["solid_cells"] > 0
+assert m["run"]["output_frames"] > 0
+assert m["convergence"]["enabled"] is False
+PY
+    then
+        pass "manifest parses and has the fields"
+    else
+        fail "manifest fields"
+    fi
+fi
+
+# Test 7: --converge stops early and reports
+echo "test: --converge reports and records convergence"
+CONV_OUTPUT=$($BINARY --wind=1.0 --grid=32x16x16 --model=$MODEL \
+    --converge=0.02 --converge-window=4 --max-duration=10 \
+    --manifest="$OUTDIR/conv.json" 2>&1)
+if echo "$CONV_OUTPUT" | grep -q "^Convergence: "; then
+    pass "convergence reported"
+else
+    fail "no convergence report"
+fi
+if grep -q '"enabled": true' "$OUTDIR/conv.json" 2>/dev/null; then
+    pass "convergence in manifest"
+else
+    fail "convergence missing from manifest"
+fi
+
 # Cleanup
 rm -rf "$OUTDIR"
 

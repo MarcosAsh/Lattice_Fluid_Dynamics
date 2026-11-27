@@ -79,6 +79,7 @@ add_library(lattice_util STATIC
     src/cli.c
     src/convergence.c
     src/drag_metrics.c
+    src/manifest.c
     src/ml_predict.c)
 target_include_directories(lattice_util
     PUBLIC lib
@@ -137,6 +138,10 @@ if(BUILD_TESTING)
     target_link_libraries(test_convergence PRIVATE lattice_util)
     lattice_warnings(test_convergence)
 
+    add_executable(test_manifest test/test_manifest.c)
+    target_link_libraries(test_manifest PRIVATE lattice_util)
+    lattice_warnings(test_manifest)
+
     # Needs a GL 4.3 context
     add_executable(test_lbm test/test_lbm.c)
     target_link_libraries(test_lbm PRIVATE lattice_gl)
@@ -145,6 +150,18 @@ if(BUILD_TESTING)
     add_test(NAME voxelize_unit_tests COMMAND test_voxelize)
     add_test(NAME cli_unit_tests COMMAND test_cli)
     add_test(NAME convergence_unit_tests COMMAND test_convergence)
+    add_test(NAME manifest_unit_tests COMMAND test_manifest)
+    set_tests_properties(manifest_unit_tests PROPERTIES
+        LABELS cpu FIXTURES_SETUP manifest_file)
+    find_package(Python3 COMPONENTS Interpreter)
+    if(Python3_FOUND)
+        add_test(NAME manifest_json_parses
+            COMMAND ${Python3_EXECUTABLE} -c
+                "import json,sys; d=json.load(open(sys.argv[1])); assert d['schema_version'] == 1"
+                test_manifest.json)
+        set_tests_properties(manifest_json_parses PROPERTIES
+            LABELS cpu FIXTURES_REQUIRED manifest_file)
+    endif()
     add_test(NAME cli_help COMMAND 3d_fluid_simulation_car --help)
     add_test(NAME cli_version COMMAND 3d_fluid_simulation_car --version)
     set_tests_properties(voxelize_unit_tests cli_unit_tests

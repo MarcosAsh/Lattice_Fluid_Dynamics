@@ -114,6 +114,19 @@ static void test_invalid_values(void) {
     CHECK(parse(&o, longPath, NULL) == -1, "rejects over-long path");
 }
 
+static void test_manifest_path(void) {
+    printf("test: manifest path\n");
+    CliOptions o;
+    CHECK(parse(&o, NULL, NULL) == 0 && o.manifestPath[0] == '\0',
+          "no manifest without output");
+    CHECK(parse(&o, "--output=/tmp/run", NULL) == 0 &&
+              strcmp(o.manifestPath, "/tmp/run/manifest.json") == 0,
+          "defaults into the output directory");
+    CHECK(parse(&o, "--output=/tmp/run", "--manifest=/tmp/m.json") == 0 &&
+              strcmp(o.manifestPath, "/tmp/m.json") == 0,
+          "explicit path wins");
+}
+
 static void test_converge_options(void) {
     printf("test: convergence options\n");
     CliOptions o;
@@ -151,6 +164,7 @@ int main(void) {
     test_defaults();
     test_valid_values();
     test_invalid_values();
+    test_manifest_path();
     test_converge_options();
     test_help();
     printf("\n%d/%d checks passed\n", tests_run - tests_failed, tests_run);

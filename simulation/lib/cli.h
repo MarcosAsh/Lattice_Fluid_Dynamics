@@ -26,7 +26,8 @@ typedef struct {
     int useSuperRes;
     char srWeightsPath[256];
     char srNormPath[256];
-    float convergeTol; // 0 = off
+    char manifestPath[512]; // defaults to <output>/manifest.json
+    float convergeTol;      // 0 = off
     int convergeWindow;
     int maxDuration;
 } CliOptions;

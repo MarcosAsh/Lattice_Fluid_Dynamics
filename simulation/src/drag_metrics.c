@@ -5,16 +5,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-void compute_strouhal(float *clSeries,
-                      int clCount,
-                      int lbmSubsteps,
-                      float charLength,
-                      float latticeVelocity) {
+int compute_strouhal(float *clSeries,
+                     int clCount,
+                     int lbmSubsteps,
+                     float charLength,
+                     float latticeVelocity,
+                     float *stOut,
+                     float *freqOut) {
     // Strouhal number extraction from Cl time series.
     // St = f_peak * L / U, where f_peak is the dominant shedding
     // frequency found via DFT of the Cl signal.
     if (!clSeries || clCount < 12) {
-        return;
+        return 0;
     }
 
     // Discard first 35% as transient
@@ -31,7 +33,7 @@ void compute_strouhal(float *clSeries,
     // Hann window + mean removal
     float *win = (float *)malloc(n * sizeof(float));
     if (!win)
-        return;
+        return 0;
     for (int i = 0; i < n; i++) {
         float w = 0.5f * (1.0f - cosf(2.0f * (float)M_PI * i / (n - 1)));
         win[i] = (sig[i] - mean) * w;
@@ -67,4 +69,9 @@ void compute_strouhal(float *clSeries,
            charL,
            latticeVelocity);
     free(win);
+    if (stOut)
+        *stOut = st;
+    if (freqOut)
+        *freqOut = peakFreq;
+    return 1;
 }

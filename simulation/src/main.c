@@ -24,6 +24,7 @@
 #include "../lib/drag_metrics.h"
 #include "../lib/event_handlers.h"
 #include "../lib/gl_helpers.h"
+#include "../lib/manifest.h"
 #include "../lib/model_bounds.h"
 #include "../lib/view_matrix.h"
 #include "../lib/vti_export.h"
@@ -99,11 +100,48 @@ static void seedParticles(Particle *p, int count) {
     }
 }
 
+static double monotonicSeconds(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (double)ts.tv_sec + ts.tv_nsec * 1e-9;
+}
+
+// Body cells in the solid mask, read back once before the main loop
+static long countSolidCells(LBMGrid *grid) {
+    int *solid = (int *)malloc((size_t)grid->totalCells * sizeof(int));
+    if (!solid)
+        return -1;
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->solidBuffer);
+    glGetBufferSubData(GL_SHADER_STORAGE_BUFFER,
+                       0,
+                       (size_t)grid->totalCells * sizeof(int),
+                       solid);
+    long n = 0;
+    for (int i = 0; i < grid->totalCells; i++)
+        n += solid[i] == 1;
+    free(solid);
+    return n;
+}
+
 int main(int argc, char *argv[]) {
     CliOptions opts;
     int cliStatus = cli_parse(argc, argv, &opts);
     if (cliStatus != 0)
         return cliStatus > 0 ? 0 : 2;
+
+    double startClock = monotonicSeconds();
+    RunManifest man;
+    manifest_init(&man, &opts);
+    int wantManifest = opts.manifestPath[0] != '\0';
+    {
+        time_t now = time(NULL);
+        struct tm utc;
+        if (gmtime_r(&now, &utc))
+            strftime(man.startTimeUtc,
+                     sizeof(man.startTimeUtc),
+                     "%Y-%m-%dT%H:%M:%SZ",
+                     &utc);
+    }
 
     printf("Starting 3D Fluid Simulation...\n");
     srand(time(NULL));
@@ -180,6 +218,9 @@ int main(int argc, char *argv[]) {
     printf("OpenGL Version: %s\n", glGetString(GL_VERSION));
     printf("GLSL Version: %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
     printf("Renderer: %s\n", glGetString(GL_RENDERER));
+    man.glVendor = (const char *)glGetString(GL_VENDOR);
+    man.glRenderer = (const char *)glGetString(GL_RENDERER);
+    man.glVersion = (const char *)glGetString(GL_VERSION);
 
     if (renderDuration == 0)
         SDL_GL_SetSwapInterval(1);
@@ -268,10 +309,12 @@ int main(int argc, char *argv[]) {
 
     printf("Loading 3D model: %s\n", modelPath);
     Model carModel = loadOBJ(modelPath);
+    man.modelPath = modelPath;
 
     if (carModel.vertexCount == 0) {
         printf("Trying fallback path ../assets/...\n");
-        carModel = loadOBJ("../assets/3d-files/car-model.obj");
+        man.modelPath = "../assets/3d-files/car-model.obj";
+        carModel = loadOBJ(man.modelPath);
     }
 
     printf("Model loaded: %d vertices, %d faces\n",
@@ -599,6 +642,7 @@ int main(int argc, char *argv[]) {
                    latU,
                    charL,
                    nu);
+            man.reynoldsEffective = re;
         }
         printf("  Sample interval: %d lattice steps\n", lbmSubsteps);
 
@@ -616,6 +660,8 @@ int main(int argc, char *argv[]) {
             epsilon = refArea / ((float)lbmGrid->sizeY * lbmGrid->sizeZ);
             blockageFactor = (1.0f - epsilon) * (1.0f - epsilon);
         }
+        if (wantManifest)
+            man.solidCells = countSolidCells(lbmGrid);
 
         printf("LBM initialized successfully\n");
     } else {
@@ -952,6 +998,9 @@ int main(int argc, char *argv[]) {
 
     // Optional --converge stopping, reads the Cd series only
     int convergeOn = opts.convergeTol > 0.0f;
+    const float cdEmaAlpha = 0.1f;
+    int cdSamples = 0;
+    double cdSum = 0.0, cdCorrSum = 0.0, clSum = 0.0;
     ConvergenceDetector conv = {0};
     if (convergeOn) {
         if (conv_init(&conv, opts.convergeTol, opts.convergeWindow) != 0) {
@@ -1400,8 +1449,7 @@ int main(int argc, char *argv[]) {
             if (cdHistoryCount == 0) {
                 cdEma = CdCorr;
             } else {
-                float alpha = 0.1f;
-                cdEma = alpha * CdCorr + (1.0f - alpha) * cdEma;
+                cdEma = cdEmaAlpha * CdCorr + (1.0f - cdEmaAlpha) * cdEma;
             }
 
             int totalSteps = frameCount * lbmSubsteps;
@@ -1429,6 +1477,19 @@ int main(int argc, char *argv[]) {
                    CdPressure,
                    CdFriction);
 
+            cdSamples++;
+            cdSum += Cd;
+            cdCorrSum += CdCorr;
+            clSum += Cl;
+            man.cd = Cd;
+            man.cdCorr = CdCorr;
+            man.cdEma = cdEma;
+            man.cl = Cl;
+            man.cdPressure = CdPressure;
+            man.cdFriction = CdFriction;
+            man.tStar = tStar;
+            man.flowThroughs = flowThroughs;
+
             // Store Cl for Strouhal extraction
             if (clSeries) {
                 if (clCount >= clCapacity) {
@@ -1448,6 +1509,8 @@ int main(int argc, char *argv[]) {
             if (convergeOn && isfinite(Cd) && conv_add(&conv, Cd)) {
                 double cm, csem;
                 conv_stats(&conv, &cm, &csem);
+                man.converged = 1;
+                man.stopFrame = frameCount;
                 printf("Convergence: reached at frame %d, Cd mean=%.4f "
                        "sem=%.4f (%d samples, rel change %.2e)\n",
                        frameCount,
@@ -1535,7 +1598,55 @@ int main(int argc, char *argv[]) {
                          clCount,
                          lbmSubsteps,
                          charLength,
-                         latticeVelocity);
+                         latticeVelocity,
+                         &man.strouhal,
+                         &man.sheddingFreq);
+    }
+
+    int exitCode = 0;
+    if (wantManifest) {
+        man.wallSeconds = monotonicSeconds() - startClock;
+        man.modelScale = g_modelScale;
+        man.triangles = numTriangles;
+        man.viscosity = lbmViscosity;
+        man.tau = lbmGrid ? lbmGrid->tau : tau;
+        man.latticeVelocity = latticeVelocity;
+        man.reynolds = reynoldsNumber;
+        man.charLength = charLength;
+        man.refArea = refArea;
+        man.blockageFactor = blockageFactor;
+        if (lbmGrid) {
+            man.collisionOperator = lbmGrid->useEntropic ? "entropic"
+                                    : lbmGrid->useMRT    ? "mrt"
+                                                         : "bgk";
+            man.smagorinsky = lbmGrid->useSmagorinsky;
+            man.periodicYZ = lbmGrid->periodicYZ;
+            man.spongeCells = lbmGrid->spongeCells;
+            man.lbmSteps = lbmGrid->stepCount;
+        }
+        man.frames = frameCount;
+        man.outputFrames = outputFrameCount;
+        man.substeps = lbmSubsteps;
+        man.sampleIntervalFrames = CD_SAMPLE_INTERVAL;
+        man.emaAlpha = cdEmaAlpha;
+        man.cdSamples = cdSamples;
+        if (cdSamples > 0) {
+            man.cdMean = (float)(cdSum / cdSamples);
+            man.cdCorrMean = (float)(cdCorrSum / cdSamples);
+            man.clMean = (float)(clSum / cdSamples);
+        }
+        if (convergeOn) {
+            conv_stats(&conv, &man.convMean, &man.convSem);
+            man.convRelChange = conv.relChange;
+        }
+        if (manifest_write(opts.manifestPath, &man) == 0) {
+            printf("Manifest written to %s\n", opts.manifestPath);
+        } else {
+            fprintf(stderr,
+                    "Error: could not write manifest %s\n",
+                    opts.manifestPath);
+            exitCode = 1;
+        }
     }
 
     printf("Cleaning up...\n");
@@ -1579,5 +1690,5 @@ int main(int argc, char *argv[]) {
     printf("Cleanup complete. Exiting.\n");
     printf("Thanks for Running my project! If you liked it please consider "
            "contributing or leaving a star on GitHub!");
-    return 0;
+    return exitCode;
 }

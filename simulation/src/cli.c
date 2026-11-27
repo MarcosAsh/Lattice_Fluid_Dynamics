@@ -16,6 +16,7 @@ enum {
     OPT_CONVERGE = 1000,
     OPT_CONVERGE_WINDOW,
     OPT_MAX_DURATION,
+    OPT_MANIFEST,
 };
 
 static int bad_value(const char *name, const char *arg) {
@@ -131,6 +132,7 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
             "assets/sr_model_norm.bin",
             sizeof(opts->srNormPath) - 1);
     opts->srNormPath[sizeof(opts->srNormPath) - 1] = '\0';
+    opts->manifestPath[0] = '\0';
     opts->convergeTol = 0.0f;
     opts->convergeWindow = 20;
     opts->maxDuration = 0;
@@ -156,6 +158,7 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
         {"vtk-stats", no_argument, 0, 'T'},
         {"superres", no_argument, 0, 'R'},
         {"sr-weights", required_argument, 0, 'W'},
+        {"manifest", required_argument, 0, OPT_MANIFEST},
         {"converge", required_argument, 0, OPT_CONVERGE},
         {"converge-window", required_argument, 0, OPT_CONVERGE_WINDOW},
         {"max-duration", required_argument, 0, OPT_MAX_DURATION},
@@ -299,6 +302,13 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
                            sizeof(opts->srWeightsPath)))
                 return -1;
             break;
+        case OPT_MANIFEST:
+            if (!copy_path("manifest",
+                           optarg,
+                           opts->manifestPath,
+                           sizeof(opts->manifestPath)))
+                return -1;
+            break;
         case OPT_CONVERGE:
             if (!parse_float("converge", optarg, &opts->convergeTol))
                 return -1;
@@ -370,6 +380,9 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
                    "upscaling\n");
             printf("  --sr-weights=PATH     Super-resolution weights "
                    "(default: assets/sr_model.bin)\n");
+            printf("  --manifest=PATH       Run manifest JSON (default: "
+                   "OUTPUT/manifest.json\n"
+                   "                        when --output is set)\n");
             printf("  --converge=TOL        Stop a headless run once the "
                    "windowed mean Cd\n"
                    "                        changes by less than TOL "
@@ -384,6 +397,17 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
             printf("  -h, --help            Show this help\n");
             return 1;
         default:
+            return -1;
+        }
+    }
+
+    if (!opts->manifestPath[0] && opts->outputPath[0]) {
+        int n = snprintf(opts->manifestPath,
+                         sizeof(opts->manifestPath),
+                         "%s/manifest.json",
+                         opts->outputPath);
+        if (n < 0 || (size_t)n >= sizeof(opts->manifestPath)) {
+            fprintf(stderr, "--output path too long for the manifest\n");
             return -1;
         }
     }
