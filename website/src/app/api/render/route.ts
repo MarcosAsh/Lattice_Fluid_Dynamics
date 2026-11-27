@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
+import { parseRenderRequest } from '../../../lib/renderRequest';
 
 export const maxDuration = 30; // Polling endpoints are fast
 
 const RATE_LIMIT = new Map<string, number>();
 const RATE_LIMIT_MAX_ENTRIES = 10_000;
 const RATE_LIMIT_WINDOW_MS = 60_000;
-const MAX_OBJ_SIZE = 5 * 1024 * 1024; // 5 MB base64
 
 function modalUrl(path: string): string | null {
   const endpoint = process.env.MODAL_RENDER_ENDPOINT;
@@ -32,7 +32,7 @@ export async function GET(request: Request) {
         signal: AbortSignal.timeout(8000),
       });
       const latency = Date.now() - start;
-      const data = await res.json();
+      const data = (await res.json()) as { grid?: unknown; gpu?: unknown };
 
       return NextResponse.json({
         available: true,
@@ -79,22 +79,15 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST(request: Request) {
-  const ip = request.headers.get('x-forwarded-for') || 'unknown';
-  const now = Date.now();
-  const lastRequest = RATE_LIMIT.get(ip) || 0;
+function clientIp(request: Request): string {
+  const forwarded = request.headers.get('x-forwarded-for');
+  return forwarded?.split(',')[0]?.trim() || 'unknown';
+}
 
+function rateLimited(ip: string, now: number): number | null {
+  const lastRequest = RATE_LIMIT.get(ip) || 0;
   if (now - lastRequest < RATE_LIMIT_WINDOW_MS) {
-    const waitSec = Math.ceil(
-      (RATE_LIMIT_WINDOW_MS - (now - lastRequest)) / 1000,
-    );
-    return NextResponse.json(
-      {
-        status: 'error',
-        error: `Rate limited -- please wait ${waitSec}s before submitting another render.`,
-      },
-      { status: 429 },
-    );
+    return Math.ceil((RATE_LIMIT_WINDOW_MS - (now - lastRequest)) / 1000);
   }
   RATE_LIMIT.set(ip, now);
 
@@ -113,72 +106,65 @@ export async function POST(request: Request) {
       }
     }
   }
+  return null;
+}
 
-  const params = await request.json();
+function errorResponse(error: string, status: number) {
+  return NextResponse.json({ status: 'error', error }, { status });
+}
 
+export async function POST(request: Request) {
   const endpoint = process.env.MODAL_RENDER_ENDPOINT;
   if (!endpoint) {
-    return NextResponse.json(
-      {
-        status: 'error',
-        error: 'Render backend is not configured. This is a demo instance.',
-      },
-      { status: 503 },
+    return errorResponse(
+      'Render backend is not configured. This is a demo instance.',
+      503,
     );
   }
 
-  if (params.objData && params.objData.length > MAX_OBJ_SIZE) {
-    return NextResponse.json(
-      { status: 'error', error: 'OBJ file too large (max 5 MB)' },
-      { status: 413 },
-    );
-  }
-
+  let input: unknown;
   try {
-    const body: Record<string, unknown> = {
-      job_id: `job_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-      wind_speed: params.windSpeed ?? 1.0,
-      viz_mode: params.vizMode ?? 1,
-      collision_mode: params.collisionMode ?? 2,
-      duration: params.duration ?? 5,
-      model: params.model ?? 'car',
-      reynolds: params.reynolds ?? 0,
-    };
+    input = await request.json();
+  } catch {
+    return errorResponse('Request body must be JSON', 400);
+  }
+  const parsed = parseRenderRequest(input);
+  if (!parsed.ok) return errorResponse(parsed.error, parsed.status);
 
-    if (params.objData) {
-      body.obj_data = params.objData;
-    }
+  const waitSec = rateLimited(clientIp(request), Date.now());
+  if (waitSec !== null) {
+    return errorResponse(
+      `Rate limited. Please wait ${waitSec}s before submitting another render.`,
+      429,
+    );
+  }
 
+  const jobId = `job_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  try {
     // Fire-and-forget: Modal spawns the render in the background
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ job_id: jobId, ...parsed.body }),
       signal: AbortSignal.timeout(15000),
     });
 
     const text = await response.text();
-    let result;
+    let result: { job_id?: unknown };
     try {
       result = JSON.parse(text);
     } catch {
       console.error('Modal returned non-JSON:', text.slice(0, 500));
-      return NextResponse.json(
-        { status: 'error', error: 'Backend returned invalid response' },
-        { status: 502 },
-      );
+      return errorResponse('Backend returned invalid response', 502);
     }
 
     // Return the job_id so the frontend can poll
     return NextResponse.json({
       status: 'accepted',
-      jobId: result.job_id || body.job_id,
+      jobId: typeof result.job_id === 'string' ? result.job_id : jobId,
     });
   } catch (error) {
     console.error('Modal call failed:', error);
-    return NextResponse.json(
-      { status: 'error', error: 'Failed to start render' },
-      { status: 500 },
-    );
+    return errorResponse('Failed to start render', 500);
   }
 }
