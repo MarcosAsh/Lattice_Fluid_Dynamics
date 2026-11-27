@@ -1433,3 +1433,56 @@ void LBM_SetSolidMesh(LBMGrid *grid,
     if (triBounds)
         free(triBounds);
 }
+
+float LBM_MeshFrontalArea(LBMGrid *grid, const float *triangles, int numTriangles) {
+    // Rasterise the y-z silhouette at 8 samples per cell
+    const int sub = 8;
+    float scaleY = grid->sizeY / 4.0f;
+    float scaleZ = grid->sizeZ / 4.0f;
+    int ny = grid->sizeY * sub, nz = grid->sizeZ * sub;
+    unsigned char *mask = (unsigned char *)calloc((size_t)ny * nz, 1);
+    if (!mask)
+        return 0.0f;
+
+    for (int t = 0; t < numTriangles; t++) {
+        const float *tri = &triangles[t * 12];
+        float py[3], pz[3];
+        for (int k = 0; k < 3; k++) {
+            py[k] = (tri[k * 4 + 1] + 2.0f) * scaleY * sub;
+            pz[k] = (tri[k * 4 + 2] + 2.0f) * scaleZ * sub;
+        }
+        float area2 =
+            (py[1] - py[0]) * (pz[2] - pz[0]) - (py[2] - py[0]) * (pz[1] - pz[0]);
+        if (fabsf(area2) < 1e-12f)
+            continue;
+        int y0 = (int)floorf(fminf(py[0], fminf(py[1], py[2])));
+        int y1 = (int)ceilf(fmaxf(py[0], fmaxf(py[1], py[2])));
+        int z0 = (int)floorf(fminf(pz[0], fminf(pz[1], pz[2])));
+        int z1 = (int)ceilf(fmaxf(pz[0], fmaxf(pz[1], pz[2])));
+        if (y0 < 0)
+            y0 = 0;
+        if (z0 < 0)
+            z0 = 0;
+        if (y1 > ny)
+            y1 = ny;
+        if (z1 > nz)
+            z1 = nz;
+        for (int z = z0; z < z1; z++) {
+            for (int y = y0; y < y1; y++) {
+                float sy = y + 0.5f, sz = z + 0.5f;
+                float w0 = (py[1] - sy) * (pz[2] - sz) - (py[2] - sy) * (pz[1] - sz);
+                float w1 = (py[2] - sy) * (pz[0] - sz) - (py[0] - sy) * (pz[2] - sz);
+                float w2 = (py[0] - sy) * (pz[1] - sz) - (py[1] - sy) * (pz[0] - sz);
+                if ((w0 >= 0 && w1 >= 0 && w2 >= 0) ||
+                    (w0 <= 0 && w1 <= 0 && w2 <= 0))
+                    mask[(size_t)z * ny + y] = 1;
+            }
+        }
+    }
+
+    size_t count = 0;
+    for (size_t i = 0; i < (size_t)ny * nz; i++)
+        count += mask[i];
+    free(mask);
+    return (float)count / (float)(sub * sub);
+}

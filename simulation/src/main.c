@@ -654,9 +654,18 @@ int main(int argc, char *argv[]) {
             float sZ = lbmGrid->sizeZ / 4.0f;
             bboxArea = (carBounds.maxY - carBounds.minY) * sY *
                        (carBounds.maxZ - carBounds.minZ) * sZ;
-            refArea = LBM_ComputeProjectedArea(lbmGrid, 0);
+            // Mesh frontal area, the voxel staircase overestimates it
+            float voxelArea = LBM_ComputeProjectedArea(lbmGrid, 0);
+            refArea = (triangleData && numTriangles > 0)
+                          ? LBM_MeshFrontalArea(lbmGrid,
+                                                (float *)triangleData,
+                                                numTriangles)
+                          : voxelArea;
             if (refArea < 1.0f)
                 refArea = bboxArea;
+            printf("Reference area: %.1f cells^2 (voxel %.1f)\n",
+                   refArea,
+                   voxelArea);
             epsilon = refArea / ((float)lbmGrid->sizeY * lbmGrid->sizeZ);
             blockageFactor = (1.0f - epsilon) * (1.0f - epsilon);
         }
