@@ -31,6 +31,12 @@ def test_dispatch_passes_arguments_and_exit_code(capsys):
     assert cli.main(["check-config", str(ML / "missing.yaml")]) == 1
 
 
+@pytest.mark.parametrize("name", ["convert", "study", "gci"])
+def test_study_tools_dispatch(name, capfd):
+    assert cli.main([name, "--help"]) == 0
+    assert "usage:" in capfd.readouterr().out
+
+
 @pytest.mark.parametrize("flag", ["--help", "-h"])
 def test_help_flags(flag, capsys):
     assert cli.main([flag]) == 0
