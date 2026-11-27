@@ -26,6 +26,7 @@ from pathlib import Path
 import numpy as np
 import requests
 import yaml
+
 from ffd import FFDLattice
 from ffd import compute_bbox
 from ffd import load_obj
@@ -175,7 +176,7 @@ def save_manifest_row(
     cd: float | None,
     cl: float | None,
     error: str | None = None,
-):
+) -> None:
     DATASET_DIR.mkdir(parents=True, exist_ok=True)
     write_header = not MANIFEST_FILE.exists()
     with MANIFEST_FILE.open("a", newline="") as f:
@@ -207,7 +208,7 @@ def save_manifest_row(
 
 def save_results_row(
     sid: str, model: str, idx: int, displacements: np.ndarray, cd: float, cl: float
-):
+) -> None:
     DATASET_DIR.mkdir(parents=True, exist_ok=True)
     write_header = not RESULTS_FILE.exists()
     with RESULTS_FILE.open("a", newline="") as f:
@@ -238,7 +239,7 @@ def save_results_row(
 # Binary export (.sobin)
 
 
-def export_sobin(results_file: Path, output_file: Path):
+def export_sobin(results_file: Path, output_file: Path) -> int:
     """
     Convert CSV results to .sobin binary format.
 
@@ -280,7 +281,7 @@ def export_sobin(results_file: Path, output_file: Path):
                 f"WARNING: Sample {i} has {len(d)} params, expected {num_ffd_params}. Skipping.",
                 file=sys.stderr,
             )
-            continue
+    records = [r for r in records if len(r[0]) == num_ffd_params]
 
     output_file.parent.mkdir(parents=True, exist_ok=True)
     with output_file.open("wb") as f:
@@ -303,7 +304,7 @@ def export_sobin(results_file: Path, output_file: Path):
 # Main pipeline
 
 
-def run_sweep(config_path: str, endpoint: str, resume: bool = False):
+def run_sweep(config_path: str, endpoint: str, resume: bool = False) -> None:
     config = load_config(config_path)
 
     base_models = config["base_models"]
@@ -414,7 +415,7 @@ def run_sweep(config_path: str, endpoint: str, resume: bool = False):
         compute_stats()
 
 
-def compute_stats():
+def compute_stats() -> dict | None:
     """Generate summary statistics."""
     if not MANIFEST_FILE.exists():
         return
@@ -460,7 +461,7 @@ def compute_stats():
     return stats
 
 
-def show_status():
+def show_status() -> None:
     stats = compute_stats()
     if not stats:
         print("No data generated yet.")
@@ -484,7 +485,7 @@ def show_status():
 # CLI
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Generate FFD shape optimization training data")
     parser.add_argument(
         "--config",
