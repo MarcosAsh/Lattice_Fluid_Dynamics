@@ -153,6 +153,7 @@ used ones:
 --reynolds=RE        Target Reynolds number (0=derive from wind speed)
 --grid=XxYxZ         Grid size (default: 128x64x64)
 --collision-operator=OP  bgk, regularized, mrt or entropic (default: mrt)
+--strict-reynolds    Fail if the grid cannot reach --reynolds
 --manifest=PATH      Run manifest JSON
 --converge=TOL       Stop once the 95% CI of mean Cd is within TOL
 --converge-window=N  Cd samples between checks (default: 20)

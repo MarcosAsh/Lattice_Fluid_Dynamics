@@ -33,7 +33,8 @@ typedef struct {
     int triangles;
     long solidCells;
     float refArea;
-    float blockageFactor;
+    float blockageFactor; // Cd multiplier (1 - ratio)^2
+    float blockageRatio;  // frontal area / tunnel cross-section
 
     // Run
     int frames;

@@ -18,6 +18,7 @@ enum {
     OPT_MAX_DURATION,
     OPT_MANIFEST,
     OPT_OPERATOR,
+    OPT_STRICT_RE,
 };
 
 static int bad_value(const char *name, const char *arg) {
@@ -141,6 +142,7 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
     opts->convergeTol = 0.0f;
     opts->convergeWindow = 20;
     opts->maxDuration = 0;
+    opts->strictReynolds = 0;
 
     static struct option long_options[] = {
         {"wind", required_argument, 0, 'w'},
@@ -168,6 +170,7 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
         {"converge", required_argument, 0, OPT_CONVERGE},
         {"converge-window", required_argument, 0, OPT_CONVERGE_WINDOW},
         {"max-duration", required_argument, 0, OPT_MAX_DURATION},
+        {"strict-reynolds", no_argument, 0, OPT_STRICT_RE},
         {"version", no_argument, 0, 'X'},
         {"help", no_argument, 0, 'h'},
         {0, 0, 0, 0}
@@ -267,6 +270,9 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
             break;
         case 'E':
             opts->collisionOperator = CLI_OP_ENTROPIC;
+            break;
+        case OPT_STRICT_RE:
+            opts->strictReynolds = 1;
             break;
         case OPT_OPERATOR: {
             int found = -1;
@@ -421,6 +427,9 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
                    CD_SAMPLE_INTERVAL);
             printf("  --max-duration=SECS   Frame cap for --converge "
                    "(overrides --duration)\n");
+            printf("  --strict-reynolds     Exit with an error if the grid "
+                   "cannot reach the\n"
+                   "                        requested Re at tau >= 0.52\n");
             printf("  --version             Print version and exit\n");
             printf("  -h, --help            Show this help\n");
             return 1;

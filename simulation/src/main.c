@@ -518,18 +518,30 @@ int main(int argc, char *argv[]) {
             reynoldsNumber = 50.0f;
     }
 
+    float requestedRe = reynoldsNumber;
     float lbmViscosity = (latticeVelocity * charLength) / reynoldsNumber;
     float tau = 3.0f * lbmViscosity + 0.5f;
-    // tau < 0.52 is numerically unstable. At 0.52 < tau < 0.65,
-    // the force has period-2 oscillation but the EMA averages it
-    // out after ~50 samples. MRT + Smagorinsky help stability.
+    // tau below 0.52 is unstable here, so Re is capped per grid
     if (tau < 0.52f) {
         lbmViscosity = (0.52f - 0.5f) / 3.0f;
         tau = 0.52f;
         float actualRe = (latticeVelocity * charLength) / lbmViscosity;
-        printf("  Re capped at %.0f (tau=%.2f needed for stable Cd, "
-               "requested Re=%.0f)\n",
-               actualRe, tau, reynoldsNumber);
+        fprintf(stderr,
+                "WARNING: requested Re %.0f needs tau %.4f < 0.52 on this "
+                "grid, running at Re %.0f instead\n",
+                requestedRe,
+                3.0f * latticeVelocity * charLength / requestedRe + 0.5f,
+                actualRe);
+        printf("WARNING: Re capped at %.0f (requested %.0f)\n",
+               actualRe,
+               requestedRe);
+        if (opts.strictReynolds) {
+            fprintf(stderr,
+                    "ERROR: --strict-reynolds set, refusing to run at a "
+                    "lower Re\n");
+            GLContext_Destroy(glCtx);
+            return 2;
+        }
         reynoldsNumber = actualRe;
     }
     printf("Reynolds number: %.0f\n", reynoldsNumber);
@@ -1636,10 +1648,11 @@ int main(int argc, char *argv[]) {
         man.viscosity = lbmViscosity;
         man.tau = lbmGrid ? lbmGrid->tau : tau;
         man.latticeVelocity = latticeVelocity;
-        man.reynolds = reynoldsNumber;
+        man.reynolds = requestedRe;
         man.charLength = charLength;
         man.refArea = refArea;
         man.blockageFactor = blockageFactor;
+        man.blockageRatio = epsilon;
         if (lbmGrid) {
             man.collisionOperator = cli_operator_name(collisionOperator);
             man.smagorinsky = lbmGrid->useSmagorinsky;

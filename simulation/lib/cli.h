@@ -34,6 +34,7 @@ typedef struct {
     float convergeTol;      // 0 = off
     int convergeWindow;
     int maxDuration;
+    int strictReynolds; // fail instead of capping Re
 } CliOptions;
 
 // Parse command-line options. Returns 0 on success, 1 if --help was

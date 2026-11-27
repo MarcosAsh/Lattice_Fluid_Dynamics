@@ -114,7 +114,7 @@ void manifest_init(RunManifest *m, const CliOptions *opts) {
     m->wallSeconds = NAN;
     m->modelScale = m->viscosity = m->tau = m->latticeVelocity = NAN;
     m->reynolds = m->reynoldsEffective = m->charLength = NAN;
-    m->refArea = m->blockageFactor = m->emaAlpha = NAN;
+    m->refArea = m->blockageFactor = m->blockageRatio = m->emaAlpha = NAN;
     m->solidCells = -1;
     m->cd = m->cdCorr = m->cdEma = m->cdMean = m->cdCorrMean = NAN;
     m->cdPressure = m->cdFriction = m->cl = m->clMean = NAN;
@@ -202,6 +202,7 @@ static void write_body(Json *j, const RunManifest *m) {
         fputs("null", j->f);
     num(j, "ref_area", m->refArea);
     num(j, "blockage_factor", m->blockageFactor);
+    num(j, "blockage_ratio", m->blockageRatio);
     close_obj(j);
 
     open_obj(j, "run");

@@ -69,6 +69,10 @@ static void test_collision_operator(void) {
           "--mrt alias, last wins");
     CHECK(parse(&o, "--collision-operator=trt", NULL) != 0,
           "unknown operator rejected");
+    CHECK(parse(&o, NULL, NULL) == 0 && o.strictReynolds == 0,
+          "strict Re off by default");
+    CHECK(parse(&o, "--strict-reynolds", NULL) == 0 && o.strictReynolds == 1,
+          "--strict-reynolds");
 }
 
 static void test_valid_values(void) {
