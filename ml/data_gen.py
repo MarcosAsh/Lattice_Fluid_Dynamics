@@ -29,8 +29,8 @@ from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import as_completed
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
-import modal
 import yaml
 
 _csv_lock = threading.Lock()
@@ -54,7 +54,7 @@ BINARY_FILE = DATASET_DIR / "training_data.bin"
 STATS_FILE = DATASET_DIR / "stats.json"
 
 
-def set_dataset_dir(path: Path):
+def set_dataset_dir(path: Path) -> None:
     """Point all output files at the configured dataset directory."""
     global DATASET_DIR, MANIFEST_FILE, RESULTS_FILE, BINARY_FILE, STATS_FILE
     DATASET_DIR = path
@@ -156,7 +156,7 @@ def load_completed_runs() -> set[str]:
     return completed
 
 
-def tail_stats(series: list[float], fraction: float):
+def tail_stats(series: list[float], fraction: float) -> tuple[float, float, float] | None:
     """Mean, std and relative std over the trailing fraction of a series."""
     if not series:
         return None
@@ -168,7 +168,7 @@ def tail_stats(series: list[float], fraction: float):
     return mean, std, rel
 
 
-def submit_run(run: RunConfig, render_fn, timeout: int = 2400) -> RunResult:
+def submit_run(run: RunConfig, render_fn: Any, timeout: int = 2400) -> RunResult:
     """Spawn a single simulation run on Modal and wait for the result."""
 
     def _error(msg: str) -> RunResult:
@@ -263,7 +263,7 @@ def check_quality(result: RunResult, quality_config: dict) -> RunResult:
     return result
 
 
-def save_manifest_row(result: RunResult):
+def save_manifest_row(result: RunResult) -> None:
     """Append one row to the manifest CSV."""
     DATASET_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -313,7 +313,7 @@ def save_manifest_row(result: RunResult):
             )
 
 
-def save_results_csv(result: RunResult):
+def save_results_csv(result: RunResult) -> None:
     """Append the full time series to the results file."""
     DATASET_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -349,7 +349,7 @@ def save_results_csv(result: RunResult):
             )
 
 
-def export_binary_dataset():
+def export_binary_dataset() -> None:
     """
     Convert the results CSV into a binary file for the C++ training framework.
 
@@ -410,7 +410,7 @@ def export_binary_dataset():
     print(f"Exported {len(records)} records to {BINARY_FILE}")
 
 
-def compute_stats():
+def compute_stats() -> dict | None:
     """Generate summary statistics and save as JSON."""
     if not MANIFEST_FILE.exists():
         return
@@ -463,12 +463,14 @@ def compute_stats():
     return stats
 
 
-def get_render_function():
+def get_render_function() -> Any:
     """Look up the deployed render function on Modal."""
+    import modal
+
     return modal.Function.from_name(MODAL_APP, MODAL_FUNCTION)
 
 
-def run_sweep(config: dict, resume: bool = False, limit: int = 0):
+def run_sweep(config: dict, resume: bool = False, limit: int = 0) -> None:
     """Run the full parameter sweep."""
     runs = generate_run_configs(config)
     completed = load_completed_runs() if resume else set()
@@ -554,7 +556,7 @@ def run_sweep(config: dict, resume: bool = False, limit: int = 0):
         print(f"Stats: {json.dumps(stats, indent=2)}")
 
 
-def run_pilot(config: dict):
+def run_pilot(config: dict) -> None:
     """Run the convergence study's anchor point end to end and compare
     against the reference Cd. Validates the whole pipeline (Modal call,
     series collection, tail averaging) for the cost of one run."""
@@ -596,7 +598,7 @@ def run_pilot(config: dict):
         sys.exit(1)
 
 
-def show_status():
+def show_status() -> None:
     """Show current progress of data generation."""
     stats = compute_stats()
     if not stats:
@@ -617,7 +619,7 @@ def show_status():
             print()
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Generate training data for Cd surrogate model")
     parser.add_argument("--config", default="sweep_config.yaml", help="Sweep config YAML")
     parser.add_argument("--resume", action="store_true", help="Skip already-completed runs")
