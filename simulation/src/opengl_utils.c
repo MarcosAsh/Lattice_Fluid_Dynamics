@@ -31,6 +31,31 @@ static void print_source_preview(const char *source, int lines) {
     }
 }
 
+// Full info log of a shader or program, NULL if empty
+static char *info_log(GLuint obj, int isProgram) {
+    GLint len = 0;
+    if (isProgram)
+        glGetProgramiv(obj, GL_INFO_LOG_LENGTH, &len);
+    else
+        glGetShaderiv(obj, GL_INFO_LOG_LENGTH, &len);
+    if (len <= 1)
+        return NULL;
+    char *log = (char *)malloc((size_t)len);
+    if (!log)
+        return NULL;
+    if (isProgram)
+        glGetProgramInfoLog(obj, len, NULL, log);
+    else
+        glGetShaderInfoLog(obj, len, NULL, log);
+    return log;
+}
+
+static void print_warnings(const char *what, const char *path, char *log) {
+    if (log)
+        printf("Shader %s log for %s:\n%s\n", what, path, log);
+    free(log);
+}
+
 static GLuint loadShader(const char *path, GLenum type) {
     FILE *file = fopen(path, "rb");
     if (!file) {
@@ -72,12 +97,12 @@ static GLuint loadShader(const char *path, GLenum type) {
     GLint status;
     glGetShaderiv(shader, GL_COMPILE_STATUS, &status);
     if (status == GL_FALSE) {
-        char log[2048];
-        glGetShaderInfoLog(shader, sizeof(log), NULL, log);
+        char *log = info_log(shader, 0);
         printf("\n=== Shader compile error ===\n");
         printf("  File: %s\n", path);
         printf("  Type: %s\n", shader_type_name(type));
-        printf("  Error: %s\n", log);
+        printf("  Error: %s\n", log ? log : "(no log)");
+        free(log);
         printf("  Source preview:\n");
         print_source_preview(source, 15);
         printf("============================\n\n");
@@ -86,6 +111,7 @@ static GLuint loadShader(const char *path, GLenum type) {
         return 0;
     }
     free(source);
+    print_warnings("compile", path, info_log(shader, 0));
     return shader;
 }
 
@@ -111,13 +137,12 @@ GLuint createShaderProgram(
     GLint status;
     glGetProgramiv(program, GL_LINK_STATUS, &status);
     if (status == GL_FALSE) {
-        char log[2048];
-        glGetProgramInfoLog(
-            program, sizeof(log), NULL, log);
+        char *log = info_log(program, 1);
         printf("\n=== Shader link error ===\n");
         printf("  Vertex:   %s\n", vertexPath);
         printf("  Fragment: %s\n", fragmentPath);
-        printf("  Error: %s\n", log);
+        printf("  Error: %s\n", log ? log : "(no log)");
+        free(log);
         printf("=========================\n\n");
         glDeleteShader(vertexShader);
         glDeleteShader(fragmentShader);
@@ -127,6 +152,7 @@ GLuint createShaderProgram(
 
     glDeleteShader(vertexShader);
     glDeleteShader(fragmentShader);
+    print_warnings("link", vertexPath, info_log(program, 1));
     return program;
 }
 
@@ -143,12 +169,11 @@ GLuint createComputeShader(const char *computePath) {
     GLint status;
     glGetProgramiv(program, GL_LINK_STATUS, &status);
     if (status == GL_FALSE) {
-        char log[2048];
-        glGetProgramInfoLog(
-            program, sizeof(log), NULL, log);
+        char *log = info_log(program, 1);
         printf("\n=== Compute shader link error ===\n");
         printf("  File:  %s\n", computePath);
-        printf("  Error: %s\n", log);
+        printf("  Error: %s\n", log ? log : "(no log)");
+        free(log);
         printf("=================================\n\n");
         glDeleteShader(computeShader);
         glDeleteProgram(program);
@@ -156,5 +181,6 @@ GLuint createComputeShader(const char *computePath) {
     }
 
     glDeleteShader(computeShader);
+    print_warnings("link", computePath, info_log(program, 1));
     return program;
 }
