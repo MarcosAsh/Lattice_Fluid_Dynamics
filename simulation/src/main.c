@@ -1462,14 +1462,17 @@ int main(int argc, char *argv[]) {
             running = 0;
         }
 
-        if (!skipRendering && renderDuration > 0 && strlen(outputPath) > 0) {
-            char framePath[512];
-            snprintf(framePath,
-                     sizeof(framePath),
-                     "%s/frame_%05d.ppm",
-                     outputPath,
-                     outputFrameCount);
-            saveFrameToPPM(framePath, WIDTH, HEIGHT);
+        // Count frames even without --output so headless runs end
+        if (!skipRendering && renderDuration > 0) {
+            if (strlen(outputPath) > 0) {
+                char framePath[512];
+                snprintf(framePath,
+                         sizeof(framePath),
+                         "%s/frame_%05d.ppm",
+                         outputPath,
+                         outputFrameCount);
+                saveFrameToPPM(framePath, WIDTH, HEIGHT);
+            }
             outputFrameCount++;
         }
 
