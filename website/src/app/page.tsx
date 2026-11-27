@@ -9,6 +9,7 @@ import ResultsPanel from '../components/ResultsPanel';
 import { useSurrogate } from '../lib/anyobj_surrogate';
 import { DEMOS, type DemoEntry } from '../lib/demos';
 import { useHashParams } from '../lib/hashParams';
+import { encodeObjFile, runRenderJob, sweepSpeeds } from '../lib/renderJob';
 import { addRun, useRuns } from '../lib/runs';
 import type { JobStatus, SimulationResult } from '../lib/types';
 
@@ -60,116 +61,27 @@ export default function Home() {
       return;
     }
 
+    setStatus('rendering');
+    setError(null);
+    setVideoUrl(null);
+    setRenderStartTime(Date.now());
     try {
-      setStatus('rendering');
-      setError(null);
-      setVideoUrl(null);
-      setRenderStartTime(Date.now());
-
-      const body: Record<string, unknown> = { ...params };
-
-      if (params.model === 'custom' && objFile) {
-        const text = await objFile.text();
-        const b64 = btoa(text);
-        body.objData = b64;
-      }
-
-      // Step 1: Submit render job
-      const submitRes = await fetch('/api/render', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+      const objData =
+        params.model === 'custom' && objFile
+          ? await encodeObjFile(objFile)
+          : undefined;
+      const result = await runRenderJob(params, {
+        objData,
+        onPartial: setLiveResult,
       });
-
-      if (!submitRes.ok) {
-        throw new Error(`Server error (${submitRes.status})`);
-      }
-
-      const submitData = await submitRes.json();
-
-      if (submitData.status === 'error') {
-        throw new Error(submitData.error || 'Failed to start render');
-      }
-
-      const jobId = submitData.jobId;
-      if (!jobId) {
-        throw new Error('No job ID returned');
-      }
-
-      // Step 2: Poll for completion
-      const maxPollTime = (params.duration ?? 5) * 60 * 1000; // generous limit
-      const pollStart = Date.now();
-
-      while (Date.now() - pollStart < maxPollTime) {
-        await new Promise((r) => setTimeout(r, 3000));
-
-        const pollRes = await fetch(
-          `/api/render?jobId=${encodeURIComponent(jobId)}`,
-        );
-        if (!pollRes.ok) continue; // retry on transient errors
-
-        const data = await pollRes.json();
-
-        if (data.status === 'rendering') {
-          // Update live chart with partial Cd/Cl data
-          if (data.cd_series?.length) {
-            setLiveResult({
-              videoUrl: '',
-              cdValue: null,
-              clValue: null,
-              cdSeries: data.cd_series,
-              clSeries: data.cl_series ?? [],
-              charLength: null,
-              sampleInterval: null,
-              tStar: null,
-              flowThroughs: null,
-              cfl: null,
-              cdPressureSeries: [],
-              cdFrictionSeries: [],
-              model: params.model,
-              windSpeed: params.windSpeed,
-              timestamp: Date.now(),
-            });
-          }
-          continue;
-        }
-
-        if (data.status === 'complete' && data.video_url) {
-          setLiveResult(null);
-          setVideoUrl(data.video_url);
-          setStatus('complete');
-
-          const result: SimulationResult = {
-            videoUrl: data.video_url,
-            cdValue: data.cd_value ?? null,
-            clValue: data.cl_value ?? null,
-            cdSeries: data.cd_series ?? [],
-            clSeries: data.cl_series ?? [],
-            charLength: data.char_length ?? null,
-            sampleInterval: data.sample_interval ?? null,
-            tStar: data.t_star ?? null,
-            flowThroughs: data.flow_throughs ?? null,
-            cfl: data.cfl ?? null,
-            cdPressureSeries: data.cd_pressure_series ?? [],
-            cdFrictionSeries: data.cd_friction_series ?? [],
-            model: params.model,
-            windSpeed: params.windSpeed,
-            timestamp: Date.now(),
-          };
-          addRun(result);
-          return;
-        }
-
-        if (data.status === 'error') {
-          throw new Error(data.error || 'Render failed');
-        }
-      }
-
-      throw new Error('Render timed out');
+      addRun(result);
+      setVideoUrl(result.videoUrl);
+      setStatus('complete');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
       setStatus('error');
     } finally {
+      setLiveResult(null);
       setRenderStartTime(null);
     }
   }, [params, objFile]);
@@ -178,80 +90,35 @@ export default function Home() {
 
   const startSweep = useCallback(
     async (windMin: number, windMax: number, windStep: number) => {
-      const speeds: number[] = [];
-      for (let w = windMin; w <= windMax + 0.001; w += windStep) {
-        speeds.push(Math.round(w * 10) / 10);
-      }
+      const speeds = sweepSpeeds(windMin, windMax, windStep);
       if (speeds.length === 0) return;
 
       setError(null);
       setStatus('rendering');
-
       try {
-        for (let i = 0; i < speeds.length; i++) {
-          const ws = speeds[i];
+        const objData =
+          params.model === 'custom' && objFile
+            ? await encodeObjFile(objFile)
+            : undefined;
+        for (const [i, ws] of speeds.entries()) {
           setSweepProgress(
             `${i + 1}/${speeds.length}: wind ${ws.toFixed(1)} m/s`,
           );
-
-          const sweepParams = { ...params, windSpeed: ws };
-          const body: Record<string, unknown> = { ...sweepParams };
-          if (params.model === 'custom' && objFile) {
-            body.objData = await objFile.text();
-          }
-
-          const submitRes = await fetch('/api/render', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-          });
-          if (!submitRes.ok)
-            throw new Error(`Sweep submit failed at wind ${ws}`);
-          const submitData = await submitRes.json();
-          const jobId = submitData.jobId;
-          if (!jobId) throw new Error('No job ID');
-
-          const maxPollTime = (params.duration ?? 5) * 60 * 1000;
-          const pollStart = Date.now();
-          let done = false;
-
-          while (Date.now() - pollStart < maxPollTime) {
-            await new Promise((r) => setTimeout(r, 3000));
-            const pollRes = await fetch(
-              `/api/render?jobId=${encodeURIComponent(jobId)}`,
+          let result: SimulationResult;
+          try {
+            result = await runRenderJob(
+              { ...params, windSpeed: ws },
+              { objData },
             );
-            if (!pollRes.ok) continue;
-            const data = await pollRes.json();
-            if (data.status === 'rendering') continue;
-            if (data.status === 'complete' && data.video_url) {
-              const result: SimulationResult = {
-                videoUrl: data.video_url,
-                cdValue: data.cd_value ?? null,
-                clValue: data.cl_value ?? null,
-                cdSeries: data.cd_series ?? [],
-                clSeries: data.cl_series ?? [],
-                charLength: data.char_length ?? null,
-                sampleInterval: data.sample_interval ?? null,
-                tStar: data.t_star ?? null,
-                flowThroughs: data.flow_throughs ?? null,
-                cfl: data.cfl ?? null,
-                cdPressureSeries: data.cd_pressure_series ?? [],
-                cdFrictionSeries: data.cd_friction_series ?? [],
-                model: params.model,
-                windSpeed: ws,
-                timestamp: Date.now(),
-              };
-              addRun(result);
-              setVideoUrl(data.video_url);
-              done = true;
-              break;
-            }
-            if (data.status === 'error')
-              throw new Error(data.error || `Sweep failed at wind ${ws}`);
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : 'Unknown error';
+            throw new Error(
+              `Sweep stopped at wind ${ws.toFixed(1)} m/s: ${msg}`,
+            );
           }
-          if (!done) throw new Error(`Sweep timed out at wind ${ws}`);
+          addRun(result);
+          setVideoUrl(result.videoUrl);
         }
-
         setStatus('complete');
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unknown error');
