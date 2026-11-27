@@ -129,11 +129,11 @@ std::shared_ptr<ADTensor> slice(const std::shared_ptr<ADTensor>& a,
     }
     auto out = std::make_shared<ADTensor>(v);
     out->deps.emplace_back(a, [a, out, row_offset, row_count]() {
-        int cols = a->val.cols;
+        int nc = a->val.cols;
         for (int i = 0; i < row_count; ++i) {
-            for (int j = 0; j < cols; ++j) {
-                a->grad.data[(row_offset + i) * cols + j] +=
-                    out->grad.data[i * cols + j];
+            for (int j = 0; j < nc; ++j) {
+                a->grad.data[(row_offset + i) * nc + j] +=
+                    out->grad.data[i * nc + j];
             }
         }
     });
@@ -166,11 +166,11 @@ std::shared_ptr<ADTensor> concat(const std::vector<std::shared_ptr<ADTensor>>& p
             row_off_p += prev->val.rows;
         }
         out->deps.emplace_back(p, [p, out, row_off_p]() {
-            int cols = p->val.cols;
+            int nc = p->val.cols;
             for (int i = 0; i < p->val.rows; ++i) {
-                for (int j = 0; j < cols; ++j) {
-                    p->grad.data[i * cols + j] +=
-                        out->grad.data[(row_off_p + i) * cols + j];
+                for (int j = 0; j < nc; ++j) {
+                    p->grad.data[i * nc + j] +=
+                        out->grad.data[(row_off_p + i) * nc + j];
                 }
             }
         });

@@ -49,9 +49,13 @@ struct Dataset {
             fclose(f);
             return false;
         }
-        fread(&version, 4, 1, f);
-        fread(&num_records, 4, 1, f);
-        fread(&num_features, 4, 1, f);
+        if (fread(&version, 4, 1, f) != 1 ||
+            fread(&num_records, 4, 1, f) != 1 ||
+            fread(&num_features, 4, 1, f) != 1) {
+            fprintf(stderr, "Truncated header in %s\n", path.c_str());
+            fclose(f);
+            return false;
+        }
 
         if (num_features != 5) {
             fprintf(stderr, "Expected 5 features per record, got %u\n",

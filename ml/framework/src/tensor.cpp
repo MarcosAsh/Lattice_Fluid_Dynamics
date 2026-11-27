@@ -6,6 +6,7 @@
 #include <Accelerate/Accelerate.h>
 #endif
 #include <algorithm>
+#include <stdexcept>
 
 int Tensor::compute_numel(const std::vector<int>& shape) {
     if (shape.empty()) return 0;
@@ -176,8 +177,11 @@ Tensor Tensor::squeeze(int dim) const {
 
 Tensor Tensor::unsqueeze(int dim) const {
     if (dim < 0) dim += ndim() + 1;
-    std::vector<int> new_shape = shape;
-    new_shape.insert(new_shape.begin() + dim, 1);
+    if (dim < 0 || dim > ndim())
+        throw std::out_of_range("unsqueeze: bad dim");
+    std::vector<int> new_shape(shape.begin(), shape.begin() + dim);
+    new_shape.push_back(1);
+    new_shape.insert(new_shape.end(), shape.begin() + dim, shape.end());
     Tensor result(new_shape);
     std::copy(data.begin(), data.end(), result.data.begin());
     return result;
