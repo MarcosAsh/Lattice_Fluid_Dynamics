@@ -556,7 +556,7 @@ def render_simulation(
                     stdout_lines.append(line.rstrip("\n"))
 
                     # Parse Cd/Cl as they arrive
-                    if "Cd=" in line:
+                    if "Cd=" in line and "ML estimate" not in line:
                         try:
                             val = float(line.split("Cd=")[1].split()[0])
                             if math.isfinite(val):
@@ -628,7 +628,7 @@ def render_simulation(
                 return None
 
         for line in stdout.split("\n"):
-            if "Cd=" in line:
+            if "Cd=" in line and "ML estimate" not in line:
                 val = _parse_float(line, "Cd=")
                 if val is not None:
                     cd_values.append(val)
