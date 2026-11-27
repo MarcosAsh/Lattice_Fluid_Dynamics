@@ -73,15 +73,15 @@ std::shared_ptr<ADTensor> add(const std::shared_ptr<ADTensor>& a,
     Tensor v = a->val + b->val;
     auto out = std::make_shared<ADTensor>(v);
     // grad_a += grad_out
-    out->deps.emplace_back(a, [a, out]() {
+    out->deps.emplace_back(a, [a, o = out.get()]() {
         for (size_t i = 0; i < a->grad.data.size(); ++i) {
-            a->grad.data[i] += out->grad.data[i];
+            a->grad.data[i] += o->grad.data[i];
         }
     });
     // grad_b += grad_out
-    out->deps.emplace_back(b, [b, out]() {
+    out->deps.emplace_back(b, [b, o = out.get()]() {
         for (size_t i = 0; i < b->grad.data.size(); ++i) {
-            b->grad.data[i] += out->grad.data[i];
+            b->grad.data[i] += o->grad.data[i];
         }
     });
     return out;
@@ -94,11 +94,11 @@ std::shared_ptr<ADTensor> log_ad(const std::shared_ptr<ADTensor>& a) {
         v.data[i] = std::log(x > 1e-7f ? x : 1e-7f);
     }
     auto out = std::make_shared<ADTensor>(v);
-    out->deps.emplace_back(a, [a, out]() {
+    out->deps.emplace_back(a, [a, o = out.get()]() {
         for (size_t i = 0; i < a->grad.data.size(); ++i) {
             // d/dx log(x) = 1/x, clamped to avoid division by zero
             float x = a->val.data[i];
-            a->grad.data[i] += out->grad.data[i] / (x > 1e-7f ? x : 1e-7f);
+            a->grad.data[i] += o->grad.data[i] / (x > 1e-7f ? x : 1e-7f);
         }
     });
     return out;
@@ -107,9 +107,9 @@ std::shared_ptr<ADTensor> log_ad(const std::shared_ptr<ADTensor>& a) {
 std::shared_ptr<ADTensor> transpose(const std::shared_ptr<ADTensor>& a) {
     Tensor v = a->val.transpose();
     auto out = std::make_shared<ADTensor>(v);
-    out->deps.emplace_back(a, [a, out]() {
-        // a->grad += out->grad^T
-        Tensor go = out->grad;
+    out->deps.emplace_back(a, [a, o = out.get()]() {
+        // a->grad += o->grad^T
+        Tensor go = o->grad;
         Tensor goT = go.transpose();
         for (size_t i = 0; i < a->grad.data.size(); ++i) {
             a->grad.data[i] += goT.data[i];
@@ -128,12 +128,12 @@ std::shared_ptr<ADTensor> slice(const std::shared_ptr<ADTensor>& a,
         }
     }
     auto out = std::make_shared<ADTensor>(v);
-    out->deps.emplace_back(a, [a, out, row_offset, row_count]() {
+    out->deps.emplace_back(a, [a, o = out.get(), row_offset, row_count]() {
         int nc = a->val.cols;
         for (int i = 0; i < row_count; ++i) {
             for (int j = 0; j < nc; ++j) {
                 a->grad.data[(row_offset + i) * nc + j] +=
-                    out->grad.data[i * nc + j];
+                    o->grad.data[i * nc + j];
             }
         }
     });
@@ -165,12 +165,12 @@ std::shared_ptr<ADTensor> concat(const std::vector<std::shared_ptr<ADTensor>>& p
             if (prev.get() == p.get()) break;
             row_off_p += prev->val.rows;
         }
-        out->deps.emplace_back(p, [p, out, row_off_p]() {
+        out->deps.emplace_back(p, [p, o = out.get(), row_off_p]() {
             int nc = p->val.cols;
             for (int i = 0; i < p->val.rows; ++i) {
                 for (int j = 0; j < nc; ++j) {
                     p->grad.data[i * nc + j] +=
-                        out->grad.data[(row_off_p + i) * nc + j];
+                        o->grad.data[(row_off_p + i) * nc + j];
                 }
             }
         });
@@ -187,15 +187,15 @@ std::shared_ptr<ADTensor> mul(const std::shared_ptr<ADTensor>& a,
     }
     auto out = std::make_shared<ADTensor>(v);
     // grad_a += grad_out * b
-    out->deps.emplace_back(a, [a, b, out]() {
+    out->deps.emplace_back(a, [a, b, o = out.get()]() {
         for (size_t i = 0; i < a->grad.data.size(); ++i) {
-            a->grad.data[i] += b->val.data[i] * out->grad.data[i];
+            a->grad.data[i] += b->val.data[i] * o->grad.data[i];
         }
     });
     // grad_b += grad_out * a
-    out->deps.emplace_back(b, [a, b, out]() {
+    out->deps.emplace_back(b, [a, b, o = out.get()]() {
         for (size_t i = 0; i < b->grad.data.size(); ++i) {
-            b->grad.data[i] += a->val.data[i] * out->grad.data[i];
+            b->grad.data[i] += a->val.data[i] * o->grad.data[i];
         }
     });
     return out;
@@ -207,9 +207,9 @@ std::shared_ptr<ADTensor> scalar_mul(const std::shared_ptr<ADTensor>& a,
     for (auto& x : v.data) x *= s;
     auto out = std::make_shared<ADTensor>(v);
     // grad_a += s * grad_out
-    out->deps.emplace_back(a, [a, out, s]() {
+    out->deps.emplace_back(a, [a, o = out.get(), s]() {
         for (size_t i = 0; i < a->grad.data.size(); ++i) {
-            a->grad.data[i] += s * out->grad.data[i];
+            a->grad.data[i] += s * o->grad.data[i];
         }
     });
     return out;
@@ -220,8 +220,8 @@ std::shared_ptr<ADTensor> matmul(const std::shared_ptr<ADTensor>& a,
     Tensor v = a->val.matmul(b->val);
     auto out = std::make_shared<ADTensor>(v);
     // grad w.r.t a: grad_out.matmul(b^T)
-    out->deps.emplace_back(a, [a, b, out]() {
-        Tensor grad_out = out->grad;
+    out->deps.emplace_back(a, [a, b, o = out.get()]() {
+        Tensor grad_out = o->grad;
         Tensor bT = b->val.transpose();
         Tensor ga = grad_out.matmul(bT);
         for (size_t i = 0; i < a->grad.data.size(); ++i) {
@@ -229,8 +229,8 @@ std::shared_ptr<ADTensor> matmul(const std::shared_ptr<ADTensor>& a,
         }
     });
     // grad w.r.t b: a^T.matmul(grad_out)
-    out->deps.emplace_back(b, [a, b, out]() {
-        Tensor grad_out = out->grad;
+    out->deps.emplace_back(b, [a, b, o = out.get()]() {
+        Tensor grad_out = o->grad;
         Tensor aT = a->val.transpose();
         Tensor gb = aT.matmul(grad_out);
         for (size_t i = 0; i < b->grad.data.size(); ++i) {
@@ -247,10 +247,10 @@ std::shared_ptr<ADTensor> tanh_ad(const std::shared_ptr<ADTensor>& a) {
     }
     auto out = std::make_shared<ADTensor>(v);
     // grad_a += (1 - tanh^2(x)) * grad_out
-    out->deps.emplace_back(a, [a, out]() {
+    out->deps.emplace_back(a, [a, o = out.get()]() {
         for (size_t i = 0; i < a->grad.data.size(); ++i) {
-            float y = out->val.data[i];
-            a->grad.data[i] += (1.0f - y * y) * out->grad.data[i];
+            float y = o->val.data[i];
+            a->grad.data[i] += (1.0f - y * y) * o->grad.data[i];
         }
     });
     return out;
@@ -264,9 +264,9 @@ std::shared_ptr<ADTensor> exp_ad(const std::shared_ptr<ADTensor>& a) {
     }
     auto out = std::make_shared<ADTensor>(v);
     // grad_a += exp(x) * grad_out
-    out->deps.emplace_back(a, [a, out]() {
+    out->deps.emplace_back(a, [a, o = out.get()]() {
         for (size_t i = 0; i < a->grad.data.size(); ++i) {
-            a->grad.data[i] += out->val.data[i] * out->grad.data[i];
+            a->grad.data[i] += o->val.data[i] * o->grad.data[i];
         }
     });
     return out;
@@ -278,11 +278,12 @@ std::shared_ptr<ADTensor> sqrt_ad(const std::shared_ptr<ADTensor>& a) {
         v.data[i] = std::sqrt(a->val.data[i]);
     }
     auto out = std::make_shared<ADTensor>(v);
-    out->deps.emplace_back(a, [a, out]() {
+    out->deps.emplace_back(a, [a, o = out.get()]() {
         for (size_t i = 0; i < a->grad.data.size(); ++i) {
-            float y = out->val.data[i];
+            float y = o->val.data[i];
             // Guard against division by zero when sqrt(x) == 0
-            a->grad.data[i] += (out->grad.data[i] * 0.5f) / (y > 1e-7f ? y : 1e-7f);
+            a->grad.data[i] +=
+                (o->grad.data[i] * 0.5f) / (y > 1e-7f ? y : 1e-7f);
         }
     });
     return out;
@@ -296,11 +297,11 @@ std::shared_ptr<ADTensor> reciprocal(const std::shared_ptr<ADTensor>& a) {
         v.data[i] = 1.0f / ax;
     }
     auto out = std::make_shared<ADTensor>(v);
-    out->deps.emplace_back(a, [a, out]() {
+    out->deps.emplace_back(a, [a, o = out.get()]() {
         for (size_t i = 0; i < a->grad.data.size(); ++i) {
             float ai = a->val.data[i];
             float ax = std::fabs(ai) > 1e-7f ? ai : (ai >= 0 ? 1e-7f : -1e-7f);
-            a->grad.data[i] -= out->grad.data[i] / (ax * ax);
+            a->grad.data[i] -= o->grad.data[i] / (ax * ax);
         }
     });
     return out;
@@ -313,14 +314,14 @@ std::shared_ptr<ADTensor> sub(const std::shared_ptr<ADTensor>& a,
         v.data[i] = a->val.data[i] - b->val.data[i];
     auto out = std::make_shared<ADTensor>(v);
     // grad a += grad_out
-    out->deps.emplace_back(a, [a, out]() {
+    out->deps.emplace_back(a, [a, o = out.get()]() {
         for (size_t i = 0; i < a->grad.data.size(); ++i)
-            a->grad.data[i] += out->grad.data[i];
+            a->grad.data[i] += o->grad.data[i];
     });
     // grad b -= grad_out
-    out->deps.emplace_back(b, [b, out]() {
+    out->deps.emplace_back(b, [b, o = out.get()]() {
         for (size_t i = 0; i < b->grad.data.size(); ++i)
-            b->grad.data[i] -= out->grad.data[i];
+            b->grad.data[i] -= o->grad.data[i];
     });
     return out;
 }
@@ -331,9 +332,10 @@ std::shared_ptr<ADTensor> sum(const std::shared_ptr<ADTensor>& a) {
     Tensor v(1, 1);
     v.data[0] = s;
     auto out = std::make_shared<ADTensor>(v);
-    out->deps.emplace_back(a, [a, out]() {
-        float d = out->grad.data[0];
-        for (float &g : a->grad.data) g += d;
+    out->deps.emplace_back(a, [a, o = out.get()]() {
+        float d = o->grad.data[0];
+        for (float &g : a->grad.data)
+            g += d;
     });
     return out;
 }
@@ -345,10 +347,10 @@ std::shared_ptr<ADTensor> relu_ad(const std::shared_ptr<ADTensor>& a) {
         v.data[i] = a->val.data[i] > 0.0f ? a->val.data[i] : 0.0f;
     }
     auto out = std::make_shared<ADTensor>(v);
-    out->deps.emplace_back(a, [a, out]() {
+    out->deps.emplace_back(a, [a, o = out.get()]() {
         for (size_t i = 0; i < a->grad.data.size(); ++i) {
             if (a->val.data[i] > 0.0f) {
-                a->grad.data[i] += out->grad.data[i];
+                a->grad.data[i] += o->grad.data[i];
             }
         }
     });
@@ -362,10 +364,10 @@ std::shared_ptr<ADTensor> sigmoid_ad(const std::shared_ptr<ADTensor>& a) {
         v.data[i] = 1.0f / (1.0f + std::exp(-a->val.data[i]));
     }
     auto out = std::make_shared<ADTensor>(v);
-    out->deps.emplace_back(a, [a, out]() {
+    out->deps.emplace_back(a, [a, o = out.get()]() {
         for (size_t i = 0; i < a->grad.data.size(); ++i) {
-            float s = out->val.data[i];
-            a->grad.data[i] += out->grad.data[i] * s * (1.0f - s);
+            float s = o->val.data[i];
+            a->grad.data[i] += o->grad.data[i] * s * (1.0f - s);
         }
     });
     return out;
@@ -377,10 +379,10 @@ std::shared_ptr<ADTensor> reshape_ad(const std::shared_ptr<ADTensor>& a,
     Tensor v = a->val.reshape(new_shape);
     auto out = std::make_shared<ADTensor>(v);
     auto orig_shape = a->val.shape;
-    out->deps.emplace_back(a, [a, out, orig_shape]() {
+    out->deps.emplace_back(a, [a, o = out.get(), orig_shape]() {
         // Gradient flows through unchanged - just reshape back
         for (size_t i = 0; i < a->grad.data.size(); ++i) {
-            a->grad.data[i] += out->grad.data[i];
+            a->grad.data[i] += o->grad.data[i];
         }
     });
     return out;
@@ -391,9 +393,9 @@ std::shared_ptr<ADTensor> flatten_ad(const std::shared_ptr<ADTensor>& a,
                                       int start_dim, int end_dim) {
     Tensor v = a->val.flatten(start_dim, end_dim);
     auto out = std::make_shared<ADTensor>(v);
-    out->deps.emplace_back(a, [a, out]() {
+    out->deps.emplace_back(a, [a, o = out.get()]() {
         for (size_t i = 0; i < a->grad.data.size(); ++i) {
-            a->grad.data[i] += out->grad.data[i];
+            a->grad.data[i] += o->grad.data[i];
         }
     });
     return out;

@@ -9,6 +9,7 @@
 struct ADTensor {
     Tensor val;
     Tensor grad;
+    // Closures see their own node by raw pointer, a shared_ptr would leak it
     std::vector<std::pair<std::shared_ptr<ADTensor>, std::function<void()>>> deps;
     ADTensor(int rows, int cols);
     ADTensor(const Tensor& t);

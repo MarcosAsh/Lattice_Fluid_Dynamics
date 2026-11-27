@@ -11,14 +11,14 @@ static std::shared_ptr<ADTensor> swish_ad(const std::shared_ptr<ADTensor>& a) {
         v.data[i] = x * sig;
     }
     auto out = std::make_shared<ADTensor>(v);
-    out->deps.emplace_back(a, [a, out]() {
+    out->deps.emplace_back(a, [a, o = out.get()]() {
         for (size_t i = 0; i < a->grad.data.size(); ++i) {
             float x = a->val.data[i];
             float sig = 1.0f / (1.0f + std::exp(-x));
             // d/dx [x * sig(x)] = sig(x) + x * sig(x) * (1 - sig(x))
             //                    = sig(x) * (1 + x * (1 - sig(x)))
             float grad = sig * (1.0f + x * (1.0f - sig));
-            a->grad.data[i] += grad * out->grad.data[i];
+            a->grad.data[i] += grad * o->grad.data[i];
         }
     });
     return out;
