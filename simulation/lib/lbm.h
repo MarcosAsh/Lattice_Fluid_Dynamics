@@ -157,6 +157,12 @@ void LBM_AddGroundPlane(LBMGrid *grid, float worldZ);
 // onto the plane perpendicular to the given axis (0=x, 1=y, 2=z).
 float LBM_ComputeProjectedArea(LBMGrid *grid, int axis);
 
+// Exact y-z silhouette area of a world-space mesh, in lattice cells^2
+float LBM_MeshFrontalArea(LBMGrid *grid, const float *triangles, int numTriangles);
+
+// Cells reset by the stability guard since the last call, then clears
+void LBM_ReadDiagnostics(LBMGrid *grid, int *resetCells, int *nanCells);
+
 // Set solid mesh
 void LBM_SetSolidMesh(LBMGrid *grid,
                       float *triangles,

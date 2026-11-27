@@ -1399,9 +1399,29 @@ int main(int argc, char *argv[]) {
             float rho_0 = 1.0f;
             float dynP = 0.5f * rho_0 * latticeVelocity * latticeVelocity;
             float denom = dynP * refArea;
-            float Cd = (denom > 1e-10f) ? fabsf(fx) / denom : 0.0f;
-            float Cl = (denom > 1e-10f) ? fy / denom : 0.0f;
-            float CdPressure = (denom > 1e-10f) ? fabsf(px) / denom : 0.0f;
+            // Signed so a reversed mean force stays visible
+            float Cd = (denom > 1e-10f) ? fx / denom : 0.0f;
+            float fLift = (liftAxis == 2) ? fz : fy;
+            float fSide = (liftAxis == 2) ? fy : fz;
+            float Cl = (denom > 1e-10f) ? fLift / denom : 0.0f;
+            float Cside = (denom > 1e-10f) ? fSide / denom : 0.0f;
+
+            int resetCells = 0, nanCells = 0;
+            LBM_ReadDiagnostics(lbmGrid, &resetCells, &nanCells);
+            if (resetCells > 0) {
+                unstableSamples++;
+                printf("  WARNING: %d cells reset by the stability guard "
+                       "(%d NaN) in this window\n",
+                       resetCells,
+                       nanCells);
+            }
+            if (nanCells > 0 || !isfinite(fx)) {
+                fprintf(stderr,
+                        "ERROR: simulation diverged (NaN), Cd is invalid\n");
+                printf("ERROR: simulation diverged (NaN), Cd is invalid\n");
+                exit(3);
+            }
+            float CdPressure = (denom > 1e-10f) ? px / denom : 0.0f;
             float CdFriction = Cd - CdPressure;
             if (CdFriction < 0.0f)
                 CdFriction = 0.0f;

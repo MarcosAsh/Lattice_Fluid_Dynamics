@@ -260,6 +260,12 @@ LBMGrid *LBM_Create(int sizeX, int sizeY, int sizeZ, float viscosity) {
         return NULL;
     }
 
+    int diagZeros[2] = {0, 0};
+    glGenBuffers(1, &grid->diagBuffer);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->diagBuffer);
+    glBufferData(
+        GL_SHADER_STORAGE_BUFFER, sizeof(diagZeros), diagZeros, GL_DYNAMIC_COPY);
+
     // Force GPU to finish all pending DMA transfers before any compute
     // dispatch. Without this, NVIDIA T4 can evict freshly uploaded pages.
     glFinish();
@@ -375,6 +381,10 @@ void LBM_Free(LBMGrid *grid) {
         glDeleteBuffers(1, &grid->forceBuffer);
     if (grid->qBuffer)
         glDeleteBuffers(1, &grid->qBuffer);
+    if (grid->diagBuffer)
+        glDeleteBuffers(1, &grid->diagBuffer);
+    if (grid->stepFence)
+        glDeleteSync(grid->stepFence);
     if (grid->collideShader)
         glDeleteProgram(grid->collideShader);
     if (grid->streamShader)
@@ -786,6 +796,7 @@ void LBM_Step(LBMGrid *grid,
     // Bind unsplit buffers once
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, grid->velocityBuffer);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, grid->solidBuffer);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 14, grid->diagBuffer);
 
     size_t fSliceBytes =
         (size_t)19 * grid->sizeX * grid->sizeY * sizeof(float);
@@ -920,6 +931,31 @@ void LBM_Step(LBMGrid *grid,
         glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
         grid->forceAccumCount++;
     }
+
+    // Bound the queue, i915 expires fences on long ones and drops the work
+    if (grid->stepCount % 32 == 0) {
+        if (grid->stepFence) {
+            glClientWaitSync(grid->stepFence,
+                             GL_SYNC_FLUSH_COMMANDS_BIT,
+                             (GLuint64)60 * 1000000000ull);
+            glDeleteSync(grid->stepFence);
+        }
+        grid->stepFence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+    }
+}
+
+void LBM_ReadDiagnostics(LBMGrid *grid, int *resetCells, int *nanCells) {
+    int counts[2] = {0, 0};
+    int zeros[2] = {0, 0};
+    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT |
+                    GL_BUFFER_UPDATE_BARRIER_BIT);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->diagBuffer);
+    glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(counts), counts);
+    glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(zeros), zeros);
+    if (resetCells)
+        *resetCells = counts[0];
+    if (nanCells)
+        *nanCells = counts[1];
 }
 
 GLuint LBM_GetVelocityBuffer(LBMGrid *grid) {
