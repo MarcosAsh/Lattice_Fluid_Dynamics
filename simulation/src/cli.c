@@ -384,12 +384,14 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
                    "OUTPUT/manifest.json\n"
                    "                        when --output is set)\n");
             printf("  --converge=TOL        Stop a headless run once the "
-                   "windowed mean Cd\n"
-                   "                        changes by less than TOL "
-                   "(relative) twice in a row\n");
-            printf("  --converge-window=N   Cd samples per window "
-                   "(default: 20, one sample\n"
-                   "                        every %d frames)\n",
+                   "95%% confidence\n"
+                   "                        half-width of mean Cd is under "
+                   "TOL of the mean\n"
+                   "                        and the series after the "
+                   "transient is stationary\n");
+            printf("  --converge-window=N   Cd samples between convergence "
+                   "checks (default: 20,\n"
+                   "                        one sample every %d frames)\n",
                    CD_SAMPLE_INTERVAL);
             printf("  --max-duration=SECS   Frame cap for --converge "
                    "(overrides --duration)\n");
