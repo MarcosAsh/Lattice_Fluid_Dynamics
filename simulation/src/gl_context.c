@@ -1,4 +1,5 @@
 #include "../lib/gl_context.h"
+#include "../lib/gl_helpers.h"
 #include <glad/gl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -44,6 +45,8 @@ GLContext *GLContext_CreateInteractive(int w, int h) {
     SDL_GL_SetAttribute(
         SDL_GL_CONTEXT_PROFILE_MASK,
         SDL_GL_CONTEXT_PROFILE_COMPATIBILITY);
+    if (glDebugRequested())
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG);
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
 
@@ -86,6 +89,7 @@ GLContext *GLContext_CreateInteractive(int w, int h) {
     ctx->sdlWindow = win;
     ctx->sdlContext = gl;
 
+    enableGLDebugOutput();
     printf("GL context: SDL (interactive)\n");
     printf("  OpenGL: %s\n", glGetString(GL_VERSION));
     printf("  Renderer: %s\n",
@@ -122,6 +126,8 @@ static GLContext *headless_sdl_fallback(int w, int h) {
     SDL_GL_SetAttribute(
         SDL_GL_CONTEXT_PROFILE_MASK,
         SDL_GL_CONTEXT_PROFILE_COMPATIBILITY);
+    if (glDebugRequested())
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG);
 
     SDL_Window *win = SDL_CreateWindow(
         "headless", 0, 0, w, h,
@@ -158,6 +164,7 @@ static GLContext *headless_sdl_fallback(int w, int h) {
     ctx->sdlWindow = win;
     ctx->sdlContext = gl;
 
+    enableGLDebugOutput();
     printf("GL context: SDL hidden (headless)\n");
     printf("  OpenGL: %s\n", glGetString(GL_VERSION));
     printf("  Renderer: %s\n",
@@ -354,6 +361,7 @@ GLContext *GLContext_CreateHeadless(int w, int h) {
     ctx->eglContext = eglCtx;
     ctx->eglSurface = surface;
 
+    enableGLDebugOutput();
     printf("GL context: EGL (headless GPU)\n");
     printf("  OpenGL: %s\n", glGetString(GL_VERSION));
     printf("  Renderer: %s\n",

@@ -5,6 +5,7 @@
  *   xvfb-run ./build/test_lbm
  */
 
+#include "../lib/gl_helpers.h"
 #include "../lib/lbm.h"
 #include <glad/gl.h>
 #include <SDL2/SDL.h>
@@ -672,6 +673,8 @@ static int init_gl(void) {
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,
                         SDL_GL_CONTEXT_PROFILE_COMPATIBILITY);
+    if (glDebugRequested())
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG);
 
     SDL_Window *win = SDL_CreateWindow(
         "test", 0, 0, 64, 64, SDL_WINDOW_OPENGL | SDL_WINDOW_HIDDEN);
@@ -689,6 +692,7 @@ static int init_gl(void) {
         printf("glad GL load failed\n");
         return 0;
     }
+    enableGLDebugOutput();
     return 1;
 }
 
