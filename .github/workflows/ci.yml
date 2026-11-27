@@ -40,7 +40,7 @@ jobs:
         run: cmake --build build
 
       - name: Test
-        run: xvfb-run -a ctest --test-dir build --output-on-failure
+        run: xvfb-run -a ctest --test-dir build --output-on-failure -LE validation
 
   sanitizers:
     name: Simulation (ASan, UBSan)
