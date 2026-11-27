@@ -5,7 +5,7 @@
 
 #define MANIFEST_SCHEMA_VERSION 1
 
-// Everything a run records in its manifest. NAN floats become null.
+// Run manifest contents, NAN floats become null
 typedef struct {
     const CliOptions *opts;
     char startTimeUtc[32];
@@ -69,7 +69,7 @@ typedef struct {
 // Fills build info and defaults, NAN for results not yet known
 void manifest_init(RunManifest *m, const CliOptions *opts);
 
-// Writes path atomically via a temp file. Returns 0 on success.
+// Atomic write via a temp file, 0 on success
 int manifest_write(const char *path, const RunManifest *m);
 
 #endif // MANIFEST_H

@@ -1,6 +1,5 @@
 /*
- * Run manifest writer tests. No GL needed. Leaves test_manifest.json in
- * the working directory for the JSON parse check that follows.
+ * Manifest tests. No GL needed. Leaves test_manifest.json for parsing.
  */
 
 #include "../lib/manifest.h"

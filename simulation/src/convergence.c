@@ -67,7 +67,7 @@ void conv_stats(const ConvergenceDetector *d, double *mean, double *sem) {
     const float *x = d->samples + d->count - m;
     *mean = mean_of(x, m);
 
-    // Batch means: SEM from the spread of SEM_BATCHES contiguous batch means
+    // SEM by batch means over SEM_BATCHES contiguous batches
     int b = m / SEM_BATCHES;
     if (b < 1)
         return;
