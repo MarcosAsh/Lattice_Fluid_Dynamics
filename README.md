@@ -71,12 +71,12 @@ You need CMake, a C11 compiler, and OpenGL 4.3+ capable GPU drivers.
 **Debian/Ubuntu:**
 ```bash
 sudo apt-get install build-essential cmake pkg-config \
-  libsdl2-dev libsdl2-ttf-dev libglew-dev mesa-common-dev libgl1-mesa-dev
+  libsdl2-dev libsdl2-ttf-dev mesa-common-dev libgl1-mesa-dev libegl1-mesa-dev
 ```
 
 **Arch:**
 ```bash
-sudo pacman -S base-devel cmake sdl2 sdl2_ttf glew mesa
+sudo pacman -S base-devel cmake sdl2-compat sdl2_ttf mesa
 ```
 
 ### Build and run

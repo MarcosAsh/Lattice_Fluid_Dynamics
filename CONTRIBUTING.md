@@ -11,7 +11,7 @@ Thanks for your interest in Lattice. Here's how to get involved.
 
 ## What to work on
 
-Check the [issues](https://github.com/MarcosAsh/3dFluidDynamicsInC/issues) for things that need attention. If you want to work on something bigger, open an issue first so we can talk through the approach before you write a bunch of code.
+Check the [issues](https://github.com/MarcosAsh/Lattice_Fluid_Dynamics/issues) for things that need attention. If you want to work on something bigger, open an issue first so we can talk through the approach before you write a bunch of code.
 
 Some areas that could use help:
 
