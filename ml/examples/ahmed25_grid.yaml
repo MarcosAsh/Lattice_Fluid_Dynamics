@@ -1,0 +1,26 @@
+# Three-grid study of the Ahmed 25 degree body, for gci.py
+# Paths are relative to this file
+name: ahmed25_grid
+binary: ../../build/3d_fluid_simulation_car
+workdir: ../../simulation
+output: ../../build/studies/ahmed25_grid
+timeout: 900
+
+# The solver caps Re at tau 0.52, Re 72 on 32x16x16
+# Stay below the coarsest grid's cap so every grid runs the same flow
+base:
+  model: assets/3d-files/ahmed_25deg_m.obj
+  reynolds: 50
+  converge: 0.02
+  converge_window: 5
+
+# max_duration grows with the grid so every run covers the same flow-throughs
+cases:
+  - {grid: 32x16x16, max_duration: 4}
+  - {grid: 48x24x24, max_duration: 6}
+  - {grid: 64x32x32, max_duration: 8}
+vary_with_grid: [max_duration]
+
+slurm:
+  gres: shard:1
+  time: "00:30:00"

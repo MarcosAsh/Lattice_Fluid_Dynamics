@@ -1,6 +1,7 @@
 import csv
 import json
 import sys
+from pathlib import Path
 
 import pytest
 import yaml
@@ -332,6 +333,14 @@ def problems(data):
 
 def test_valid_study_has_no_problems():
     assert problems(study_data()) == []
+
+
+def test_shipped_example_is_valid():
+    example = Path(__file__).resolve().parents[1] / "ml" / "examples" / "ahmed25_grid.yaml"
+    s = st.load_study(example)
+    assert [c.params["grid"] for c in s.cases] == GRIDS
+    assert len({c.group for c in s.cases}) == 1
+    assert s.workdir.name == "simulation"
 
 
 @pytest.mark.parametrize(

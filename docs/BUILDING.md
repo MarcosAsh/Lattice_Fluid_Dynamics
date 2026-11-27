@@ -180,3 +180,51 @@ Cd value can be traced back to the exact run that produced it.
 The run ends when the mean Cd of the last two windows differs by less
 than `TOL` twice in a row, or at `--max-duration`. The manifest reports
 whether it converged, the mean and its standard error (batch means).
+
+## Running a study
+
+`ml/study.py` runs a list of solver cases and collects their manifests
+into one table. `ml/gci.py` takes three or more grids of the same case and
+reports the observed order, the extrapolated value and the grid
+convergence index (GCI).
+
+A study file names the binary, the directory to run it from, the output
+directory and the cases. `ml/examples/ahmed25_grid.yaml` runs the Ahmed
+body on three grids. Paths are relative to the study file. `base` applies
+to every case, `sweep` lists values to cross, and `cases` are crossed with
+the sweep. Keys in `vary_with_grid` may change with the grid without
+splitting a GCI group.
+
+```bash
+cmake -B build -S simulation -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j$(nproc)
+uv run python ml/cli.py study ml/examples/ahmed25_grid.yaml
+uv run python ml/cli.py gci build/studies/ahmed25_grid/results.json
+```
+
+Each case gets a directory under `cases/` with its command line
+(`cmd.txt`), log, manifest and exit status. Running the study again skips
+cases that already have a manifest for the same parameters and retries
+the failed ones. `--force` reruns everything and `--dry-run` prints the
+commands. `results.csv` and `results.json` hold one row per case. The
+summary warns about failed cases, mixed commits, dirty trees, mixed GPUs
+and runs that the solver capped below the requested Reynolds number.
+
+The solver caps Re where tau would drop below 0.52, and the cap is lower
+on coarse grids. Pick an Re that the coarsest grid can reach, or the grids
+run different flows.
+
+On the cluster, `--backend slurm` writes one sbatch script per case (with
+`--gres=shard:1`) and a `submit.sh`. `--submit` calls `sbatch` itself.
+When the jobs are done, `study.py STUDY --collect` builds the table.
+
+`gci` follows Celik et al. (2008) with a safety factor of 1.25. It gives
+no order when the change between grids is within twice the runs' combined
+standard error, when convergence is oscillatory or divergent, or when the
+order falls outside 1 to 4. It prints the reason instead. Otherwise it
+reports the fine-grid value with an uncertainty that combines the GCI and
+twice the standard error. `--plot` needs the `plots` extra.
+
+Meshes from the automotive datasets come as STL.
+`uv run python ml/cli.py convert body.stl` writes `body.obj` with
+duplicate vertices merged and degenerate triangles dropped.
