@@ -81,6 +81,19 @@ jobs:
       - name: Test
         run: ctest --test-dir build-ml --output-on-failure
 
+  format:
+    name: Format (C, C++)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v10.4.0
+
+      - name: clang-format
+        run: |
+          git ls-files '*.c' '*.h' '*.cpp' '*.hpp' ':!simulation/lib/glad' \
+            | xargs uvx clang-format@23.1.5 --dry-run -Werror
+
   python:
     name: Python (lint, tests)
     runs-on: ubuntu-24.04

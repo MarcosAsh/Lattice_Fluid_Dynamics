@@ -24,8 +24,8 @@ test: sim ## Run the simulation, Python and website tests
 validate: sim ## Run the GPU validation suite (slow)
 	ctest --test-dir build --output-on-failure -L validation
 
-fmt: ## Format C, Python and TS
-	git ls-files '*.c' '*.h' '*.cpp' '*.hpp' ':!simulation/lib/glad' | xargs clang-format -i
+fmt: ## Format C, Python and TS (CI checks with clang-format 23.1.5)
+	git ls-files '*.c' '*.h' '*.cpp' '*.hpp' ':!simulation/lib/glad' | xargs uvx clang-format@23.1.5 -i
 	uv run ruff check --fix . && uv run ruff format .
 	cd website && npx eslint --fix src/
 
