@@ -61,12 +61,13 @@ A from-scratch C++ ML framework with reverse-mode autodiff, and Python tools for
 - `train.cpp` -- training driver with mini-batch SGD and z-score normalization
 - `data_gen.py` -- parameter sweep on Modal for training data collection
 - `evaluate.py` -- MAE/RMSE/R² metrics with matplotlib visualizations
+- `cli.py` -- one entry point for the Python tools (`uv run python ml/cli.py`)
 
 ## Building the simulation
 
 ### Dependencies
 
-You need CMake, a C11 compiler, and OpenGL 4.3+ capable GPU drivers.
+You need CMake 3.22+, a C17 compiler, SDL2, and OpenGL 4.3+ capable GPU drivers. Linux only: macOS stops at OpenGL 4.1.
 
 **Debian/Ubuntu:**
 ```bash
@@ -84,10 +85,25 @@ sudo pacman -S base-devel cmake sdl2-compat mesa
 ```bash
 cmake -B build -S simulation -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j$(nproc)
-./build/3d_fluid_simulation_car
+cd simulation
+../build/3d_fluid_simulation_car
 ```
 
-Run from the repo root so the binary can find `simulation/assets/`.
+Run it from `simulation/`, where the shaders and assets are.
+
+### Headless run
+
+No window, an Ahmed body, and a JSON record of the run:
+
+```bash
+cd simulation
+../build/3d_fluid_simulation_car --model=assets/3d-files/ahmed_25deg_m.obj \
+    --converge=0.01 --max-duration=60 --manifest=run.json
+```
+
+It stops when the drag coefficient has settled and writes the result,
+the parameters and the git commit to `run.json`. See
+[docs/BUILDING.md](docs/BUILDING.md) for tests, presets and every option.
 
 ## Running the website
 
@@ -154,6 +170,10 @@ Dump the velocity field for ParaView post-processing:
 ```
 
 Writes VTI (VTK ImageData) files with velocity and solid mask at the specified frame interval.
+
+## Contributing
+
+Issues labelled [good first issue](https://github.com/MarcosAsh/Lattice_Fluid_Dynamics/labels/good%20first%20issue) are small and say which file to touch and how to test the change. [CONTRIBUTING.md](CONTRIBUTING.md) covers the setup, the checks CI runs, and how contributors become maintainers.
 
 ## Citing
 

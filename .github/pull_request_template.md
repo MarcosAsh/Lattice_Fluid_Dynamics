@@ -15,6 +15,6 @@ Steps to verify this works:
 
 ## Checklist
 
-- [ ] Builds locally without errors
-- [ ] No new compiler or linter warnings
+- [ ] `make test` passes, or the part of it this change touches
+- [ ] `make fmt` run
 - [ ] Tested on the website (if applicable)

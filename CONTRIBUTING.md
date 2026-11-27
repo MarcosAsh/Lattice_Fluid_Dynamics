@@ -11,7 +11,7 @@ Thanks for your interest in Lattice. Here's how to get involved.
 
 ## What to work on
 
-Check the [issues](https://github.com/MarcosAsh/Lattice_Fluid_Dynamics/issues) for things that need attention. If you want to work on something bigger, open an issue first so we can talk through the approach before you write a bunch of code.
+New here? Start with a [good first issue](https://github.com/MarcosAsh/Lattice_Fluid_Dynamics/labels/good%20first%20issue). Otherwise check the [issues](https://github.com/MarcosAsh/Lattice_Fluid_Dynamics/issues) for things that need attention. If you want to work on something bigger, open an issue first so we can talk through the approach before you write a bunch of code.
 
 Some areas that could use help:
 
@@ -70,6 +70,14 @@ tests without a GPU.
 - Write a short description of what you changed and why.
 - If you're touching the LBM solver or shaders, include before/after screenshots or videos if possible -- it makes review much easier.
 - Don't worry about squashing commits, I'll handle that on merge if needed.
+
+## Reviews
+
+I aim to answer every pull request within three days. CI checks the build, the tests and the formatting, so review is about the change itself. If a pull request has had no reply for a week, ping me on it.
+
+## Becoming a maintainer
+
+After three merged pull requests in one area (simulation, website or ML), you can ask for, or will be offered, commit rights and a `CODEOWNERS` entry for that area. Maintainers review and merge pull requests in their area and can cut releases.
 
 ## Questions?
 
