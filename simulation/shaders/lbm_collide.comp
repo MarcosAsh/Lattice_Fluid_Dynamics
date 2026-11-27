@@ -34,6 +34,14 @@ uniform int timestep; // global LBM step counter (for inlet perturbation)
 uniform int fullGridZ; // full domain Z extent (gridSize.z is only the slab)
 uniform int spongeCells;     // outlet sponge width in cells (0 = off)
 uniform float spongeTauMax;  // relaxation time at the outlet end of sponge
+uniform int periodicX;       // 1 = periodic x, no inlet or outlet
+uniform vec3 bodyForce;      // uniform force density, exact difference method
+
+// Stability guard resets, and how many were NaN/Inf
+layout(std430, binding = 14) buffer Diagnostics {
+    int resetCount;
+    int nanCount;
+};
 
 // D3Q19 lattice velocities
 const ivec3 e[19] = ivec3[19](ivec3(0, 0, 0),   // 0: rest
@@ -382,7 +390,7 @@ void main() {
     // Only sets the 5 unknown distributions (positive x direction) that can't
     // come from streaming. Preserves non-equilibrium structure from the
     // interior.
-    if (pos.x == 0) {
+    if (periodicX == 0 && pos.x == 0) {
         // Known distributions (streamed from interior):
         //   zero-x: f0, f3, f4, f5, f6, f15, f16, f17, f18
         //   neg-x:  f2, f8, f10, f12, f14
@@ -439,7 +447,7 @@ void main() {
 
     // Zou-He pressure outlet (right side, x=N-1)
     // Specifies rho=1 (atmospheric), computes outflow velocity from interior.
-    if (pos.x == gridSize.x - 1) {
+    if (periodicX == 0 && pos.x == gridSize.x - 1) {
         float f0 = f[idxF(pos.x, pos.y, pos.z, 0)];
         float f1 = f[idxF(pos.x, pos.y, pos.z, 1)];
         float f3 = f[idxF(pos.x, pos.y, pos.z, 3)];
@@ -502,8 +510,8 @@ void main() {
         return;
     }
 
-    // Store velocity for particle advection
-    velocity[globalIdx] = vec4(u, rho);
+    // Store velocity for particle advection (EDM: physical u = u + F/2rho)
+    velocity[globalIdx] = vec4(u + 0.5 * bodyForce / rho, rho);
 
     // Effective relaxation time (may be modified by Smagorinsky)
     float tau_eff = tau;
@@ -768,6 +776,15 @@ void main() {
             float fi = f[idxF(pos.x, pos.y, pos.z, i)];
             float fi_eq = feq(i, rho, u);
             f_new[idxF(pos.x, pos.y, pos.z, i)] = fi - omega * (fi - fi_eq);
+        }
+    }
+
+    // Kupershtokh exact difference method
+    if (bodyForce != vec3(0.0)) {
+        vec3 du = bodyForce / rho;
+        for (int i = 0; i < 19; i++) {
+            int fidx = idxF(pos.x, pos.y, pos.z, i);
+            f_new[fidx] += feq(i, rho, u + du) - feq(i, rho, u);
         }
     }
 

@@ -17,11 +17,19 @@ layout(std430, binding = 7) buffer BouzidiQ {
     float q_val[];
 };
 
+// f_new plane across the periodic z seam when slabs split the grid
+layout(std430, binding = 15) buffer WrapPlane {
+    float f_wrap[];
+};
+
 uniform ivec3 gridSize;        // full grid dimensions (for periodic wrapping)
 uniform int periodicYZ;        // 0 = clamp (free-slip), 1 = periodic
 uniform int zOffset;           // global Z of this slab's first owned cell
 uniform int fNewZOffset;       // global Z of first cell in fNew bound range (includes halo)
 uniform int slabZ;             // number of owned Z-cells in this slab
+uniform int fNewZCount;        // z-planes in the bound f_new range
+uniform int wrapPlaneZ;        // global z of the plane at binding 15, -1 if none
+uniform int periodicX;         // 1 = periodic x
 
 // D3Q19 lattice velocities
 const ivec3 e[19] = ivec3[19](ivec3(0, 0, 0),
@@ -59,8 +67,20 @@ int idxF_read(int x, int y, int globalZ, int i) {
     return i + 19 * (x + y * gridSize.x + localZ * gridSize.x * gridSize.y);
 }
 
+float readNew(ivec3 p, int i) {
+    if (p.z < fNewZOffset || p.z >= fNewZOffset + fNewZCount) {
+        if (p.z == wrapPlaneZ)
+            return f_wrap[i + 19 * (p.x + p.y * gridSize.x)];
+    }
+    return f_new[idxF_read(p.x, p.y, p.z, i)];
+}
+
 // Wrap or clamp Y/Z
 ivec3 handleYZ(ivec3 p) {
+    if (periodicX == 1) {
+        if (p.x < 0) p.x += gridSize.x;
+        if (p.x >= gridSize.x) p.x -= gridSize.x;
+    }
     if (periodicYZ == 1) {
         if (p.y < 0) p.y += gridSize.y;
         if (p.y >= gridSize.y) p.y -= gridSize.y;
@@ -105,7 +125,7 @@ void main() {
                 ivec3 xff = handleYZ(gpos + e[i]);
                 float f_iopp_star_ff;
                 if (xff.x >= 0 && xff.x < gridSize.x) {
-                    f_iopp_star_ff = f_new[idxF_read(xff.x, xff.y, xff.z, iopp)];
+                    f_iopp_star_ff = readNew(xff, iopp);
                 } else {
                     f_iopp_star_ff = f_iopp_star; // fallback
                 }
@@ -122,7 +142,7 @@ void main() {
                     f_new[idxF_read(pos.x, pos.y, globalZ, i)];
             } else {
                 f[idxF_write(pos.x, pos.y, pos.z, i)] =
-                    f_new[idxF_read(src.x, src.y, src.z, i)];
+                    readNew(src, i);
             }
         }
     }

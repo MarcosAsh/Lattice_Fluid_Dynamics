@@ -322,6 +322,10 @@ LBMGrid *LBM_Create(int sizeX, int sizeY, int sizeZ, float viscosity) {
         glGetUniformLocation(grid->collideShader, "spongeTauMax");
     grid->collide_zOffsetLoc =
         glGetUniformLocation(grid->collideShader, "zOffset");
+    grid->collide_periodicXLoc =
+        glGetUniformLocation(grid->collideShader, "periodicX");
+    grid->collide_bodyForceLoc =
+        glGetUniformLocation(grid->collideShader, "bodyForce");
 
     glUseProgram(grid->streamShader);
     grid->stream_gridSizeLoc =
@@ -334,6 +338,12 @@ LBMGrid *LBM_Create(int sizeX, int sizeY, int sizeZ, float viscosity) {
         glGetUniformLocation(grid->streamShader, "fNewZOffset");
     grid->stream_slabZLoc =
         glGetUniformLocation(grid->streamShader, "slabZ");
+    grid->stream_periodicXLoc =
+        glGetUniformLocation(grid->streamShader, "periodicX");
+    grid->stream_fNewZCountLoc =
+        glGetUniformLocation(grid->streamShader, "fNewZCount");
+    grid->stream_wrapPlaneZLoc =
+        glGetUniformLocation(grid->streamShader, "wrapPlaneZ");
 
     if (grid->forceShader) {
         glUseProgram(grid->forceShader);
@@ -796,6 +806,11 @@ void LBM_Step(LBMGrid *grid,
     glUniform1i(grid->collide_fullGridZLoc, grid->sizeZ);
     glUniform1i(grid->collide_spongeCellsLoc, grid->spongeCells);
     glUniform1f(grid->collide_spongeTauMaxLoc, grid->spongeTauMax);
+    glUniform1i(grid->collide_periodicXLoc, grid->periodicX);
+    glUniform3f(grid->collide_bodyForceLoc,
+                grid->bodyForce[0],
+                grid->bodyForce[1],
+                grid->bodyForce[2]);
     grid->stepCount++;
 
     for (int c = 0; c < grid->numChunks; c++) {
@@ -830,6 +845,7 @@ void LBM_Step(LBMGrid *grid,
     glUniform3i(
         grid->stream_gridSizeLoc, grid->sizeX, grid->sizeY, grid->sizeZ);
     glUniform1i(grid->stream_periodicYZLoc, grid->periodicYZ);
+    glUniform1i(grid->stream_periodicXLoc, grid->periodicX);
 
     for (int c = 0; c < grid->numChunks; c++) {
         int zStart = c * grid->slabZ;
@@ -839,6 +855,8 @@ void LBM_Step(LBMGrid *grid,
         int slabCells = zEnd - zStart;
 
         int fNewZOff = 0;
+        int fNewZCount = grid->sizeZ;
+        int wrapPlaneZ = -1;
         if (grid->numChunks == 1) {
             glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, grid->fBuffer);
             glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, grid->fNewBuffer);
@@ -865,7 +883,24 @@ void LBM_Step(LBMGrid *grid,
                 GL_SHADER_STORAGE_BUFFER, 3, grid->fNewBuffer, rOff, rSz);
 
             fNewZOff = rStart;
+            fNewZCount = rEnd - rStart;
+
+            // Periodic z: the seam plane lies outside this slab's halo
+            if (grid->periodicYZ) {
+                if (zStart == 0)
+                    wrapPlaneZ = grid->sizeZ - 1;
+                else if (zEnd == grid->sizeZ)
+                    wrapPlaneZ = 0;
+            }
+            if (wrapPlaneZ >= 0)
+                glBindBufferRange(GL_SHADER_STORAGE_BUFFER,
+                                  15,
+                                  grid->fNewBuffer,
+                                  (GLintptr)(wrapPlaneZ * fSliceBytes),
+                                  (GLsizeiptr)fSliceBytes);
         }
+        glUniform1i(grid->stream_fNewZCountLoc, fNewZCount);
+        glUniform1i(grid->stream_wrapPlaneZLoc, wrapPlaneZ);
 
         glUniform1i(grid->stream_zOffsetLoc, zStart);
         glUniform1i(grid->stream_fNewZOffsetLoc, fNewZOff);
