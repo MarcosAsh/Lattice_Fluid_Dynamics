@@ -5,15 +5,29 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    groups:
+      website-minor:
+        update-types: [minor, patch]
 
   - package-ecosystem: pip
     directory: /ml
     schedule:
       interval: monthly
     open-pull-requests-limit: 3
+    groups:
+      python:
+        patterns: ["*"]
 
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
     open-pull-requests-limit: 3
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: devcontainers
+    directory: /
+    schedule:
+      interval: monthly
