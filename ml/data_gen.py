@@ -31,7 +31,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-import yaml
+from pipeline_config import ConfigError
+from pipeline_config import load_sweep_config as _load_sweep_config
 
 _csv_lock = threading.Lock()
 
@@ -100,8 +101,7 @@ class RunResult:
 
 
 def load_sweep_config(config_path: str) -> dict:
-    with Path(config_path).open() as f:
-        return yaml.safe_load(f)
+    return _load_sweep_config(config_path)
 
 
 def generate_run_configs(config: dict) -> list[RunConfig]:
@@ -668,4 +668,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except ConfigError as e:
+        sys.exit(str(e))

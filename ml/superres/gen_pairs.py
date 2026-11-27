@@ -29,7 +29,10 @@ from dataclasses import field
 from pathlib import Path
 
 import numpy as np
-import yaml
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from pipeline_config import ConfigError
+from pipeline_config import load_superres_config
 
 # Paths
 
@@ -100,8 +103,7 @@ class PatchAccumulator:
 
 
 def load_config(config_path: str) -> dict:
-    with Path(config_path).open() as f:
-        return yaml.safe_load(f)
+    return load_superres_config(config_path)
 
 
 def generate_pair_configs(config: dict) -> list[PairConfig]:
@@ -929,4 +931,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except ConfigError as e:
+        sys.exit(str(e))

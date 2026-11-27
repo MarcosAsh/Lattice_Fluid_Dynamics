@@ -25,11 +25,13 @@ from pathlib import Path
 
 import numpy as np
 import requests
-import yaml
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from ffd import FFDLattice
 from ffd import compute_bbox
 from ffd import load_obj
+from pipeline_config import ConfigError
+from pipeline_config import load_shapeopt_config
 
 # Paths
 
@@ -55,8 +57,7 @@ SOBIN_VERSION = 1
 
 
 def load_config(config_path: str) -> dict:
-    with Path(config_path).open() as f:
-        return yaml.safe_load(f)
+    return load_shapeopt_config(config_path)
 
 
 # OBJ encoding
@@ -544,4 +545,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except ConfigError as e:
+        sys.exit(str(e))
