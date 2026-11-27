@@ -67,9 +67,7 @@ def evaluate(args):
         ch_mean, ch_std = ndata["mean"], ndata["std"]
     else:
         # Recompute from data
-        all_vals = np.concatenate([
-            coarse.reshape(-1, 4), fine.reshape(-1, 4)
-        ], axis=0)
+        all_vals = np.concatenate([coarse.reshape(-1, 4), fine.reshape(-1, 4)], axis=0)
         ch_mean = all_vals.mean(axis=0)
         ch_std = all_vals.std(axis=0)
         ch_std[ch_std < 1e-8] = 1.0
@@ -80,7 +78,7 @@ def evaluate(args):
     # Val split (same seed as training)
     n = len(coarse_norm)
     idx = np.random.RandomState(42).permutation(n)
-    val_idx = idx[int(0.8 * n):]
+    val_idx = idx[int(0.8 * n) :]
     val_coarse = coarse_norm[val_idx]
     val_fine = fine_norm[val_idx]
     val_fine_raw = fine[val_idx]
@@ -166,6 +164,7 @@ def generate_plots(pred, skip, truth, args):
     """Generate evaluation plots."""
     try:
         import matplotlib
+
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
     except ImportError:
@@ -237,9 +236,7 @@ def generate_plots(pred, skip, truth, args):
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Evaluate super-resolution upscaler"
-    )
+    parser = argparse.ArgumentParser(description="Evaluate super-resolution upscaler")
     parser.add_argument("--data", required=True, help="Path to .srbin dataset")
     parser.add_argument("--checkpoint", required=True, help="Model .pt file")
     parser.add_argument("--hidden", type=int, default=128)

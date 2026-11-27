@@ -52,8 +52,10 @@ def _deploy(label: str, src: Path, dst: Path, check_header: bool) -> bool:
         print(f"  [skip] {label}: source not found ({_rel(src)})")
         return False
     if check_header and not _has_ltws_header(src):
-        print(f"  [FAIL] {label}: {_rel(src)} is not an LTWS model file "
-              f"(bad magic) -- refusing to deploy")
+        print(
+            f"  [FAIL] {label}: {_rel(src)} is not an LTWS model file "
+            f"(bad magic) -- refusing to deploy"
+        )
         return False
 
     if dst.exists() and dst.read_bytes() == src.read_bytes():
@@ -62,8 +64,9 @@ def _deploy(label: str, src: Path, dst: Path, check_header: bool) -> bool:
 
     dst.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(src, dst)
-    print(f"  [copy] {label}: {_rel(src)} -> {_rel(dst)} "
-          f"({src.stat().st_size:,} B, md5={_md5(dst)})")
+    print(
+        f"  [copy] {label}: {_rel(src)} -> {_rel(dst)} ({src.stat().st_size:,} B, md5={_md5(dst)})"
+    )
     return True
 
 
@@ -77,39 +80,51 @@ def _rel(p: Path) -> str:
 def deploy_superres(sr_dir: Path) -> bool:
     print("Super-resolution -> simulation/assets (Modal render):")
     dst = REPO / "simulation" / "assets"
-    changed = _deploy("sr_model", sr_dir / "sr_model.bin",
-                      dst / "sr_model.bin", check_header=True)
-    changed |= _deploy("sr_model_norm", sr_dir / "sr_model_norm.bin",
-                       dst / "sr_model_norm.bin", check_header=False)
+    changed = _deploy("sr_model", sr_dir / "sr_model.bin", dst / "sr_model.bin", check_header=True)
+    changed |= _deploy(
+        "sr_model_norm", sr_dir / "sr_model_norm.bin", dst / "sr_model_norm.bin", check_header=False
+    )
     return changed
 
 
 def deploy_shapeopt(shapeopt_dir: Path) -> bool:
     print("Shape optimization -> website/public/models (website /optimize):")
     dst = REPO / "website" / "public" / "models"
-    changed = _deploy("shapeopt_model", shapeopt_dir / "shapeopt_model.bin",
-                      dst / "shapeopt_model.bin", check_header=True)
+    changed = _deploy(
+        "shapeopt_model",
+        shapeopt_dir / "shapeopt_model.bin",
+        dst / "shapeopt_model.bin",
+        check_header=True,
+    )
     # Training writes shapeopt_normalizer.bin; the website fetches
     # shapeopt_norm.bin. Bridge the name here.
     norm_src = shapeopt_dir / "shapeopt_normalizer.bin"
     if not norm_src.exists():
         norm_src = shapeopt_dir / "shapeopt_norm.bin"
-    changed |= _deploy("shapeopt_norm", norm_src,
-                       dst / "shapeopt_norm.bin", check_header=False)
+    changed |= _deploy("shapeopt_norm", norm_src, dst / "shapeopt_norm.bin", check_header=False)
     return changed
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__,
-                                     formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--superres", action="store_true",
-                        help="deploy only the super-resolution weights")
-    parser.add_argument("--shapeopt", action="store_true",
-                        help="deploy only the shape-optimization weights")
-    parser.add_argument("--sr-dir", default=str(REPO / "assets"),
-                        help="directory holding sr_model.bin + sr_model_norm.bin")
-    parser.add_argument("--shapeopt-dir", default=str(REPO / "ml" / "shapeopt"),
-                        help="directory holding shapeopt_model.bin + normalizer")
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument(
+        "--superres", action="store_true", help="deploy only the super-resolution weights"
+    )
+    parser.add_argument(
+        "--shapeopt", action="store_true", help="deploy only the shape-optimization weights"
+    )
+    parser.add_argument(
+        "--sr-dir",
+        default=str(REPO / "assets"),
+        help="directory holding sr_model.bin + sr_model_norm.bin",
+    )
+    parser.add_argument(
+        "--shapeopt-dir",
+        default=str(REPO / "ml" / "shapeopt"),
+        help="directory holding shapeopt_model.bin + normalizer",
+    )
     args = parser.parse_args()
 
     # Default (neither flag) deploys both.
@@ -125,8 +140,10 @@ def main():
     print()
     if changed:
         print("Weights updated. Next steps:")
-        print("  - simulation/assets: commit + push so build_simulation "
-              "rebuilds the Modal binary with the new weights")
+        print(
+            "  - simulation/assets: commit + push so build_simulation "
+            "rebuilds the Modal binary with the new weights"
+        )
         print("  - website/public/models: commit + redeploy the website")
     else:
         print("Nothing to deploy (sources missing or already current).")

@@ -86,9 +86,7 @@ def compute_weight_offsets(state_dict: dict):
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Export super-resolution weights to LTWS format"
-    )
+    parser = argparse.ArgumentParser(description="Export super-resolution weights to LTWS format")
     parser.add_argument("--checkpoint", required=True, help="PyTorch .pt file")
     parser.add_argument("--output", required=True, help="Output .bin file")
     parser.add_argument("--normalizer", help="Normalizer .npz file")

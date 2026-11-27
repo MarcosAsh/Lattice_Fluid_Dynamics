@@ -73,8 +73,7 @@ def sweep(
         grid_durations[grid.strip()] = int(dur) if dur else 30
 
     print(
-        f"Grid convergence: {model}, wind={wind}, re={reynolds or 'auto'}, "
-        f"grids={grid_durations}"
+        f"Grid convergence: {model}, wind={wind}, re={reynolds or 'auto'}, grids={grid_durations}"
     )
     handles = {}
     t0 = time.monotonic()
@@ -100,9 +99,7 @@ def sweep(
             print(f"  {grid}: FAILED -- {result.get('error')}")
             continue
 
-        (OUT_DIR / f"raw_{suffix}_{grid}.json").write_text(
-            json.dumps(result, indent=2)
-        )
+        (OUT_DIR / f"raw_{suffix}_{grid}.json").write_text(json.dumps(result, indent=2))
 
         nx, ny, nz = (int(v) for v in grid.split("x"))
         cd_mean, cd_std, rel = _cd_stats(result.get("cd_series") or [])

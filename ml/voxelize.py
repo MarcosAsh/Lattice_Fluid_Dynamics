@@ -238,9 +238,14 @@ def _voxelize_solid(verts, tris, R, grid):
                     grid[gx0:gx1, gy, gz] = 1
 
 
-def voxelize_mesh(vertices, triangles, resolution=DEFAULT_RESOLUTION,
-                  mode=MODE_AUTO, padding=DEFAULT_PADDING,
-                  align_longest_x=True):
+def voxelize_mesh(
+    vertices,
+    triangles,
+    resolution=DEFAULT_RESOLUTION,
+    mode=MODE_AUTO,
+    padding=DEFAULT_PADDING,
+    align_longest_x=True,
+):
     """
     Voxelize an in-memory triangle mesh into an occupancy grid.
 
@@ -283,12 +288,16 @@ def voxelize_mesh(vertices, triangles, resolution=DEFAULT_RESOLUTION,
     return grid
 
 
-def voxelize_obj(source, resolution=DEFAULT_RESOLUTION, mode=MODE_AUTO,
-                 padding=DEFAULT_PADDING, align_longest_x=True):
+def voxelize_obj(
+    source,
+    resolution=DEFAULT_RESOLUTION,
+    mode=MODE_AUTO,
+    padding=DEFAULT_PADDING,
+    align_longest_x=True,
+):
     """Load an OBJ (path, bytes, or text) and voxelize it. See voxelize_mesh."""
     vertices, triangles = load_obj_triangles(source)
-    return voxelize_mesh(vertices, triangles, resolution, mode, padding,
-                         align_longest_x)
+    return voxelize_mesh(vertices, triangles, resolution, mode, padding, align_longest_x)
 
 
 def solid_fraction(grid):
@@ -340,16 +349,37 @@ def read_voxbin(path):
 
 def _cube(h):
     """Watertight axis-aligned cube of half-extent h, centered at origin."""
-    verts = np.array([
-        [-h, -h, -h], [h, -h, -h], [h, h, -h], [-h, h, -h],
-        [-h, -h, h], [h, -h, h], [h, h, h], [-h, h, h],
-    ], dtype=np.float64)
+    verts = np.array(
+        [
+            [-h, -h, -h],
+            [h, -h, -h],
+            [h, h, -h],
+            [-h, h, -h],
+            [-h, -h, h],
+            [h, -h, h],
+            [h, h, h],
+            [-h, h, h],
+        ],
+        dtype=np.float64,
+    )
     # 1-based winding from test_voxelize.c, shifted to 0-based.
-    faces = np.array([
-        [0, 1, 2], [0, 2, 3], [4, 6, 5], [4, 7, 6],
-        [0, 4, 5], [0, 5, 1], [3, 2, 6], [3, 6, 7],
-        [0, 3, 7], [0, 7, 4], [1, 5, 6], [1, 6, 2],
-    ], dtype=np.int32)
+    faces = np.array(
+        [
+            [0, 1, 2],
+            [0, 2, 3],
+            [4, 6, 5],
+            [4, 7, 6],
+            [0, 4, 5],
+            [0, 5, 1],
+            [3, 2, 6],
+            [3, 6, 7],
+            [0, 3, 7],
+            [0, 7, 4],
+            [1, 5, 6],
+            [1, 6, 2],
+        ],
+        dtype=np.int32,
+    )
     return verts, faces
 
 
@@ -379,11 +409,19 @@ def _selftest():
     check(g[8, 8, 8] == 0, "surface mode leaves the interior empty")
 
     # Z-elongated slab must be realigned so it spans more cells in X.
-    slab_v = np.array([
-        [-0.1, -0.2, -0.8], [0.1, -0.2, -0.8], [0.1, 0.2, -0.8],
-        [-0.1, 0.2, -0.8], [-0.1, -0.2, 0.8], [0.1, -0.2, 0.8],
-        [0.1, 0.2, 0.8], [-0.1, 0.2, 0.8],
-    ], dtype=np.float64)
+    slab_v = np.array(
+        [
+            [-0.1, -0.2, -0.8],
+            [0.1, -0.2, -0.8],
+            [0.1, 0.2, -0.8],
+            [-0.1, 0.2, -0.8],
+            [-0.1, -0.2, 0.8],
+            [0.1, -0.2, 0.8],
+            [0.1, 0.2, 0.8],
+            [-0.1, 0.2, 0.8],
+        ],
+        dtype=np.float64,
+    )
     g = voxelize_mesh(slab_v, faces, 32, MODE_SOLID)
     xs = np.nonzero(g.any(axis=(1, 2)))[0]
     zs = np.nonzero(g.any(axis=(0, 1)))[0]
@@ -406,10 +444,14 @@ def _selftest():
     # empty and only the surface pass marks any cells.
     tilted = "v -1 -1 -1\nv 1 -1 -1\nv 1 1 1\nv -1 1 1\nf 1 2 3 4\n"
     tv, tt = load_obj_triangles(tilted)
-    check(solid_fraction(voxelize_mesh(tv, tt, 16, MODE_SOLID)) < 0.001,
-          "open sheet has no solid fill")
-    check(solid_fraction(voxelize_mesh(tv, tt, 16, MODE_AUTO)) > 0.0,
-          "auto falls back to surface for an open mesh")
+    check(
+        solid_fraction(voxelize_mesh(tv, tt, 16, MODE_SOLID)) < 0.001,
+        "open sheet has no solid fill",
+    )
+    check(
+        solid_fraction(voxelize_mesh(tv, tt, 16, MODE_AUTO)) > 0.0,
+        "auto falls back to surface for an open mesh",
+    )
 
     # VOXB round-trip, including the x + R*(y + R*z) byte order.
     import tempfile
@@ -430,18 +472,19 @@ def _selftest():
 
 
 def _build_parser():
-    ap = argparse.ArgumentParser(
-        description="Voxelize an OBJ mesh into a VOXB occupancy grid"
-    )
+    ap = argparse.ArgumentParser(description="Voxelize an OBJ mesh into a VOXB occupancy grid")
     ap.add_argument("input", nargs="?", help="input OBJ path")
     ap.add_argument("--resolution", type=int, default=DEFAULT_RESOLUTION)
     ap.add_argument("--padding", type=float, default=DEFAULT_PADDING)
     ap.add_argument("--mode", choices=MODES, default=MODE_AUTO)
-    ap.add_argument("--no-align", dest="align", action="store_false",
-                    help="do not rotate the longest axis onto X")
+    ap.add_argument(
+        "--no-align",
+        dest="align",
+        action="store_false",
+        help="do not rotate the longest axis onto X",
+    )
     ap.add_argument("--output", "-o", help="write the grid as a .voxbin file")
-    ap.add_argument("--selftest", action="store_true",
-                    help="run built-in tests and exit")
+    ap.add_argument("--selftest", action="store_true", help="run built-in tests and exit")
     return ap
 
 
@@ -452,14 +495,12 @@ def main(argv=None):
     if not args.input:
         _build_parser().error("input OBJ required (or pass --selftest)")
 
-    grid = voxelize_obj(args.input, args.resolution, args.mode, args.padding,
-                        args.align)
+    grid = voxelize_obj(args.input, args.resolution, args.mode, args.padding, args.align)
     frac = solid_fraction(grid)
     total = grid.size
     solid = int(grid.sum())
     R = grid.shape[0]
-    print(f"voxelized {args.input}: {R}x{R}x{R}, "
-          f"solid={solid}/{total} ({100.0 * frac:.2f}%)")
+    print(f"voxelized {args.input}: {R}x{R}x{R}, solid={solid}/{total} ({100.0 * frac:.2f}%)")
     if args.output:
         write_voxbin(grid, args.output)
         print(f"wrote {args.output}")

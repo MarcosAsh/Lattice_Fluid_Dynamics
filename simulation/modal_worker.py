@@ -48,10 +48,9 @@ def _s3_client():
         "s3",
         region_name=os.environ.get("S3_REGION", S3_REGION),
         aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
-        aws_secret_access_key=os.environ.get(
-            "AWS_SECRET_ACCESS_KEY"
-        ),
+        aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY"),
     )
+
 
 image = (
     modal.Image.debian_slim("3.11")
@@ -76,8 +75,8 @@ image = (
     .run_commands(
         "mkdir -p /usr/share/glvnd/egl_vendor.d",
         "printf '%s' "
-        "'{\"file_format_version\":\"1.0.0\","
-        "\"ICD\":{\"library_path\":\"libEGL_nvidia.so.0\"}}' "
+        '\'{"file_format_version":"1.0.0",'
+        '"ICD":{"library_path":"libEGL_nvidia.so.0"}}\' '
         "> /usr/share/glvnd/egl_vendor.d/10_nvidia.json",
     )
     .env(
@@ -86,20 +85,14 @@ image = (
             "DISPLAY": ":99",
             # Force GLVND to load NVIDIA's EGL vendor driver instead of
             # Mesa's software one, so headless rendering uses the GPU.
-            "__EGL_VENDOR_LIBRARY_FILENAMES": (
-                "/usr/share/glvnd/egl_vendor.d/10_nvidia.json"
-            ),
+            "__EGL_VENDOR_LIBRARY_FILENAMES": ("/usr/share/glvnd/egl_vendor.d/10_nvidia.json"),
         }
     )
 )
 
-build_cache = modal.Volume.from_name(
-    "fluid-sim-build-cache", create_if_missing=True
-)
+build_cache = modal.Volume.from_name("fluid-sim-build-cache", create_if_missing=True)
 
-REPO_URL = (
-    "https://github.com/MarcosAsh/Lattice_Fluid_Dynamics.git"
-)
+REPO_URL = "https://github.com/MarcosAsh/Lattice_Fluid_Dynamics.git"
 
 
 @app.function(
@@ -186,9 +179,7 @@ def build_simulation() -> str:
 
     if not executable.exists():
         files = list(build_dir.iterdir())
-        raise Exception(
-            f"No executable. Got: {[f.name for f in files]}"
-        )
+        raise Exception(f"No executable. Got: {[f.name for f in files]}")
 
     # Stamp the commit this binary was built from so render_simulation can
     # spot a stale cache without parsing the binary or its --help output.
@@ -303,9 +294,7 @@ def _save_cache(cache_id: str, result: dict):
             ContentType="application/json",
         )
     except Exception as e:
-        log.warning(
-            "cache save failed", extra={"error": str(e)}
-        )
+        log.warning("cache save failed", extra={"error": str(e)})
 
 
 def _preprocess_custom_obj(obj_path, ctx: dict) -> dict | None:
@@ -399,10 +388,15 @@ def render_simulation(
     # Check cache for non-custom models
     if model != "custom":
         cache_id = _cache_key(
-            model, wind_speed, viz_mode,
-            collision_mode, reynolds,
-            duration, grid or GRID,
-            turbulence, entropic,
+            model,
+            wind_speed,
+            viz_mode,
+            collision_mode,
+            reynolds,
+            duration,
+            grid or GRID,
+            turbulence,
+            entropic,
         )
         cached = _check_cache(cache_id)
         if cached:
@@ -412,9 +406,7 @@ def render_simulation(
     log.info("render start", extra=ctx)
 
     try:
-        executable = Path(
-            "/cache/build/3d_fluid_simulation_car"
-        )
+        executable = Path("/cache/build/3d_fluid_simulation_car")
         source_dir = Path("/cache/source/simulation")
 
         # Build check: rebuild when the binary is missing, has no recorded
@@ -442,9 +434,7 @@ def render_simulation(
                 )
                 build_simulation.local()
             elif remote is None:
-                log.warning(
-                    "remote unreachable, using cached binary", extra=ctx
-                )
+                log.warning("remote unreachable, using cached binary", extra=ctx)
         timings["build_check"] = time.monotonic() - t_build
 
         if not executable.exists():
@@ -477,9 +467,7 @@ def render_simulation(
             import base64
 
             custom_obj = work_dir / "custom_model.obj"
-            custom_obj.write_bytes(
-                base64.b64decode(obj_data)
-            )
+            custom_obj.write_bytes(base64.b64decode(obj_data))
             model_path = str(custom_obj)
             log.info(
                 "custom obj loaded",
@@ -492,16 +480,15 @@ def render_simulation(
             if mesh_error:
                 return mesh_error
         else:
-            model_path = model_paths.get(
-                model, model_paths["car"]
-            )
+            model_path = model_paths.get(model, model_paths["car"])
 
         env = os.environ.copy()
         env["DISPLAY"] = ":99"
 
         sim_grid = grid or GRID
         cmd = [
-            "stdbuf", "-oL",
+            "stdbuf",
+            "-oL",
             str(executable),
             f"--wind={wind_speed}",
             f"--viz={viz_mode}",
@@ -557,10 +544,7 @@ def render_simulation(
                     )
                     return {
                         "status": "error",
-                        "error": (
-                            f"Timed out\nstdout:\n"
-                            f"{(stdout or '')[-2000:]}"
-                        ),
+                        "error": (f"Timed out\nstdout:\n{(stdout or '')[-2000:]}"),
                         "error_type": "timeout",
                     }
 
@@ -587,14 +571,20 @@ def render_simulation(
                             pass
 
                     # Periodically save progress for live polling
-                    if (job_id and len(_live_cd) > 0 and
-                            len(_live_cd) - _last_live_count >= _live_update_interval):
+                    if (
+                        job_id
+                        and len(_live_cd) > 0
+                        and len(_live_cd) - _last_live_count >= _live_update_interval
+                    ):
                         _last_live_count = len(_live_cd)
-                        _save_job_result(job_id, {
-                            "status": "rendering",
-                            "cd_series": _live_cd[:],
-                            "cl_series": _live_cl[:],
-                        })
+                        _save_job_result(
+                            job_id,
+                            {
+                                "status": "rendering",
+                                "cd_series": _live_cd[:],
+                                "cl_series": _live_cl[:],
+                            },
+                        )
 
             stderr = proc.stderr.read() if proc.stderr else ""
             stdout = "\n".join(stdout_lines)
@@ -634,7 +624,9 @@ def render_simulation(
                     return None
                 return val
             except (IndexError, ValueError) as e:
-                log.warning("parse failed", extra={"prefix": prefix, "line": line.strip(), "error": str(e)})
+                log.warning(
+                    "parse failed", extra={"prefix": prefix, "line": line.strip(), "error": str(e)}
+                )
                 return None
 
         for line in stdout.split("\n"):
@@ -690,14 +682,10 @@ def render_simulation(
 
         cd_value = None
         if cd_values:
-            cd_value = sum(cd_values[-5:]) / len(
-                cd_values[-5:]
-            )
+            cd_value = sum(cd_values[-5:]) / len(cd_values[-5:])
         cl_value = None
         if cl_values:
-            cl_value = sum(cl_values[-5:]) / len(
-                cl_values[-5:]
-            )
+            cl_value = sum(cl_values[-5:]) / len(cl_values[-5:])
 
         if sim_rc != 0:
             log.error(
@@ -773,10 +761,7 @@ def render_simulation(
             )
             return {
                 "status": "error",
-                "error": (
-                    "FFmpeg failed: "
-                    + ffmpeg_result.stderr[-300:]
-                ),
+                "error": ("FFmpeg failed: " + ffmpeg_result.stderr[-300:]),
                 "error_type": "encode",
             }
 
@@ -818,10 +803,7 @@ def render_simulation(
             "cfl": cfl,
             "cd_pressure_series": cd_pressure_values,
             "cd_friction_series": cd_friction_values,
-            "timings": {
-                k: round(v, 2)
-                for k, v in timings.items()
-            },
+            "timings": {k: round(v, 2) for k, v in timings.items()},
         }
 
         # Cache for future identical requests, under the same key the
@@ -875,9 +857,7 @@ def upload_video(video_path: Path, job_id: str) -> str:
         ExtraArgs={"ContentType": "video/mp4"},
     )
 
-    url = (
-        f"https://{bucket}.s3.{region}.amazonaws.com/{key}"
-    )
+    url = f"https://{bucket}.s3.{region}.amazonaws.com/{key}"
     return url
 
 
@@ -938,9 +918,7 @@ def _run_render(data: dict):
         job_id=job_id,
         wind_speed=float(data.get("wind_speed", 1.0)),
         viz_mode=int(data.get("viz_mode", 1)),
-        collision_mode=int(
-            data.get("collision_mode", 2)
-        ),
+        collision_mode=int(data.get("collision_mode", 2)),
         duration=int(data.get("duration", 10)),
         model=data.get("model", "car"),
         obj_data=data.get("obj_data"),
@@ -1055,7 +1033,8 @@ def generate_vtk_field(
 
     frames_dir = Path(tempfile.mkdtemp(prefix="frames_"))
     cmd = [
-        "stdbuf", "-oL",
+        "stdbuf",
+        "-oL",
         str(executable),
         f"--wind={wind_speed}",
         f"--duration={duration}",
@@ -1064,15 +1043,19 @@ def generate_vtk_field(
         f"--output={frames_dir}",
         f"--vtk-output={vtk_dir}",
         f"--vtk-interval={vtk_interval}",
-        "--viz=1", "--collision=1",
+        "--viz=1",
+        "--collision=1",
     ]
     if reynolds > 0:
         cmd.append(f"--reynolds={reynolds}")
 
     try:
         result = subprocess.run(
-            cmd, cwd=str(source_dir), env=env,
-            capture_output=True, text=True,
+            cmd,
+            cwd=str(source_dir),
+            env=env,
+            capture_output=True,
+            text=True,
             timeout=duration * 120 + 300,
         )
 
@@ -1089,10 +1072,12 @@ def generate_vtk_field(
         # Read each VTI and return the raw binary data
         fields = []
         for vti in vtk_files:
-            fields.append({
-                "filename": vti.name,
-                "data": base64.b64encode(vti.read_bytes()).decode(),
-            })
+            fields.append(
+                {
+                    "filename": vti.name,
+                    "data": base64.b64encode(vti.read_bytes()).decode(),
+                }
+            )
 
         return {
             "status": "complete",
@@ -1227,6 +1212,7 @@ def run_tests(grid: str = "256x128x128", duration: int = 120):
 
     # Force clean rebuild to pick up latest changes
     import shutil
+
     build_dir = Path("/cache/build")
     if build_dir.exists():
         shutil.rmtree(build_dir)
@@ -1239,7 +1225,8 @@ def run_tests(grid: str = "256x128x128", duration: int = 120):
     result = subprocess.run(
         ["git", "log", "--oneline", "-1"],
         cwd="/cache/source",
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
     print(f"Built commit: {result.stdout.strip()}")
 
@@ -1253,7 +1240,8 @@ def run_tests(grid: str = "256x128x128", duration: int = 120):
         log.info("building test binary")
         result = subprocess.run(
             ["cmake", "--build", str(build_dir), "--target", "test_lbm", "-j4"],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         )
         if result.returncode != 0:
             print(f"Test build failed: {result.stderr}")
@@ -1269,7 +1257,8 @@ def run_tests(grid: str = "256x128x128", duration: int = 120):
         [str(test_bin)],
         cwd=str(source_dir),
         env=egl_env,
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
         timeout=600,
     )
     print(result.stdout)
@@ -1284,16 +1273,19 @@ def run_tests(grid: str = "256x128x128", duration: int = 120):
     # Start Xvfb
     xvfb = subprocess.Popen(
         ["Xvfb", ":99", "-screen", "0", "1920x1080x24"],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
     import time
+
     time.sleep(2)
 
     # Unset DISPLAY so the sim uses EGL (direct GPU) instead of
     # Xvfb + Mesa software GL which has a 128MB SSBO limit.
     env = {k: v for k, v in os.environ.items() if k != "DISPLAY"}
     cmd = [
-        "stdbuf", "-oL",
+        "stdbuf",
+        "-oL",
         str(sim_bin),
         "--angle=25",
         f"--grid={grid}",
@@ -1396,9 +1388,7 @@ def grid_sweep(
     re_cd_corr = re.compile(r"Cd_corr=([0-9.+-eE]+)")
     re_eff = re.compile(r"Effective Re\s*=\s*([0-9.+-eE]+)")
     re_cap = re.compile(r"Re capped at\s*([0-9.+-eE]+)")
-    re_body = re.compile(
-        r"Body \(lattice\):\s*([0-9.]+)\s*x\s*([0-9.]+)\s*x\s*([0-9.]+)"
-    )
+    re_body = re.compile(r"Body \(lattice\):\s*([0-9.]+)\s*x\s*([0-9.]+)\s*x\s*([0-9.]+)")
     re_char = re.compile(r"Char length:\s*([0-9.+-eE]+)")
 
     try:
@@ -1408,7 +1398,8 @@ def grid_sweep(
             print("=" * 60)
 
             cmd = [
-                "stdbuf", "-oL",
+                "stdbuf",
+                "-oL",
                 str(sim_bin),
                 f"--wind={wind}",
                 f"--grid={grid}",
@@ -1482,11 +1473,9 @@ def grid_sweep(
 
             # Use the second half of the samples as the "converged"
             # window -- crude but effective for a sweep.
-            tail = cd_corr_samples[len(cd_corr_samples) // 2:]
+            tail = cd_corr_samples[len(cd_corr_samples) // 2 :]
             cd_mean = statistics.fmean(tail) if tail else float("nan")
-            cd_std = (
-                statistics.pstdev(tail) if len(tail) > 1 else float("nan")
-            )
+            cd_std = statistics.pstdev(tail) if len(tail) > 1 else float("nan")
 
             sx, sy, sz = [int(x) for x in grid.split("x")]
             cells = sx * sy * sz

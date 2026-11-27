@@ -28,6 +28,7 @@ LTWS_VERSION = 1
 
 # Dataset loading (.sobin)
 
+
 def load_sobin(path: str) -> tuple[np.ndarray, np.ndarray]:
     """
     Load shape optimization dataset from .sobin binary.
@@ -58,6 +59,7 @@ def load_sobin(path: str) -> tuple[np.ndarray, np.ndarray]:
 
 # SwiGLU building block
 
+
 class SwiGLU(nn.Module):
     """
     SwiGLU activation block.
@@ -80,6 +82,7 @@ class SwiGLU(nn.Module):
 
 
 # Surrogate model
+
 
 class ShapeOptSurrogate(nn.Module):
     """
@@ -110,6 +113,7 @@ class ShapeOptSurrogate(nn.Module):
 
 
 # LTWS export (matches ml/superres/export_weights.py)
+
 
 def export_ltws(state_dict: dict, output_path: str):
     """
@@ -156,6 +160,7 @@ def save_normalizer(means: np.ndarray, stds: np.ndarray, output_path: str):
 
 # Training loop
 
+
 def train(args):
     print(f"Loading dataset: {args.data}")
     displacements, outputs = load_sobin(args.data)
@@ -174,10 +179,12 @@ def train(args):
     print(f"  Wind speed: {wind_speed}")
     print(f"  Reynolds: {reynolds}")
 
-    extra_features = np.column_stack([
-        np.full(num_samples, wind_speed, dtype=np.float32),
-        np.full(num_samples, reynolds, dtype=np.float32),
-    ])
+    extra_features = np.column_stack(
+        [
+            np.full(num_samples, wind_speed, dtype=np.float32),
+            np.full(num_samples, reynolds, dtype=np.float32),
+        ]
+    )
     features = np.hstack([displacements, extra_features])
     input_dim = features.shape[1]
     print(f"  Input dim: {input_dim} ({num_ffd_params} FFD + 2 flow params)")
@@ -211,12 +218,8 @@ def train(args):
         torch.from_numpy(outputs[val_idx]).float(),
     )
 
-    train_loader = DataLoader(
-        train_ds, batch_size=args.batch_size, shuffle=True, num_workers=0
-    )
-    val_loader = DataLoader(
-        val_ds, batch_size=args.batch_size * 2, shuffle=False, num_workers=0
-    )
+    train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, num_workers=0)
+    val_loader = DataLoader(val_ds, batch_size=args.batch_size * 2, shuffle=False, num_workers=0)
 
     model = ShapeOptSurrogate(input_dim).to(device)
     param_count = sum(p.numel() for p in model.parameters())
@@ -276,7 +279,7 @@ def train(args):
         if (epoch + 1) % 10 == 0 or epoch == 0:
             lr = optimizer.param_groups[0]["lr"]
             print(
-                f"  Epoch {epoch+1:4d}/{args.epochs}  "
+                f"  Epoch {epoch + 1:4d}/{args.epochs}  "
                 f"train_mse={train_loss:.6f}  val_mse={val_loss:.6f}  "
                 f"val_cd_mae={val_cd_mae:.6f}  val_cl_mae={val_cl_mae:.6f}  "
                 f"lr={lr:.1e}"
@@ -286,15 +289,18 @@ def train(args):
         if val_cd_mae < best_val_cd_mae:
             best_val_cd_mae = val_cd_mae
             patience_counter = 0
-            torch.save({
-                "model_state_dict": model.state_dict(),
-                "input_dim": input_dim,
-                "num_ffd_params": num_ffd_params,
-                "feat_mean": feat_mean,
-                "feat_std": feat_std,
-                "best_val_cd_mae": best_val_cd_mae,
-                "epoch": epoch + 1,
-            }, best_path)
+            torch.save(
+                {
+                    "model_state_dict": model.state_dict(),
+                    "input_dim": input_dim,
+                    "num_ffd_params": num_ffd_params,
+                    "feat_mean": feat_mean,
+                    "feat_std": feat_std,
+                    "best_val_cd_mae": best_val_cd_mae,
+                    "epoch": epoch + 1,
+                },
+                best_path,
+            )
         else:
             patience_counter += 1
             if patience_counter >= args.patience:
@@ -302,15 +308,18 @@ def train(args):
                 break
 
     # Save final checkpoint
-    torch.save({
-        "model_state_dict": model.state_dict(),
-        "input_dim": input_dim,
-        "num_ffd_params": num_ffd_params,
-        "feat_mean": feat_mean,
-        "feat_std": feat_std,
-        "best_val_cd_mae": best_val_cd_mae,
-        "epoch": epoch + 1,
-    }, final_path)
+    torch.save(
+        {
+            "model_state_dict": model.state_dict(),
+            "input_dim": input_dim,
+            "num_ffd_params": num_ffd_params,
+            "feat_mean": feat_mean,
+            "feat_std": feat_std,
+            "best_val_cd_mae": best_val_cd_mae,
+            "epoch": epoch + 1,
+        },
+        final_path,
+    )
 
     print(f"\nTraining complete.")
     print(f"  Best val Cd MAE: {best_val_cd_mae:.6f}")
@@ -329,12 +338,12 @@ def train(args):
 
 # CLI
 
+
 def main():
-    parser = argparse.ArgumentParser(
-        description="Train geometry-aware Cd/Cl surrogate model"
-    )
+    parser = argparse.ArgumentParser(description="Train geometry-aware Cd/Cl surrogate model")
     parser.add_argument(
-        "--data", required=True,
+        "--data",
+        required=True,
         help="Path to .sobin dataset",
     )
     parser.add_argument("--epochs", type=int, default=500)
@@ -342,11 +351,15 @@ def main():
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--patience", type=int, default=100)
     parser.add_argument(
-        "--wind-speed", type=float, default=1.0,
+        "--wind-speed",
+        type=float,
+        default=1.0,
         help="Wind speed used during data generation (default: 1.0)",
     )
     parser.add_argument(
-        "--reynolds", type=float, default=10000,
+        "--reynolds",
+        type=float,
+        default=10000,
         help="Reynolds number used during data generation (default: 10000)",
     )
     args = parser.parse_args()

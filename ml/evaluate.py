@@ -24,6 +24,7 @@ MODEL_IDS = {0: "car", 1: "ahmed25", 2: "ahmed35"}
 
 # Weight loading (matches weights_io.cpp LTWS format)
 
+
 def load_weights(path: str) -> list[np.ndarray]:
     """Load parameter tensors from a LTWS binary file."""
     with open(path, "rb") as f:
@@ -55,6 +56,7 @@ def load_normalizer(path: str) -> tuple[np.ndarray, np.ndarray]:
 
 # Dataset loading (matches training_data.bin format)
 
+
 def load_dataset(path: str) -> np.ndarray:
     """
     Load binary dataset. Returns (N, 5) array:
@@ -66,13 +68,12 @@ def load_dataset(path: str) -> np.ndarray:
             raise ValueError(f"Bad magic: 0x{magic:08X}")
         if num_features != 5:
             raise ValueError(f"Expected 5 features, got {num_features}")
-        data = np.frombuffer(
-            f.read(4 * num_records * num_features), dtype=np.float32
-        ).copy()
+        data = np.frombuffer(f.read(4 * num_records * num_features), dtype=np.float32).copy()
         return data.reshape(num_records, num_features)
 
 
 # Model forward pass (numpy, matches train.cpp SurrogateModel)
+
 
 def swish(x: np.ndarray) -> np.ndarray:
     sig = 1.0 / (1.0 + np.exp(-np.clip(x, -88, 88)))
@@ -97,34 +98,35 @@ def forward(x: np.ndarray, params: list[np.ndarray]) -> np.ndarray:
     h = fc1_W @ x + fc1_b  # (256, B)
 
     # SwiGLU(256, 512)
-    gate = swish(sg1_Wg @ h)    # (512, B)
-    up = sg1_Wu @ h              # (512, B)
-    h = sg1_Wd @ (gate * up)    # (256, B)
+    gate = swish(sg1_Wg @ h)  # (512, B)
+    up = sg1_Wu @ h  # (512, B)
+    h = sg1_Wd @ (gate * up)  # (256, B)
 
     # Linear(256, 128)
-    h = fc2_W @ h + fc2_b       # (128, B)
+    h = fc2_W @ h + fc2_b  # (128, B)
 
     # SwiGLU(128, 256)
-    gate = swish(sg2_Wg @ h)    # (256, B)
-    up = sg2_Wu @ h              # (256, B)
-    h = sg2_Wd @ (gate * up)    # (128, B)
+    gate = swish(sg2_Wg @ h)  # (256, B)
+    up = sg2_Wu @ h  # (256, B)
+    h = sg2_Wd @ (gate * up)  # (128, B)
 
     # Linear(128, 2)
-    out = fc3_W @ h + fc3_b     # (2, B)
+    out = fc3_W @ h + fc3_b  # (2, B)
     return out
 
 
 # Metrics
 
+
 def compute_metrics(true: np.ndarray, pred: np.ndarray) -> dict:
     err = pred - true
     abs_err = np.abs(err)
-    ss_res = np.sum(err ** 2)
+    ss_res = np.sum(err**2)
     ss_tot = np.sum((true - np.mean(true)) ** 2)
     r2 = 1.0 - ss_res / ss_tot if ss_tot > 0 else float("nan")
     return {
         "mae": float(np.mean(abs_err)),
-        "rmse": float(np.sqrt(np.mean(err ** 2))),
+        "rmse": float(np.sqrt(np.mean(err**2))),
         "r2": float(r2),
         "max_err": float(np.max(abs_err)),
         "mean_true": float(np.mean(true)),
@@ -145,6 +147,7 @@ def print_metrics(name: str, m: dict, indent: int = 0):
 
 # Plots
 
+
 def generate_plots(
     dataset: np.ndarray,
     cd_pred: np.ndarray,
@@ -152,6 +155,7 @@ def generate_plots(
     output_dir: Path,
 ):
     import matplotlib
+
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
@@ -169,8 +173,12 @@ def generate_plots(
     for mid in sorted(MODEL_IDS.keys()):
         mask = model_ids == mid
         ax.scatter(
-            cd_true[mask], cd_pred[mask],
-            c=colors[mid], label=labels[mid], alpha=0.7, s=20,
+            cd_true[mask],
+            cd_pred[mask],
+            c=colors[mid],
+            label=labels[mid],
+            alpha=0.7,
+            s=20,
         )
     lo = min(cd_true.min(), cd_pred.min()) * 0.95
     hi = max(cd_true.max(), cd_pred.max()) * 1.05
@@ -189,8 +197,12 @@ def generate_plots(
     for mid in sorted(MODEL_IDS.keys()):
         mask = model_ids == mid
         ax.scatter(
-            cl_true[mask], cl_pred[mask],
-            c=colors[mid], label=labels[mid], alpha=0.7, s=20,
+            cl_true[mask],
+            cl_pred[mask],
+            c=colors[mid],
+            label=labels[mid],
+            alpha=0.7,
+            s=20,
         )
     lo = min(cl_true.min(), cl_pred.min()) * 0.95
     hi = max(cl_true.max(), cl_pred.max()) * 1.05
@@ -251,8 +263,12 @@ def generate_plots(
     for mid in sorted(MODEL_IDS.keys()):
         mask = model_ids == mid
         ax.scatter(
-            dataset[mask, 0], np.abs(cd_pred[mask] - cd_true[mask]),
-            c=colors[mid], label=labels[mid], alpha=0.7, s=20,
+            dataset[mask, 0],
+            np.abs(cd_pred[mask] - cd_true[mask]),
+            c=colors[mid],
+            label=labels[mid],
+            alpha=0.7,
+            s=20,
         )
     ax.set_xlabel("Wind Speed")
     ax.set_ylabel("|Cd Error|")
@@ -267,28 +283,32 @@ def generate_plots(
 
 # Main
 
+
 def main():
-    parser = argparse.ArgumentParser(
-        description="Evaluate the Cd/Cl surrogate model"
-    )
+    parser = argparse.ArgumentParser(description="Evaluate the Cd/Cl surrogate model")
     parser.add_argument(
-        "--weights", default=str(ML_DIR / "model.bin"),
+        "--weights",
+        default=str(ML_DIR / "model.bin"),
         help="Path to trained weights (default: ml/model.bin)",
     )
     parser.add_argument(
-        "--norm", default=str(ML_DIR / "model_norm.bin"),
+        "--norm",
+        default=str(ML_DIR / "model_norm.bin"),
         help="Path to normalization params (default: ml/model_norm.bin)",
     )
     parser.add_argument(
-        "--data", default=str(ML_DIR / "dataset" / "training_data.bin"),
+        "--data",
+        default=str(ML_DIR / "dataset" / "training_data.bin"),
         help="Path to binary dataset (default: ml/dataset/training_data.bin)",
     )
     parser.add_argument(
-        "--plot", action="store_true",
+        "--plot",
+        action="store_true",
         help="Generate plots to ml/eval_report/",
     )
     parser.add_argument(
-        "--output-dir", default=str(ML_DIR / "eval_report"),
+        "--output-dir",
+        default=str(ML_DIR / "eval_report"),
         help="Directory for plot output (default: ml/eval_report/)",
     )
     args = parser.parse_args()
@@ -364,9 +384,11 @@ def main():
     print("=" * 56)
     print("SAMPLE PREDICTIONS")
     print("=" * 56)
-    print(f"{'wind':>8s} {'Re':>8s} {'model':>8s} | "
-          f"{'true_Cd':>8s} {'pred_Cd':>8s} {'err':>8s} | "
-          f"{'true_Cl':>8s} {'pred_Cl':>8s} {'err':>8s}")
+    print(
+        f"{'wind':>8s} {'Re':>8s} {'model':>8s} | "
+        f"{'true_Cd':>8s} {'pred_Cd':>8s} {'err':>8s} | "
+        f"{'true_Cl':>8s} {'pred_Cl':>8s} {'err':>8s}"
+    )
     print("-" * 88)
     rng = np.random.RandomState(0)
     sample_idx = rng.choice(len(dataset), size=min(15, len(dataset)), replace=False)
@@ -375,9 +397,11 @@ def main():
         ws, re, mid, cd_t, cl_t = dataset[i]
         cd_p, cl_p = cd_pred[i], cl_pred[i]
         name = MODEL_IDS.get(int(mid), f"?{mid}")
-        print(f"{ws:8.2f} {re:8.0f} {name:>8s} | "
-              f"{cd_t:8.4f} {cd_p:8.4f} {cd_p - cd_t:+8.4f} | "
-              f"{cl_t:8.4f} {cl_p:8.4f} {cl_p - cl_t:+8.4f}")
+        print(
+            f"{ws:8.2f} {re:8.0f} {name:>8s} | "
+            f"{cd_t:8.4f} {cd_p:8.4f} {cd_p - cd_t:+8.4f} | "
+            f"{cl_t:8.4f} {cl_p:8.4f} {cl_p - cl_t:+8.4f}"
+        )
 
     # Plots
     if args.plot:

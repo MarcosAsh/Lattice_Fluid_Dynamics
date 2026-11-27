@@ -51,12 +51,14 @@ SOBIN_VERSION = 1
 
 # Config
 
+
 def load_config(config_path: str) -> dict:
     with open(config_path) as f:
         return yaml.safe_load(f)
 
 
 # OBJ encoding
+
 
 def obj_to_base64(vertices: np.ndarray, faces: np.ndarray) -> str:
     """Encode a mesh as a base64 OBJ string for the Modal endpoint."""
@@ -65,11 +67,12 @@ def obj_to_base64(vertices: np.ndarray, faces: np.ndarray) -> str:
     for v in vertices:
         buf.write(f"v {v[0]:.8f} {v[1]:.8f} {v[2]:.8f}\n")
     for face in faces:
-        buf.write(f"f {face[0]+1} {face[1]+1} {face[2]+1}\n")
+        buf.write(f"f {face[0] + 1} {face[1] + 1} {face[2] + 1}\n")
     return base64.b64encode(buf.getvalue().encode("utf-8")).decode("ascii")
 
 
 # Modal submission with async polling
+
 
 def submit_job(endpoint: str, payload: dict, timeout: int = 30) -> str | None:
     """POST to the render endpoint. Returns a job_id on success, None on error."""
@@ -89,8 +92,9 @@ def submit_job(endpoint: str, payload: dict, timeout: int = 30) -> str | None:
         return None
 
 
-def poll_job(endpoint: str, job_id: str, poll_interval: float = 5.0,
-             timeout: float = 1800.0) -> dict | None:
+def poll_job(
+    endpoint: str, job_id: str, poll_interval: float = 5.0, timeout: float = 1800.0
+) -> dict | None:
     """
     Poll the job_status endpoint until the job finishes or times out.
 
@@ -106,9 +110,7 @@ def poll_job(endpoint: str, job_id: str, poll_interval: float = 5.0,
     t0 = time.monotonic()
     while time.monotonic() - t0 < timeout:
         try:
-            resp = requests.get(
-                status_url, params={"job_id": job_id}, timeout=30
-            )
+            resp = requests.get(status_url, params={"job_id": job_id}, timeout=30)
             resp.raise_for_status()
             data = resp.json()
 
@@ -146,6 +148,7 @@ def run_simulation(endpoint: str, payload: dict) -> dict:
 
 # Sample tracking
 
+
 def sample_id(model: str, idx: int) -> str:
     key = f"shapeopt_{model}_{idx}"
     return hashlib.md5(key.encode()).hexdigest()[:12]
@@ -163,45 +166,76 @@ def load_completed_samples() -> set[str]:
     return completed
 
 
-def save_manifest_row(sid: str, model: str, idx: int, status: str,
-                      cd: float | None, cl: float | None,
-                      error: str | None = None):
+def save_manifest_row(
+    sid: str,
+    model: str,
+    idx: int,
+    status: str,
+    cd: float | None,
+    cl: float | None,
+    error: str | None = None,
+):
     DATASET_DIR.mkdir(parents=True, exist_ok=True)
     write_header = not MANIFEST_FILE.exists()
     with open(MANIFEST_FILE, "a", newline="") as f:
         writer = csv.writer(f)
         if write_header:
-            writer.writerow([
-                "sample_id", "model", "sample_idx", "status",
-                "cd_value", "cl_value", "error",
-            ])
-        writer.writerow([
-            sid, model, idx, status,
-            f"{cd:.6f}" if cd is not None else "",
-            f"{cl:.6f}" if cl is not None else "",
-            error or "",
-        ])
+            writer.writerow(
+                [
+                    "sample_id",
+                    "model",
+                    "sample_idx",
+                    "status",
+                    "cd_value",
+                    "cl_value",
+                    "error",
+                ]
+            )
+        writer.writerow(
+            [
+                sid,
+                model,
+                idx,
+                status,
+                f"{cd:.6f}" if cd is not None else "",
+                f"{cl:.6f}" if cl is not None else "",
+                error or "",
+            ]
+        )
 
 
-def save_results_row(sid: str, model: str, idx: int,
-                     displacements: np.ndarray, cd: float, cl: float):
+def save_results_row(
+    sid: str, model: str, idx: int, displacements: np.ndarray, cd: float, cl: float
+):
     DATASET_DIR.mkdir(parents=True, exist_ok=True)
     write_header = not RESULTS_FILE.exists()
     with open(RESULTS_FILE, "a", newline="") as f:
         writer = csv.writer(f)
         if write_header:
-            writer.writerow([
-                "sample_id", "model", "sample_idx",
-                "cd_value", "cl_value", "displacements",
-            ])
-        writer.writerow([
-            sid, model, idx,
-            f"{cd:.6f}", f"{cl:.6f}",
-            json.dumps(displacements.tolist()),
-        ])
+            writer.writerow(
+                [
+                    "sample_id",
+                    "model",
+                    "sample_idx",
+                    "cd_value",
+                    "cl_value",
+                    "displacements",
+                ]
+            )
+        writer.writerow(
+            [
+                sid,
+                model,
+                idx,
+                f"{cd:.6f}",
+                f"{cl:.6f}",
+                json.dumps(displacements.tolist()),
+            ]
+        )
 
 
 # Binary export (.sobin)
+
 
 def export_sobin(results_file: Path, output_file: Path):
     """
@@ -267,6 +301,7 @@ def export_sobin(results_file: Path, output_file: Path):
 
 # Main pipeline
 
+
 def run_sweep(config_path: str, endpoint: str, resume: bool = False):
     config = load_config(config_path)
 
@@ -289,10 +324,10 @@ def run_sweep(config_path: str, endpoint: str, resume: bool = False):
             print(f"ERROR: OBJ not found for model '{model}' at {obj_path}", file=sys.stderr)
             continue
 
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"Model: {model}")
         print(f"OBJ: {obj_path}")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
         vertices, faces = load_obj(str(obj_path))
         bbox_min, bbox_max = compute_bbox(vertices)
@@ -363,16 +398,12 @@ def run_sweep(config_path: str, endpoint: str, resume: bool = False):
                 save_results_row(sid, model, idx, displacements.astype(np.float32), cd, cl)
                 success += 1
                 print(
-                    f"  [{success + failed}/{len(all_samples)}] {tag} "
-                    f"-> Cd={cd:.4f}, Cl={cl:.4f}"
+                    f"  [{success + failed}/{len(all_samples)}] {tag} -> Cd={cd:.4f}, Cl={cl:.4f}"
                 )
             else:
                 save_manifest_row(sid, model, idx, "error", None, None, error=str(error))
                 failed += 1
-                print(
-                    f"  [{success + failed}/{len(all_samples)}] {tag} "
-                    f"-> FAILED: {error}"
-                )
+                print(f"  [{success + failed}/{len(all_samples)}] {tag} -> FAILED: {error}")
 
         print(f"\n  {model}: {success} complete, {failed} failed")
 
@@ -411,9 +442,7 @@ def compute_stats():
             model_stats["cd_min"] = min(cd_vals)
             model_stats["cd_max"] = max(cd_vals)
             mean = model_stats["cd_mean"]
-            model_stats["cd_std"] = (
-                sum((x - mean) ** 2 for x in cd_vals) / len(cd_vals)
-            ) ** 0.5
+            model_stats["cd_std"] = (sum((x - mean) ** 2 for x in cd_vals) / len(cd_vals)) ** 0.5
 
     DATASET_DIR.mkdir(parents=True, exist_ok=True)
     with open(STATS_FILE, "w") as f:
@@ -422,7 +451,9 @@ def compute_stats():
     print(f"\nStats: {stats['complete']} complete, {stats['failed']} failed")
     for model, ms in stats["by_model"].items():
         if "cd_mean" in ms:
-            print(f"  {model}: {ms['count']} samples, Cd mean={ms['cd_mean']:.4f} std={ms['cd_std']:.4f}")
+            print(
+                f"  {model}: {ms['count']} samples, Cd mean={ms['cd_mean']:.4f} std={ms['cd_std']:.4f}"
+            )
 
     return stats
 
@@ -450,29 +481,32 @@ def show_status():
 
 # CLI
 
+
 def main():
-    parser = argparse.ArgumentParser(
-        description="Generate FFD shape optimization training data"
-    )
+    parser = argparse.ArgumentParser(description="Generate FFD shape optimization training data")
     parser.add_argument(
         "--config",
         default="shapeopt_config.yaml",
         help="Config YAML file (default: shapeopt_config.yaml)",
     )
     parser.add_argument(
-        "--endpoint", default=None,
+        "--endpoint",
+        default=None,
         help="Modal render endpoint URL",
     )
     parser.add_argument(
-        "--resume", action="store_true",
+        "--resume",
+        action="store_true",
         help="Skip already-completed samples",
     )
     parser.add_argument(
-        "--status", action="store_true",
+        "--status",
+        action="store_true",
         help="Show data generation progress",
     )
     parser.add_argument(
-        "--export-only", action="store_true",
+        "--export-only",
+        action="store_true",
         help="Re-export .sobin from existing CSV results",
     )
     args = parser.parse_args()
@@ -489,6 +523,7 @@ def main():
     endpoint = args.endpoint
     if not endpoint:
         import os
+
         endpoint = os.environ.get("MODAL_RENDER_ENDPOINT")
     if not endpoint:
         print(

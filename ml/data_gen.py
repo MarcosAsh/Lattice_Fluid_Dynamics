@@ -79,10 +79,7 @@ class RunConfig:
 
     @property
     def run_id(self) -> str:
-        key = (
-            f"{self.model}_{self.wind_speed}_{self.reynolds}_"
-            f"{self.grid}_{self.duration}"
-        )
+        key = f"{self.model}_{self.wind_speed}_{self.reynolds}_{self.grid}_{self.duration}"
         return hashlib.md5(key.encode()).hexdigest()[:12]
 
 
@@ -171,9 +168,7 @@ def tail_stats(series: list[float], fraction: float):
     return mean, std, rel
 
 
-def submit_run(
-    run: RunConfig, render_fn, timeout: int = 2400
-) -> RunResult:
+def submit_run(run: RunConfig, render_fn, timeout: int = 2400) -> RunResult:
     """Spawn a single simulation run on Modal and wait for the result."""
 
     def _error(msg: str) -> RunResult:
@@ -200,9 +195,7 @@ def submit_run(
         import base64
 
         kwargs["model"] = "custom"
-        kwargs["obj_data"] = base64.b64encode(
-            Path(run.obj_path).read_bytes()
-        ).decode()
+        kwargs["obj_data"] = base64.b64encode(Path(run.obj_path).read_bytes()).decode()
     else:
         kwargs["model"] = run.model
 
@@ -451,9 +444,7 @@ def compute_stats():
                 stats["by_model"][model] = {"count": 0, "cd_values": []}
             stats["by_model"][model]["count"] += 1
             if row["cd_value"]:
-                stats["by_model"][model]["cd_values"].append(
-                    float(row["cd_value"])
-                )
+                stats["by_model"][model]["cd_values"].append(float(row["cd_value"]))
 
     # Compute per-model stats
     for model_stats in stats["by_model"].values():
@@ -463,9 +454,7 @@ def compute_stats():
             model_stats["cd_min"] = min(cd_vals)
             model_stats["cd_max"] = max(cd_vals)
             mean = model_stats["cd_mean"]
-            model_stats["cd_std"] = (
-                sum((x - mean) ** 2 for x in cd_vals) / len(cd_vals)
-            ) ** 0.5
+            model_stats["cd_std"] = (sum((x - mean) ** 2 for x in cd_vals) / len(cd_vals)) ** 0.5
 
     DATASET_DIR.mkdir(parents=True, exist_ok=True)
     with open(STATS_FILE, "w") as f:
@@ -536,9 +525,7 @@ def run_sweep(config: dict, resume: bool = False, limit: int = 0):
                     if result.status == "complete":
                         save_results_csv(result)
                         success += 1
-                        conv = (
-                            "converged" if result.converged else "not converged"
-                        )
+                        conv = "converged" if result.converged else "not converged"
                         print(
                             f"  [{success + failed}/{len(pending)}] "
                             f"{run_cfg.model} ws={run_cfg.wind_speed} "
@@ -631,15 +618,9 @@ def show_status():
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Generate training data for Cd surrogate model"
-    )
-    parser.add_argument(
-        "--config", default="sweep_config.yaml", help="Sweep config YAML"
-    )
-    parser.add_argument(
-        "--resume", action="store_true", help="Skip already-completed runs"
-    )
+    parser = argparse.ArgumentParser(description="Generate training data for Cd surrogate model")
+    parser.add_argument("--config", default="sweep_config.yaml", help="Sweep config YAML")
+    parser.add_argument("--resume", action="store_true", help="Skip already-completed runs")
     parser.add_argument(
         "--limit",
         type=int,

@@ -24,6 +24,7 @@ from pathlib import Path
 
 # Bernstein basis
 
+
 def _binomial_coeffs(n):
     """Row n of Pascal's triangle, computed iteratively to avoid scipy."""
     c = np.ones(n + 1, dtype=np.float64)
@@ -47,6 +48,7 @@ def _bernstein_basis(n, t):
 
 
 # FFDLattice
+
 
 class FFDLattice:
     """Trivariate Bernstein FFD lattice for deforming 3D meshes."""
@@ -144,9 +146,7 @@ class FFDLattice:
         Returns:
             (nx*ny*nz*3,) symmetrized displacement array.
         """
-        d = np.asarray(displacements, dtype=np.float64).reshape(
-            self.nx, self.ny, self.nz, 3
-        ).copy()
+        d = np.asarray(displacements, dtype=np.float64).reshape(self.nx, self.ny, self.nz, 3).copy()
 
         n_ax = self.n_control[axis]
         half = n_ax // 2
@@ -221,9 +221,7 @@ class FFDLattice:
         Returns:
             (nx*ny*nz*3,) clamped displacement array.
         """
-        d = np.asarray(displacements, dtype=np.float64).reshape(
-            self.nx, self.ny, self.nz, 3
-        ).copy()
+        d = np.asarray(displacements, dtype=np.float64).reshape(self.nx, self.ny, self.nz, 3).copy()
         limits = max_fraction * self.extent  # (3,)
         for comp in range(3):
             np.clip(d[..., comp], -limits[comp], limits[comp], out=d[..., comp])
@@ -308,14 +306,14 @@ class FFDLattice:
         # Lower half
         for j in range(half):
             n_slice = self.nx * self.nz * 3
-            d[:, j, :, :] = free_params[idx:idx + n_slice].reshape(self.nx, self.nz, 3)
+            d[:, j, :, :] = free_params[idx : idx + n_slice].reshape(self.nx, self.nz, 3)
             idx += n_slice
 
         # Midplane
         if self.ny % 2 == 1:
             mid_j = half
             n_slice = self.nx * self.nz * 2
-            mid_vals = free_params[idx:idx + n_slice].reshape(self.nx, self.nz, 2)
+            mid_vals = free_params[idx : idx + n_slice].reshape(self.nx, self.nz, 2)
             d[:, mid_j, :, 0] = mid_vals[:, :, 0]
             d[:, mid_j, :, 2] = mid_vals[:, :, 1]
             # Y component stays zero
@@ -325,6 +323,7 @@ class FFDLattice:
 
 
 # OBJ I/O
+
 
 def load_obj(path):
     """
@@ -369,7 +368,7 @@ def save_obj(path, vertices, faces):
         for v in vertices:
             f.write(f"v {v[0]:.8f} {v[1]:.8f} {v[2]:.8f}\n")
         for face in faces:
-            f.write(f"f {face[0]+1} {face[1]+1} {face[2]+1}\n")
+            f.write(f"f {face[0] + 1} {face[1] + 1} {face[2] + 1}\n")
 
 
 def compute_bbox(vertices, padding=0.05):
@@ -427,18 +426,36 @@ if __name__ == "__main__":
             failed += 1
 
     # Unit cube vertices
-    cube_verts = np.array([
-        [0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0],
-        [0, 0, 1], [1, 0, 1], [1, 1, 1], [0, 1, 1],
-    ], dtype=np.float64)
-    cube_faces = np.array([
-        [0, 1, 2], [0, 2, 3],
-        [4, 5, 6], [4, 6, 7],
-        [0, 1, 5], [0, 5, 4],
-        [2, 3, 7], [2, 7, 6],
-        [0, 3, 7], [0, 7, 4],
-        [1, 2, 6], [1, 6, 5],
-    ], dtype=np.int64)
+    cube_verts = np.array(
+        [
+            [0, 0, 0],
+            [1, 0, 0],
+            [1, 1, 0],
+            [0, 1, 0],
+            [0, 0, 1],
+            [1, 0, 1],
+            [1, 1, 1],
+            [0, 1, 1],
+        ],
+        dtype=np.float64,
+    )
+    cube_faces = np.array(
+        [
+            [0, 1, 2],
+            [0, 2, 3],
+            [4, 5, 6],
+            [4, 6, 7],
+            [0, 1, 5],
+            [0, 5, 4],
+            [2, 3, 7],
+            [2, 7, 6],
+            [0, 3, 7],
+            [0, 7, 4],
+            [1, 2, 6],
+            [1, 6, 5],
+        ],
+        dtype=np.int64,
+    )
 
     # Test 1: Identity deformation
     print("Test 1: Zero displacements preserve vertex positions")

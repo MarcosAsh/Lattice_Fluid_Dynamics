@@ -57,6 +57,7 @@ MODEL_OBJ_PATHS = {
 
 # Config types
 
+
 @dataclass
 class PairConfig:
     model: str
@@ -69,10 +70,7 @@ class PairConfig:
 
     @property
     def pair_id(self) -> str:
-        key = (
-            f"{self.model}_{self.wind_speed}_{self.reynolds}_"
-            f"{self.coarse_grid}_{self.fine_grid}"
-        )
+        key = f"{self.model}_{self.wind_speed}_{self.reynolds}_{self.coarse_grid}_{self.fine_grid}"
         return hashlib.md5(key.encode()).hexdigest()[:12]
 
 
@@ -90,6 +88,7 @@ class PairResult:
 @dataclass
 class PatchAccumulator:
     """Collects patches across all configs before writing the .srbin."""
+
     coarse_inputs: list[np.ndarray] = field(default_factory=list)
     fine_targets: list[np.ndarray] = field(default_factory=list)
 
@@ -99,6 +98,7 @@ class PatchAccumulator:
 
 
 # YAML config loading
+
 
 def load_config(config_path: str) -> dict:
     with open(config_path) as f:
@@ -125,6 +125,7 @@ def generate_pair_configs(config: dict) -> list[PairConfig]:
 
 
 # VTI parsing
+
 
 def parse_grid_dims(extent_str: str) -> tuple[int, int, int]:
     """Parse WholeExtent='0 NX 0 NY 0 NZ' into (NX, NY, NZ) cell counts.
@@ -177,12 +178,12 @@ def parse_vti(
 
     # Split at the appended data marker. The VTI format writes
     # '<AppendedData encoding="raw">\n_' and then the binary blobs.
-    marker = b"<AppendedData encoding=\"raw\">\n_"
+    marker = b'<AppendedData encoding="raw">\n_'
     marker_pos = raw.find(marker)
     if marker_pos == -1:
         raise ValueError(f"No appended data marker in {filepath}")
 
-    binary_blob = raw[marker_pos + len(marker):]
+    binary_blob = raw[marker_pos + len(marker) :]
 
     # Parse XML header to get grid dimensions and feature flags
     # The XML section before the binary blob isn't well-formed on its
@@ -210,9 +211,11 @@ def parse_vti(
             f"(grid {nx}x{ny}x{nz}, total={total})"
         )
 
-    velocity = np.frombuffer(
-        binary_blob, dtype="<f4", count=total * 3, offset=offset
-    ).reshape(nz, ny, nx, 3).copy()
+    velocity = (
+        np.frombuffer(binary_blob, dtype="<f4", count=total * 3, offset=offset)
+        .reshape(nz, ny, nx, 3)
+        .copy()
+    )
     offset += vel_data_size
 
     # Read density array (newer VTI files only): uint64 size + total f32
@@ -228,9 +231,11 @@ def parse_vti(
                 f"header says {rho_data_size}, expected {expected_rho_size}"
             )
 
-        rho = np.frombuffer(
-            binary_blob, dtype="<f4", count=total, offset=offset
-        ).reshape(nz, ny, nx).copy()
+        rho = (
+            np.frombuffer(binary_blob, dtype="<f4", count=total, offset=offset)
+            .reshape(nz, ny, nx)
+            .copy()
+        )
         offset += rho_data_size
 
     # Read solid array: uint64 size prefix, then total int32 values
@@ -244,18 +249,19 @@ def parse_vti(
             f"header says {solid_data_size}, expected {expected_solid_size}"
         )
 
-    solid = np.frombuffer(
-        binary_blob, dtype="<i4", count=total, offset=offset
-    ).reshape(nz, ny, nx).copy()
+    solid = (
+        np.frombuffer(binary_blob, dtype="<i4", count=total, offset=offset)
+        .reshape(nz, ny, nx)
+        .copy()
+    )
 
     return velocity, rho, solid, (nx, ny, nz)
 
 
 # Downsampling and patch extraction
 
-def compute_density(
-    velocity: np.ndarray, rho: np.ndarray | None = None
-) -> np.ndarray:
+
+def compute_density(velocity: np.ndarray, rho: np.ndarray | None = None) -> np.ndarray:
     """Return the density channel used for super-res training.
 
     Modern VTI files written by the simulation now export rho as its own
@@ -343,12 +349,8 @@ def extract_patches(
     fine_rho_ch = compute_density(fine_vel, fine_rho)
 
     # Build 4-channel arrays: (z, y, x, 4)
-    coarse_4ch = np.concatenate(
-        [coarse_vel, coarse_rho_ch[..., np.newaxis]], axis=-1
-    )
-    fine_4ch = np.concatenate(
-        [fine_vel, fine_rho_ch[..., np.newaxis]], axis=-1
-    )
+    coarse_4ch = np.concatenate([coarse_vel, coarse_rho_ch[..., np.newaxis]], axis=-1)
+    fine_4ch = np.concatenate([fine_vel, fine_rho_ch[..., np.newaxis]], axis=-1)
 
     coarse_patches = []
     fine_patches = []
@@ -390,6 +392,7 @@ def extract_patches(
 
 
 # Simulation runner
+
 
 def run_simulation(
     model: str,
@@ -521,6 +524,7 @@ def run_simulation_modal(
 
 # .srbin I/O
 
+
 def write_srbin(
     filepath: Path,
     coarse_patches: list[np.ndarray],
@@ -581,12 +585,8 @@ def read_srbin(filepath: Path) -> tuple[np.ndarray, np.ndarray]:
         fine_all = np.empty((num_patches, fine_size), dtype=np.float32)
 
         for i in range(num_patches):
-            coarse_all[i] = np.frombuffer(
-                f.read(coarse_size * 4), dtype="<f4"
-            )
-            fine_all[i] = np.frombuffer(
-                f.read(fine_size * 4), dtype="<f4"
-            )
+            coarse_all[i] = np.frombuffer(f.read(coarse_size * 4), dtype="<f4")
+            fine_all[i] = np.frombuffer(f.read(fine_size * 4), dtype="<f4")
 
     return (
         coarse_all.reshape(num_patches, 3, 3, 3, channels),
@@ -595,6 +595,7 @@ def read_srbin(filepath: Path) -> tuple[np.ndarray, np.ndarray]:
 
 
 # Manifest tracking
+
 
 def load_manifest() -> dict:
     if MANIFEST_FILE.exists():
@@ -614,6 +615,7 @@ def load_completed_ids(manifest: dict) -> set[str]:
 
 
 # Pipeline: process one pair config
+
 
 def process_pair(
     pc: PairConfig,
@@ -662,9 +664,7 @@ def process_pair(
 
         # Downsample fine field to get coarse
         coarse_vel, coarse_solid = downsample_2x(fine_vel, fine_solid)
-        coarse_rho = (
-            downsample_2x_scalar(fine_rho) if fine_rho is not None else None
-        )
+        coarse_rho = downsample_2x_scalar(fine_rho) if fine_rho is not None else None
 
         # Extract patches
         c_patches, f_patches = extract_patches(
@@ -695,6 +695,7 @@ def process_pair(
 
 
 # Main pipeline
+
 
 def run_pipeline(config_path: str, resume: bool = False, use_modal: bool = False):
     config = load_config(config_path)
@@ -812,6 +813,7 @@ def save_stats(manifest: dict, accumulator: PatchAccumulator):
 
 # Status display
 
+
 def show_status():
     """Show current state of data generation."""
     if not MANIFEST_FILE.exists():
@@ -846,7 +848,9 @@ def show_status():
     if failed:
         print(f"\n  Failed configs:")
         for pid, entry in list(failed.items())[:10]:
-            print(f"    {pid}: {entry['model']} wind={entry['wind_speed']} -- {entry['error'][:80]}")
+            print(
+                f"    {pid}: {entry['model']} wind={entry['wind_speed']} -- {entry['error'][:80]}"
+            )
         if len(failed) > 10:
             print(f"    ... and {len(failed) - 10} more")
 
@@ -878,6 +882,7 @@ def verify_srbin():
 
 
 # CLI
+
 
 def main():
     parser = argparse.ArgumentParser(

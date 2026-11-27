@@ -347,28 +347,18 @@ def preprocess(source, domain=DEFAULT_DOMAIN, recenter=True):
         vertices, transform = center_and_scale(vertices, domain)
 
     validation = validate(vertices, triangles)
-    triangles, face_normals, vertex_normals = compute_normals(
-        vertices, triangles
-    )
+    triangles, face_normals, vertex_normals = compute_normals(vertices, triangles)
     stats = mesh_stats(vertices, triangles, n_quads, n_ngons)
 
     if validation["degenerate_triangles"]:
-        warnings.append(
-            f"{validation['degenerate_triangles']} degenerate triangle(s)"
-        )
+        warnings.append(f"{validation['degenerate_triangles']} degenerate triangle(s)")
     if not validation["watertight"]:
         if validation["boundary_edges"]:
-            warnings.append(
-                f"{validation['boundary_edges']} boundary edge(s): open mesh"
-            )
+            warnings.append(f"{validation['boundary_edges']} boundary edge(s): open mesh")
         if validation["non_manifold_edges"]:
-            warnings.append(
-                f"{validation['non_manifold_edges']} non-manifold edge(s)"
-            )
+            warnings.append(f"{validation['non_manifold_edges']} non-manifold edge(s)")
         if validation["flipped_edges"]:
-            warnings.append(
-                f"{validation['flipped_edges']} inconsistently wound edge(s)"
-            )
+            warnings.append(f"{validation['flipped_edges']} inconsistently wound edge(s)")
     if validation["components"] > 1:
         warnings.append(f"{validation['components']} disconnected components")
 
@@ -408,14 +398,32 @@ def write_obj(path, vertices, triangles, normals=None):
 
 def _cube(h=1.0, center=(0.0, 0.0, 0.0)):
     cx, cy, cz = center
-    verts = np.array([
-        [-h, -h, -h], [h, -h, -h], [h, h, -h], [-h, h, -h],
-        [-h, -h, h], [h, -h, h], [h, h, h], [-h, h, h],
-    ], dtype=np.float64) + np.array([cx, cy, cz])
+    verts = np.array(
+        [
+            [-h, -h, -h],
+            [h, -h, -h],
+            [h, h, -h],
+            [-h, h, -h],
+            [-h, -h, h],
+            [h, -h, h],
+            [h, h, h],
+            [-h, h, h],
+        ],
+        dtype=np.float64,
+    ) + np.array([cx, cy, cz])
     faces = [
-        [0, 1, 2], [0, 2, 3], [4, 6, 5], [4, 7, 6],
-        [0, 4, 5], [0, 5, 1], [3, 2, 6], [3, 6, 7],
-        [0, 3, 7], [0, 7, 4], [1, 5, 6], [1, 6, 2],
+        [0, 1, 2],
+        [0, 2, 3],
+        [4, 6, 5],
+        [4, 7, 6],
+        [0, 4, 5],
+        [0, 5, 1],
+        [3, 2, 6],
+        [3, 6, 7],
+        [0, 3, 7],
+        [0, 7, 4],
+        [1, 5, 6],
+        [1, 6, 2],
     ]
     return verts, faces
 
@@ -445,12 +453,10 @@ def _selftest():
     # Outward normals: every face normal points away from the center.
     _, fn, _ = compute_normals(verts, tris)
     centroids = verts[tris].mean(axis=1)
-    check(bool(np.all(np.einsum("ij,ij->i", fn, centroids) > 0)),
-          "face normals point outward")
+    check(bool(np.all(np.einsum("ij,ij->i", fn, centroids) > 0)), "face normals point outward")
 
     # Quad triangulation along the shorter diagonal.
-    quad_v = np.array([[0, 0, 0], [2, 0, 0], [2, 1, 0], [0, 1, 0]],
-                      dtype=np.float64)
+    quad_v = np.array([[0, 0, 0], [2, 0, 0], [2, 1, 0], [0, 1, 0]], dtype=np.float64)
     quad_t, nq2, _ = triangulate(quad_v, [[0, 1, 2, 3]])
     check(quad_t.shape[0] == 2 and nq2 == 1, "quad split into two triangles")
 
@@ -465,25 +471,24 @@ def _selftest():
     flip_faces = [list(f) for f in faces]
     flip_faces[0] = flip_faces[0][::-1]
     flip_t, _, _ = triangulate(verts, flip_faces)
-    check(validate(verts, flip_t)["flipped_edges"] > 0,
-          "reversed face flagged as inconsistent winding")
+    check(
+        validate(verts, flip_t)["flipped_edges"] > 0,
+        "reversed face flagged as inconsistent winding",
+    )
 
     # Degenerate triangle (repeated vertex) is detected.
     deg_t = np.vstack([tris, [[0, 0, 1]]])
-    check(validate(verts, deg_t)["degenerate_triangles"] >= 1,
-          "degenerate triangle detected")
+    check(validate(verts, deg_t)["degenerate_triangles"] >= 1, "degenerate triangle detected")
 
     # Two separate cubes are two components.
     v2, f2 = _cube(center=(5.0, 0.0, 0.0))
     both_v = np.vstack([verts, v2])
     both_f = faces + [[i + 8 for i in f] for f in f2]
     both_t, _, _ = triangulate(both_v, both_f)
-    check(validate(both_v, both_t)["components"] == 2,
-          "two cubes are two components")
+    check(validate(both_v, both_t)["components"] == 2, "two cubes are two components")
 
     # center_and_scale centers the bbox and scales the longest axis.
-    raw = np.array([[1, 2, 3], [5, 2, 3], [1, 4, 3], [1, 2, 9]],
-                   dtype=np.float64)
+    raw = np.array([[1, 2, 3], [5, 2, 3], [1, 4, 3], [1, 2, 9]], dtype=np.float64)
     scaled, tf = center_and_scale(raw, domain=2.0)
     lo, hi = scaled.min(axis=0), scaled.max(axis=0)
     check(np.allclose(0.5 * (lo + hi), 0.0), "scaled mesh is centered")
@@ -527,15 +532,18 @@ def _format_report(name, result):
 def _build_parser():
     ap = argparse.ArgumentParser(description="Preprocess an OBJ mesh")
     ap.add_argument("input", nargs="?", help="input OBJ path")
-    ap.add_argument("--domain", type=float, default=DEFAULT_DOMAIN,
-                    help="longest-axis size after scaling")
-    ap.add_argument("--no-center", dest="center", action="store_false",
-                    help="keep input coordinates (no center/scale)")
+    ap.add_argument(
+        "--domain", type=float, default=DEFAULT_DOMAIN, help="longest-axis size after scaling"
+    )
+    ap.add_argument(
+        "--no-center",
+        dest="center",
+        action="store_false",
+        help="keep input coordinates (no center/scale)",
+    )
     ap.add_argument("--out", help="write the cleaned triangulated OBJ here")
-    ap.add_argument("--json", action="store_true",
-                    help="print stats and validation as JSON")
-    ap.add_argument("--selftest", action="store_true",
-                    help="run built-in tests and exit")
+    ap.add_argument("--json", action="store_true", help="print stats and validation as JSON")
+    ap.add_argument("--selftest", action="store_true", help="run built-in tests and exit")
     return ap
 
 
@@ -557,17 +565,22 @@ def main(argv=None):
 
     res = preprocess(args.input, args.domain, args.center)
     if args.json:
-        print(json.dumps(
-            {"ok": res["ok"], "transform": res["transform"],
-             "validation": res["validation"], "stats": res["stats"],
-             "warnings": res["warnings"]},
-            indent=2,
-        ))
+        print(
+            json.dumps(
+                {
+                    "ok": res["ok"],
+                    "transform": res["transform"],
+                    "validation": res["validation"],
+                    "stats": res["stats"],
+                    "warnings": res["warnings"],
+                },
+                indent=2,
+            )
+        )
     else:
         print(_format_report(args.input, res))
     if args.out:
-        write_obj(args.out, res["vertices"], res["triangles"],
-                  res["vertex_normals"])
+        write_obj(args.out, res["vertices"], res["triangles"], res["vertex_normals"])
         print(f"wrote {args.out}")
     return 0 if res["ok"] else 1
 

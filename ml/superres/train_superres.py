@@ -24,7 +24,7 @@ from torch.utils.data import DataLoader, TensorDataset
 
 SRBIN_MAGIC = 0x53524553
 COARSE_DIM = 3 * 3 * 3 * 4  # 108: 3x3x3 neighborhood, 4 channels
-FINE_DIM = 2 * 2 * 2 * 4    # 32: 2x2x2 output, 4 channels
+FINE_DIM = 2 * 2 * 2 * 4  # 32: 2x2x2 output, 4 channels
 
 
 def load_srbin(path: str) -> tuple[np.ndarray, np.ndarray]:
@@ -135,7 +135,7 @@ class SuperResNet(nn.Module):
 def compute_psnr(mse: float, data_range: float = 1.0) -> float:
     if mse < 1e-10:
         return 100.0
-    return 10.0 * np.log10(data_range ** 2 / mse)
+    return 10.0 * np.log10(data_range**2 / mse)
 
 
 def train(args):
@@ -180,27 +180,22 @@ def train(args):
         torch.from_numpy(fine_norm[val_idx]).float(),
     )
 
-    train_loader = DataLoader(
-        train_ds, batch_size=args.batch_size, shuffle=True, num_workers=0
-    )
-    val_loader = DataLoader(
-        val_ds, batch_size=args.batch_size * 2, shuffle=False, num_workers=0
-    )
+    train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, num_workers=0)
+    val_loader = DataLoader(val_ds, batch_size=args.batch_size * 2, shuffle=False, num_workers=0)
 
     model = SuperResNet(hidden=args.hidden).to(device)
     param_count = sum(p.numel() for p in model.parameters())
     print(f"  Model parameters: {param_count:,}")
 
-    optimizer = optim.AdamW(
-        model.parameters(), lr=args.lr, weight_decay=1e-4
-    )
+    optimizer = optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, patience=20, factor=0.5, min_lr=1e-6
     )
 
     # Weighted MSE: velocity channels (0-2) weight 1.0, density (3) weight 0.5
     channel_weights = torch.tensor(
-        [1.0, 1.0, 1.0, 0.5] * 8, device=device  # 8 sub-cells * 4 channels
+        [1.0, 1.0, 1.0, 0.5] * 8,
+        device=device,  # 8 sub-cells * 4 channels
     )
 
     best_val_loss = float("inf")
@@ -251,7 +246,7 @@ def train(args):
         if (epoch + 1) % 10 == 0 or epoch == 0:
             lr = optimizer.param_groups[0]["lr"]
             print(
-                f"  Epoch {epoch+1:4d}/{args.epochs}  "
+                f"  Epoch {epoch + 1:4d}/{args.epochs}  "
                 f"train={train_loss:.6f}  val={val_loss:.6f}  "
                 f"PSNR={val_psnr:.1f} dB  lr={lr:.1e}"
             )
@@ -263,7 +258,7 @@ def train(args):
         else:
             patience_counter += 1
             if patience_counter >= args.patience:
-                print(f"  Early stopping at epoch {epoch+1}")
+                print(f"  Early stopping at epoch {epoch + 1}")
                 break
 
     # Save final and best
@@ -281,12 +276,8 @@ def train(args):
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Train super-resolution velocity field upscaler"
-    )
-    parser.add_argument(
-        "--data", required=True, help="Path to .srbin dataset"
-    )
+    parser = argparse.ArgumentParser(description="Train super-resolution velocity field upscaler")
+    parser.add_argument("--data", required=True, help="Path to .srbin dataset")
     parser.add_argument("--epochs", type=int, default=200)
     parser.add_argument("--batch-size", type=int, default=4096)
     parser.add_argument("--hidden", type=int, default=128)
