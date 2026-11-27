@@ -89,8 +89,14 @@ int main(void) {
         CHECK(strstr(s, "\"strouhal\": null") != NULL, "unset is null");
         CHECK(strstr(s, "\"output\": null") != NULL, "empty path is null");
         CHECK(strstr(s, "\"stop_frame\": null") != NULL, "no stop frame");
-        CHECK(strstr(s, "\"sem_method\": \"batch_means_8\"") != NULL,
+        CHECK(strstr(s, "\"sem_method\": \"lugsail_obm_sqrt_n\"") != NULL,
               "SEM method");
+        CHECK(strstr(s, "\"method\": \"" CONV_METHOD "\"") != NULL,
+              "statistics method");
+        CHECK(strstr(s, "\"stationary\": null") != NULL &&
+                  strstr(s, "\"effective_sample_size\": null") != NULL &&
+                  strstr(s, "\"reason\": \"too few samples\"") != NULL,
+              "no statistics without samples");
         CHECK(strstr(s, ": nan") == NULL && strstr(s, ": inf") == NULL &&
                   strstr(s, ": -inf") == NULL,
               "no bare nan or inf");

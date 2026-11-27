@@ -996,23 +996,22 @@ int main(int argc, char *argv[]) {
     int outputFrameCount = 0;
     int maxFrames = (renderDuration > 0) ? renderDuration * 60 : 0;
 
-    // Optional --converge stopping, reads the Cd series only
+    // Cd statistics for every run, --converge also stops on them
     int convergeOn = opts.convergeTol > 0.0f;
     const float cdEmaAlpha = 0.1f;
     int cdSamples = 0;
     double cdSum = 0.0, cdCorrSum = 0.0, clSum = 0.0;
     ConvergenceDetector conv = {0};
-    if (convergeOn) {
-        if (conv_init(&conv, opts.convergeTol, opts.convergeWindow) != 0) {
-            fprintf(stderr, "Failed to set up --converge\n");
-            return 1;
-        }
-        printf("Convergence stopping: tol=%g, window=%d samples, "
-               "cap=%d output frames\n",
+    if (conv_init(&conv, opts.convergeTol, opts.convergeWindow) != 0) {
+        fprintf(stderr, "Failed to set up the Cd statistics\n");
+        return 1;
+    }
+    if (convergeOn)
+        printf("Convergence stopping: 95%% CI half-width under %g of the "
+               "mean, checked every %d samples, cap=%d output frames\n",
                opts.convergeTol,
                opts.convergeWindow,
                maxFrames);
-    }
 
     // Convergence detection for auto-stop. CD_HISTORY_SIZE and
     // CD_SAMPLE_INTERVAL live in drag_metrics.h.
@@ -1506,18 +1505,12 @@ int main(int argc, char *argv[]) {
                     clSeries[clCount++] = Cl;
             }
 
-            if (convergeOn && isfinite(Cd) && conv_add(&conv, Cd)) {
-                double cm, csem;
-                conv_stats(&conv, &cm, &csem);
+            if (conv_add(&conv, Cd)) {
                 man.converged = 1;
                 man.stopFrame = frameCount;
-                printf("Convergence: reached at frame %d, Cd mean=%.4f "
-                       "sem=%.4f (%d samples, rel change %.2e)\n",
+                printf("Convergence: reached at frame %d after %d samples\n",
                        frameCount,
-                       cm,
-                       csem,
-                       conv.count,
-                       conv.relChange);
+                       conv.count);
                 running = 0;
             }
 
@@ -1582,16 +1575,14 @@ int main(int argc, char *argv[]) {
             GLContext_SwapBuffers(glCtx);
     }
 
-    if (convergeOn && !conv.converged) {
-        double cm, csem;
-        conv_stats(&conv, &cm, &csem);
-        printf("Convergence: not reached after %d samples, Cd mean=%.4f "
-               "sem=%.4f (rel change %.2e)\n",
+    ConvStats convStats;
+    conv_stats(&conv, &convStats);
+    if (convergeOn && !conv.converged)
+        printf("Convergence: not reached after %d samples (%s)\n",
                conv.count,
-               cm,
-               csem,
-               conv.relChange);
-    }
+               conv_stop_reason(&convStats, opts.convergeTol));
+    if (lbmGrid && useLBM)
+        conv_print(stdout, &convStats);
 
     if (useLBM) {
         compute_strouhal(clSeries,
@@ -1635,10 +1626,7 @@ int main(int argc, char *argv[]) {
             man.cdCorrMean = (float)(cdCorrSum / cdSamples);
             man.clMean = (float)(clSum / cdSamples);
         }
-        if (convergeOn) {
-            conv_stats(&conv, &man.convMean, &man.convSem);
-            man.convRelChange = conv.relChange;
-        }
+        man.conv = convStats;
         if (manifest_write(opts.manifestPath, &man) == 0) {
             printf("Manifest written to %s\n", opts.manifestPath);
         } else {

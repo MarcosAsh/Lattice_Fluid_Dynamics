@@ -120,7 +120,7 @@ void manifest_init(RunManifest *m, const CliOptions *opts) {
     m->cdPressure = m->cdFriction = m->cl = m->clMean = NAN;
     m->tStar = m->flowThroughs = m->strouhal = m->sheddingFreq = NAN;
     m->stopFrame = -1;
-    m->convMean = m->convSem = m->convRelChange = NAN;
+    conv_series_stats(NULL, 0, &m->conv);
 }
 
 static void write_parameters(Json *j, const RunManifest *m) {
@@ -233,7 +233,11 @@ static void write_body(Json *j, const RunManifest *m) {
     num(j, "shedding_frequency", m->sheddingFreq);
     close_obj(j);
 
+    // Counts are Cd samples, Cd values are dimensionless
+    const ConvStats *c = &m->conv;
     open_obj(j, "convergence");
+    str(j, "method", CONV_METHOD);
+    integer(j, "method_version", CONV_METHOD_VERSION);
     boolean(j, "enabled", o->convergeTol > 0.0f);
     num(j, "tolerance", o->convergeTol > 0.0f ? o->convergeTol : NAN);
     integer(j, "window", o->convergeWindow);
@@ -243,10 +247,31 @@ static void write_body(Json *j, const RunManifest *m) {
         fprintf(j->f, "%d", m->stopFrame);
     else
         fputs("null", j->f);
-    num(j, "cd_mean", m->convMean);
-    num(j, "cd_sem", m->convSem);
-    str(j, "sem_method", "batch_means_8");
-    num(j, "relative_change", m->convRelChange);
+    integer(j, "samples", c->samples);
+    integer(j, "rejected_samples", c->rejected);
+    integer(j, "truncated_samples", c->truncated);
+    integer(j, "kept_samples", c->kept);
+    key(j, "truncation_ok");
+    fputs(!c->valid ? "null" : c->truncationOk ? "true" : "false", j->f);
+    key(j, "stationary");
+    fputs(!c->valid ? "null" : c->stationary ? "true" : "false", j->f);
+    opt_str(j, "reason", c->reason);
+    num(j, "cd_mean", c->mean);
+    num(j, "cd_sd", c->sd);
+    num(j, "cd_sem", c->sem);
+    str(j, "sem_method", "lugsail_obm_sqrt_n");
+    num(j, "cd_ci95_half_width", c->halfWidth);
+    num(j, "relative_half_width", c->relHalfWidth);
+    num(j, "effective_sample_size", c->ess);
+    num(j, "batch_size", c->valid ? c->batchSize : NAN);
+    num(j, "dof", c->dof);
+    num(j, "lag1_autocorrelation", c->lag1);
+    num(j, "cd_drift", c->drift);
+    num(j, "relative_drift", c->relDrift);
+    num(j, "stationarity_statistic", c->cvm);
+    num(j, "stationarity_critical", CONV_CVM_95);
+    integer(j, "min_kept_samples", CONV_MIN_KEPT);
+    integer(j, "min_effective_sample_size", CONV_MIN_ESS);
     close_obj(j);
 }
 

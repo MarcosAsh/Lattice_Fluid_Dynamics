@@ -2,6 +2,7 @@
 #define MANIFEST_H
 
 #include "cli.h"
+#include "convergence.h"
 
 #define MANIFEST_SCHEMA_VERSION 1
 
@@ -58,12 +59,10 @@ typedef struct {
     float strouhal;
     float sheddingFreq;
 
-    // Convergence stopping
+    // Convergence stopping and steady-state Cd statistics
     int converged;
     int stopFrame;
-    double convMean;
-    double convSem;
-    double convRelChange;
+    ConvStats conv;
 } RunManifest;
 
 // Fills build info and defaults, NAN for results not yet known
