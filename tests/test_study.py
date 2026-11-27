@@ -35,7 +35,16 @@ def manifest(params, cd=0.4, sem=0.01, commit=COMMIT, dirty=False, renderer="Mes
         "model": {"solid_cells": 730, "blockage_factor": 0.92},
         "run": {"frames": 300},
         "results": {"cd_mean": cd + 1, "cd_corr_mean": cd + 0.9, "flow_throughs": 2.3},
-        "convergence": {"enabled": True, "converged": True, "cd_mean": cd, "cd_sem": sem},
+        "convergence": {
+            "method": "mser5+lugsail_obm+hw_cvm+trend",
+            "enabled": True,
+            "converged": True,
+            "stationary": True,
+            "cd_mean": cd,
+            "cd_sem": sem,
+            "cd_ci95_half_width": 2.1 * sem,
+            "effective_sample_size": 120.0,
+        },
     }
 
 
@@ -208,6 +217,9 @@ def test_table_columns_and_values(study):
     assert row["cells"] == str(64 * 32 * 32)
     assert float(row["cd"]) == pytest.approx(0.35)
     assert float(row["cd_sem"]) == pytest.approx(0.004)
+    assert float(row["cd_ci95"]) == pytest.approx(0.0084)
+    assert float(row["cd_ess"]) == pytest.approx(120.0)
+    assert row["cd_stationary"] == "true"
     assert row["cd_source"] == "convergence"
     assert float(row["cd_mean"]) == pytest.approx(1.35)
     assert row["converged"] == "true"
@@ -223,14 +235,36 @@ def test_table_columns_and_values(study):
     assert data["rows"][2]["params"]["grid"] == "64x32x32"
 
 
-def test_results_without_convergence_have_no_sem():
+def test_results_without_statistics_have_no_sem():
     m = manifest({"grid": "32x16x16", "model": MODEL})
-    m["convergence"] = {"enabled": False, "converged": False, "cd_mean": None, "cd_sem": None}
+    m["convergence"].update(enabled=False, converged=False, cd_mean=None, cd_sem=None)
     row = st.manifest_row(m)
     assert row["cd"] == m["results"]["cd_mean"]
     assert row["cd_sem"] is None
+    assert row["cd_stationary"] is None
     assert row["cd_source"] == "results"
     assert row["converged"] is None
+
+
+def test_statistics_without_converge():
+    m = manifest({"grid": "32x16x16", "model": MODEL}, cd=0.4, sem=0.01)
+    m["convergence"].update(enabled=False, converged=False, stationary=False)
+    row = st.manifest_row(m)
+    assert row["cd"] == 0.4
+    assert row["cd_sem"] == 0.01
+    assert row["cd_source"] == "convergence"
+    assert row["converged"] is None
+    row.update(name="a", status="ok", params={}, commit="c", dirty=False, renderer="r")
+    assert any("trend in Cd" in w for w in st.check_rows([row]))
+
+
+def test_old_manifest_sem_is_dropped():
+    m = manifest({"grid": "32x16x16", "model": MODEL}, cd=0.4, sem=0.01)
+    m["convergence"] = {"enabled": True, "converged": True, "cd_mean": 0.4, "cd_sem": 0.01}
+    row = st.manifest_row(m)
+    assert row["cd"] == 0.4
+    assert row["cd_sem"] is None
+    assert row["cd_source"] == "convergence"
 
 
 FAKE_SOLVER = """#!{python}

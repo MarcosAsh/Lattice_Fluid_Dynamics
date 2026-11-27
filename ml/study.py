@@ -129,6 +129,9 @@ COLUMNS = [
     "blockage_factor",
     "cd",
     "cd_sem",
+    "cd_ci95",
+    "cd_ess",
+    "cd_stationary",
     "cd_source",
     "cd_mean",
     "cd_corr_mean",
@@ -528,7 +531,9 @@ def manifest_row(m: dict) -> dict:
     git = m.get("git") or {}
     gl = m.get("gl") or {}
     grid = lat.get("grid") or (m.get("parameters") or {}).get("grid")
-    use_conv = bool(conv.get("enabled")) and conv.get("cd_mean") is not None
+    # Manifests without a method predate the statistics, their sem is unreliable
+    stats = "method" in conv and conv.get("cd_mean") is not None
+    use_conv = stats or (bool(conv.get("enabled")) and conv.get("cd_mean") is not None)
     return {
         "grid": "x".join(str(n) for n in grid) if grid else None,
         "cells": math.prod(grid) if grid else None,
@@ -539,7 +544,10 @@ def manifest_row(m: dict) -> dict:
         "solid_cells": model.get("solid_cells"),
         "blockage_factor": model.get("blockage_factor"),
         "cd": conv.get("cd_mean") if use_conv else res.get("cd_mean"),
-        "cd_sem": conv.get("cd_sem") if use_conv else None,
+        "cd_sem": conv.get("cd_sem") if stats else None,
+        "cd_ci95": conv.get("cd_ci95_half_width") if stats else None,
+        "cd_ess": conv.get("effective_sample_size") if stats else None,
+        "cd_stationary": conv.get("stationary") if stats else None,
         "cd_source": "convergence" if use_conv else "results",
         "cd_mean": res.get("cd_mean"),
         "cd_corr_mean": res.get("cd_corr_mean"),
@@ -621,6 +629,9 @@ def check_rows(rows: list[dict]) -> list[str]:
     unconverged = [r for r in ok if r["converged"] is False]
     if unconverged:
         warnings.append(f"{len(unconverged)} case(s) did not converge: {_names(unconverged)}")
+    drifting = [r for r in ok if r["cd_stationary"] is False]
+    if drifting:
+        warnings.append(f"{len(drifting)} case(s) with a trend in Cd: {_names(drifting)}")
     failed = [r for r in rows if r["status"] == "failed"]
     if failed:
         detail = ", ".join(f"{r['name']} ({r['error']})" for r in failed[:3])
