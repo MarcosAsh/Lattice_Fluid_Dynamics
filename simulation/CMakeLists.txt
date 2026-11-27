@@ -5,7 +5,6 @@ set(CMAKE_C_STANDARD 11)
 
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(SDL2 REQUIRED sdl2)
-pkg_check_modules(SDL2_TTF REQUIRED SDL2_ttf)
 pkg_check_modules(GL REQUIRED gl)
 
 # Optional EGL for headless GPU rendering
@@ -47,7 +46,6 @@ add_executable(3d_fluid_simulation_car
 
 target_link_libraries(3d_fluid_simulation_car
     ${SDL2_LIBRARIES}
-    ${SDL2_TTF_LIBRARIES}
     ${GL_LIBRARIES}
     m
     dl
@@ -55,14 +53,12 @@ target_link_libraries(3d_fluid_simulation_car
 
 target_include_directories(3d_fluid_simulation_car PRIVATE
     ${SDL2_INCLUDE_DIRS}
-    ${SDL2_TTF_INCLUDE_DIRS}
     ${GL_INCLUDE_DIRS}
     ${GLAD_INCLUDE}
 )
 
 target_link_directories(3d_fluid_simulation_car PRIVATE
     ${SDL2_LIBRARY_DIRS}
-    ${SDL2_TTF_LIBRARY_DIRS}
     ${GL_LIBRARY_DIRS}
 )
 
