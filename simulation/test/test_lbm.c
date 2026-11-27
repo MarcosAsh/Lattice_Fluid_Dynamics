@@ -499,8 +499,7 @@ static void test_box_cd_convergence(void) {
     /* Quick force check first */
     float qfx, qfy, qfz;
     LBM_ComputeDragForce(grid, &qfx, &qfy, &qfz);
-    printf("  force after 500 steps: fx=%.6f fy=%.6f fz=%.6f\n",
-           qfx, qfy, qfz);
+    printf("  force after 500 steps: fx=%.6f fy=%.6f fz=%.6f\n", qfx, qfy, qfz);
 
     /* Run 500 more */
     for (int i = 0; i < 500; i++)
@@ -513,17 +512,24 @@ static void test_box_cd_convergence(void) {
     float *velData = (float *)malloc(4 * grid->totalCells * sizeof(float));
     glFinish();
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->velocityBuffer);
-    glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0,
-                       4 * grid->totalCells * sizeof(float), velData);
+    glGetBufferSubData(GL_SHADER_STORAGE_BUFFER,
+                       0,
+                       4 * grid->totalCells * sizeof(float),
+                       velData);
     int midY = grid->sizeY / 2, midZ = grid->sizeZ / 2;
     int inletIdx = 0 + midY * grid->sizeX + midZ * grid->sizeX * grid->sizeY;
-    int midIdx = grid->sizeX/2 + midY * grid->sizeX + midZ * grid->sizeX * grid->sizeY;
+    int midIdx =
+        grid->sizeX / 2 + midY * grid->sizeX + midZ * grid->sizeX * grid->sizeY;
     printf("  inlet vel: (%.6f, %.6f, %.6f) rho=%.4f\n",
-           velData[4*inletIdx], velData[4*inletIdx+1],
-           velData[4*inletIdx+2], velData[4*inletIdx+3]);
+           velData[4 * inletIdx],
+           velData[4 * inletIdx + 1],
+           velData[4 * inletIdx + 2],
+           velData[4 * inletIdx + 3]);
     printf("  mid vel:   (%.6f, %.6f, %.6f) rho=%.4f\n",
-           velData[4*midIdx], velData[4*midIdx+1],
-           velData[4*midIdx+2], velData[4*midIdx+3]);
+           velData[4 * midIdx],
+           velData[4 * midIdx + 1],
+           velData[4 * midIdx + 2],
+           velData[4 * midIdx + 3]);
     free(velData);
 
     float samples[5];
@@ -534,19 +540,22 @@ static void test_box_cd_convergence(void) {
             LBM_Step(grid, U, 0.0f, 0.0f);
         float sfx, sfy, sfz;
         LBM_ComputeDragForce(grid, &sfx, &sfy, &sfz);
-        samples[s] = (dynP * refArea > 1e-10f)
-                         ? fabsf(sfx) / (dynP * refArea)
-                         : 0.0f;
+        samples[s] =
+            (dynP * refArea > 1e-10f) ? fabsf(sfx) / (dynP * refArea) : 0.0f;
         printf("  sample %d: Cd = %.3f (fx=%.6f)\n", s, samples[s], sfx);
     }
 
     /* Check all samples are positive and within 2x of each other */
     float minCd = samples[0], maxCd = samples[0];
     for (int s = 1; s < 5; s++) {
-        if (samples[s] < minCd) minCd = samples[s];
-        if (samples[s] > maxCd) maxCd = samples[s];
+        if (samples[s] < minCd)
+            minCd = samples[s];
+        if (samples[s] > maxCd)
+            maxCd = samples[s];
     }
-    printf("  range: %.3f - %.3f (ratio %.2f)\n", minCd, maxCd,
+    printf("  range: %.3f - %.3f (ratio %.2f)\n",
+           minCd,
+           maxCd,
            maxCd / (minCd > 0.001f ? minCd : 0.001f));
 
     ASSERT(minCd > 0.0f, "all Cd samples positive");

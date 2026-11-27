@@ -25,11 +25,25 @@ static const int ey[19] = {
     0, 0, 0, 1, -1, 0, 0, 1, 1, -1, -1, 0, 0, 0, 0, 1, -1, 1, -1};
 static const int ez[19] = {
     0, 0, 0, 0, 0, 1, -1, 0, 0, 0, 0, 1, 1, -1, -1, 1, 1, -1, -1};
-static const double wq[19] = {1.0 / 3,  1.0 / 18, 1.0 / 18, 1.0 / 18,
-                              1.0 / 18, 1.0 / 18, 1.0 / 18, 1.0 / 36,
-                              1.0 / 36, 1.0 / 36, 1.0 / 36, 1.0 / 36,
-                              1.0 / 36, 1.0 / 36, 1.0 / 36, 1.0 / 36,
-                              1.0 / 36, 1.0 / 36, 1.0 / 36};
+static const double wq[19] = {1.0 / 3,
+                              1.0 / 18,
+                              1.0 / 18,
+                              1.0 / 18,
+                              1.0 / 18,
+                              1.0 / 18,
+                              1.0 / 18,
+                              1.0 / 36,
+                              1.0 / 36,
+                              1.0 / 36,
+                              1.0 / 36,
+                              1.0 / 36,
+                              1.0 / 36,
+                              1.0 / 36,
+                              1.0 / 36,
+                              1.0 / 36,
+                              1.0 / 36,
+                              1.0 / 36,
+                              1.0 / 36};
 
 typedef struct {
     const char *name;
@@ -223,8 +237,8 @@ static int case_uniform(Opts *o) {
         LBM_ComputeDragForce(g, &fx, &fy, &fz);
 
         float *vel = malloc((size_t)4 * g->totalCells * sizeof(float));
-        read_buf(g->velocityBuffer, (size_t)4 * g->totalCells * sizeof(float),
-                 vel);
+        read_buf(
+            g->velocityBuffer, (size_t)4 * g->totalCells * sizeof(float), vel);
         double du = 0, dv = 0, drho = 0;
         for (int c = 0; c < g->totalCells; c++) {
             du = fmax(du, fabs(vel[4 * c] - U));
@@ -235,8 +249,20 @@ static int case_uniform(Opts *o) {
         printf("RESULT case=uniform bc=%s op=%s grid=%dx%dx%d tau=%.4f U=%.4f "
                "steps=%d mass_rel_drift=%.3e max_du=%.3e max_dv=%.3e "
                "max_drho=%.3e fx=%.3e resets=%d mlups=%.1f\n",
-               periodic ? "periodic" : "open", o->op, nx, ny, nz, tau, U,
-               steps, (m1 - m0) / m0, du, dv, drho, fx, resets,
+               periodic ? "periodic" : "open",
+               o->op,
+               nx,
+               ny,
+               nz,
+               tau,
+               U,
+               steps,
+               (m1 - m0) / m0,
+               du,
+               dv,
+               drho,
+               fx,
+               resets,
                (double)g->totalCells * steps / dt * 1e-6);
         worst += resets;
         LBM_Free(g);
@@ -350,8 +376,21 @@ static int case_tgv(Opts *o) {
     printf("RESULT case=tgv op=%s smag=%.3f n=%d plane=%s tau=%.4f U0=%.4f "
            "steps=%d nu=%.6e nu_eff=%.6e nu_err=%.4e nu_t_pred=%.4e l2=%.4e "
            "mass_rel_drift=%.3e chunks=%d resets=%d mlups=%.1f\n",
-           o->op, o->smag, n, o->plane ? "xz" : "xy", tau, U0, steps, nu,
-           nuEff, (nuEff - nu) / nu, nuT, l2, (m1 - m0) / m0, g->numChunks, resets,
+           o->op,
+           o->smag,
+           n,
+           o->plane ? "xz" : "xy",
+           tau,
+           U0,
+           steps,
+           nu,
+           nuEff,
+           (nuEff - nu) / nu,
+           nuT,
+           l2,
+           (m1 - m0) / m0,
+           g->numChunks,
+           resets,
            (double)cells * steps / dt * 1e-6);
     free(vel);
     free(f);
@@ -403,8 +442,8 @@ static int case_poiseuille(Opts *o) {
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, g->solidBuffer);
     glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, cells * sizeof(int), solid);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, g->qBuffer);
-    glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, cells * 19 * sizeof(float),
-                    qv);
+    glBufferSubData(
+        GL_SHADER_STORAGE_BUFFER, 0, cells * 19 * sizeof(float), qv);
     LBM_InitializeFlow(g, 0, 0, 0);
 
     double t0 = now_s();
@@ -434,7 +473,10 @@ static int case_poiseuille(Opts *o) {
         num += (s - ua) * (s - ua);
         den += ua * ua;
         if (getenv("LBM_VALIDATE_PROFILE"))
-            printf("PROFILE y=%d u=%.8e exact=%.8e rel=%.4e\n", y, s, ua,
+            printf("PROFILE y=%d u=%.8e exact=%.8e rel=%.4e\n",
+                   y,
+                   s,
+                   ua,
                    (s - ua) / umax);
         umeas = fmax(umeas, s);
     }
@@ -443,8 +485,19 @@ static int case_poiseuille(Opts *o) {
     printf("RESULT case=poiseuille op=%s h=%d q=%.3f tau=%.4f steps=%d "
            "umax=%.6e umax_meas=%.6e l2=%.4e wall_fx=%.6e body_fx=%.6e "
            "force_err=%.4e resets=%d mlups=%.1f\n",
-           o->op, h, q, tau, steps, umax, umeas, sqrt(num / den), fx, fBody,
-           (fx - fBody) / fBody, resets, (double)cells * steps / dt * 1e-6);
+           o->op,
+           h,
+           q,
+           tau,
+           steps,
+           umax,
+           umeas,
+           sqrt(num / den),
+           fx,
+           fBody,
+           (fx - fBody) / fBody,
+           resets,
+           (double)cells * steps / dt * 1e-6);
     free(vel);
     free(solid);
     free(qv);
@@ -455,18 +508,27 @@ static int case_poiseuille(Opts *o) {
 /* Icosphere in the 12-float triangle layout LBM_SetSolidMesh takes */
 static float *icosphere(double cx, double r, int levels, int *ntri) {
     double t = (1.0 + sqrt(5.0)) / 2.0;
-    double v0[12][3] = {{-1, t, 0}, {1, t, 0},   {-1, -t, 0}, {1, -t, 0},
-                        {0, -1, t}, {0, 1, t},   {0, -1, -t}, {0, 1, -t},
-                        {t, 0, -1}, {t, 0, 1},   {-t, 0, -1}, {-t, 0, 1}};
-    int f0[20][3] = {{0, 11, 5}, {0, 5, 1},  {0, 1, 7},   {0, 7, 10},
-                     {0, 10, 11}, {1, 5, 9}, {5, 11, 4},  {11, 10, 2},
-                     {10, 7, 6}, {7, 1, 8},  {3, 9, 4},   {3, 4, 2},
-                     {3, 2, 6},  {3, 6, 8},  {3, 8, 9},   {4, 9, 5},
-                     {2, 4, 11}, {6, 2, 10}, {8, 6, 7},   {9, 8, 1}};
+    double v0[12][3] = {{-1, t, 0},
+                        {1, t, 0},
+                        {-1, -t, 0},
+                        {1, -t, 0},
+                        {0, -1, t},
+                        {0, 1, t},
+                        {0, -1, -t},
+                        {0, 1, -t},
+                        {t, 0, -1},
+                        {t, 0, 1},
+                        {-t, 0, -1},
+                        {-t, 0, 1}};
+    int f0[20][3] = {{0, 11, 5},  {0, 5, 1},  {0, 1, 7},  {0, 7, 10},
+                     {0, 10, 11}, {1, 5, 9},  {5, 11, 4}, {11, 10, 2},
+                     {10, 7, 6},  {7, 1, 8},  {3, 9, 4},  {3, 4, 2},
+                     {3, 2, 6},   {3, 6, 8},  {3, 8, 9},  {4, 9, 5},
+                     {2, 4, 11},  {6, 2, 10}, {8, 6, 7},  {9, 8, 1}};
     int n = 20;
     for (int l = 0; l < levels; l++)
         n *= 4;
-    double(*tri)[3][3] = malloc(sizeof(double[3][3]) * n);
+    double (*tri)[3][3] = malloc(sizeof(double[3][3]) * n);
     for (int i = 0; i < 20; i++)
         for (int k = 0; k < 3; k++)
             for (int c = 0; c < 3; c++) {
@@ -536,8 +598,15 @@ static int case_qcheck(Opts *o) {
     read_buf(g->qBuffer, n * sizeof(float), qa);
     int ntri;
     float *tris = icosphere(cx, r, 5, &ntri);
-    LBM_SetSolidMesh(g, tris, ntri, (float)(cx - r), (float)-r, (float)-r,
-                     (float)(cx + r), (float)r, (float)r);
+    LBM_SetSolidMesh(g,
+                     tris,
+                     ntri,
+                     (float)(cx - r),
+                     (float)-r,
+                     (float)-r,
+                     (float)(cx + r),
+                     (float)r,
+                     (float)r);
     read_buf(g->qBuffer, n * sizeof(float), qm);
     float area = LBM_MeshFrontalArea(g, tris, ntri);
     float vox = LBM_ComputeProjectedArea(g, 0);
@@ -561,7 +630,16 @@ static int case_qcheck(Opts *o) {
     printf("RESULT case=qcheck D=%.1f tris=%d links=%ld only_analytic=%ld "
            "only_mesh=%ld mean_dq=%.4f max_dq=%.4f stuck_at_half=%ld "
            "mesh_area=%.2f voxel_area=%.1f exact_area=%.2f\n",
-           D, ntri, both, onlyA, onlyM, sumd / both, maxd, half, area, vox,
+           D,
+           ntri,
+           both,
+           onlyA,
+           onlyM,
+           sumd / both,
+           maxd,
+           half,
+           area,
+           vox,
            exact);
     free(tris);
     free(qa);
@@ -603,8 +681,8 @@ static int case_sphere(Opts *o) {
         int ntri;
         float r = (float)(0.5 * D / scale);
         float *tris = icosphere(cx, r, 5, &ntri);
-        LBM_SetSolidMesh(g, tris, ntri, (float)cx - r, -r, -r, (float)cx + r, r,
-                         r);
+        LBM_SetSolidMesh(
+            g, tris, ntri, (float)cx - r, -r, -r, (float)cx + r, r, r);
         free(tris);
     } else {
         LBM_SetSolidSphere(g, (float)cx, 0.0f, 0.0f, (float)(0.5 * D / scale));
@@ -616,7 +694,17 @@ static int case_sphere(Opts *o) {
 
     printf("sphere: grid %dx%dx%d D=%.1f Re=%.1f U=%.4f tau=%.5f "
            "proj_area=%.1f exact=%.1f blockage=%.4f window=%d\n",
-           nx, ny, nz, D, re, U, tau, area, areaExact, blockage, window);
+           nx,
+           ny,
+           nz,
+           D,
+           re,
+           U,
+           tau,
+           area,
+           areaExact,
+           blockage,
+           window);
 
     double dynA = 0.5 * U * U * areaExact;
     double hist[4096];
@@ -633,8 +721,12 @@ static int case_sphere(Opts *o) {
         double cd = fx / dynA;
         if (nw < 4096)
             hist[nw++] = cd;
-        printf("WIN step=%d tstar=%.2f cd=%.6f cl_y=%.6f cl_z=%.6f\n", s,
-               s * U / D, cd, fy / dynA, fz / dynA);
+        printf("WIN step=%d tstar=%.2f cd=%.6f cl_y=%.6f cl_z=%.6f\n",
+               s,
+               s * U / D,
+               cd,
+               fy / dynA,
+               fz / dynA);
         fflush(stdout);
         if (isnan(cd) || resets > 0)
             break;
@@ -668,10 +760,28 @@ static int case_sphere(Opts *o) {
            "tau=%.5f grid=%dx%dx%d sponge=%d periodic_yz=%d blockage=%.4f "
            "steps=%d tstar=%.1f cd=%.5f cd_sd=%.5f cd_voxel_area=%.5f "
            "proj_area=%.1f resets=%d seconds=%.1f mlups=%.1f\n",
-           o->mesh ? "mesh" : "analytic", o->op, o->smag, D, re, U, tau, nx,
-           ny, nz, g->spongeCells,
-           g->periodicYZ, blockage, s, s * U / D, mean, sd, cdVox, area,
-           resets, dt, (double)g->totalCells * s / dt * 1e-6);
+           o->mesh ? "mesh" : "analytic",
+           o->op,
+           o->smag,
+           D,
+           re,
+           U,
+           tau,
+           nx,
+           ny,
+           nz,
+           g->spongeCells,
+           g->periodicYZ,
+           blockage,
+           s,
+           s * U / D,
+           mean,
+           sd,
+           cdVox,
+           area,
+           resets,
+           dt,
+           (double)g->totalCells * s / dt * 1e-6);
     LBM_Free(g);
     return resets > 0;
 }
@@ -686,8 +796,8 @@ static int case_obj(Opts *o) {
         return 2;
     float mn[3] = {1e30f, 1e30f, 1e30f}, mx[3] = {-1e30f, -1e30f, -1e30f};
     for (int i = 0; i < model.vertexCount; i++) {
-        float v[3] = {model.vertices[i].x, model.vertices[i].y,
-                      model.vertices[i].z};
+        float v[3] = {
+            model.vertices[i].x, model.vertices[i].y, model.vertices[i].z};
         for (int c = 0; c < 3; c++) {
             mn[c] = fminf(mn[c], v[c]);
             mx[c] = fmaxf(mx[c], v[c]);
@@ -716,14 +826,24 @@ static int case_obj(Opts *o) {
         return 1;
     g->spongeCells = o->sponge < 0 ? nx / 8 : o->sponge;
     LBM_SetForceAveraging(g, 1);
-    LBM_SetSolidMesh(g, (float *)tris, ntri, b.minX, b.minY, b.minZ, b.maxX,
-                     b.maxY, b.maxZ);
+    LBM_SetSolidMesh(
+        g, (float *)tris, ntri, b.minX, b.minY, b.minZ, b.maxX, b.maxY, b.maxZ);
     float areaVox = LBM_ComputeProjectedArea(g, 0);
     float areaMesh = LBM_MeshFrontalArea(g, (float *)tris, ntri);
     LBM_InitializeFlow(g, o->ramp > 0 ? 0.0f : (float)U, 0, 0);
     printf("obj: %s grid %dx%dx%d L=%.1f Re=%.1f tau=%.5f U=%.4f "
            "area_mesh=%.2f area_voxel=%.1f ramp=%d\n",
-           o->model, nx, ny, nz, L, re, tau, U, areaMesh, areaVox, o->ramp);
+           o->model,
+           nx,
+           ny,
+           nz,
+           L,
+           re,
+           tau,
+           U,
+           areaMesh,
+           areaVox,
+           o->ramp);
 
     int window = o->window ? o->window : 20;
     int steps = o->steps ? o->steps : (int)(8 * nx / U);
@@ -741,12 +861,16 @@ static int case_obj(Opts *o) {
         LBM_ComputeDragForce(g, &fx, &fy, &fz);
         resets += check_diag(g, "obj");
         // Density at the inlet and mid-domain centre line
-        read_buf(g->velocityBuffer, (size_t)4 * g->totalCells * sizeof(float),
-                 vel);
+        read_buf(
+            g->velocityBuffer, (size_t)4 * g->totalCells * sizeof(float), vel);
         size_t row = (size_t)nx * (ny / 2 + (size_t)ny * (nz / 2));
         printf("WIN step=%d cd=%.6f cside=%.6f clift=%.6f rho_in=%.6f "
                "rho_mid=%.6f\n",
-               s, fx / dyn, fy / dyn, fz / dyn, vel[4 * (row + 1) + 3],
+               s,
+               fx / dyn,
+               fy / dyn,
+               fz / dyn,
+               vel[4 * (row + 1) + 3],
                vel[4 * (row + nx / 2) + 3]);
         if (resets > 0)
             break;
@@ -754,7 +878,16 @@ static int case_obj(Opts *o) {
     glFinish();
     printf("RESULT case=obj model=%s grid=%dx%dx%d re=%.1f tau=%.5f steps=%d "
            "area_mesh=%.2f area_voxel=%.1f resets=%d seconds=%.1f\n",
-           o->model, nx, ny, nz, re, tau, s, areaMesh, areaVox, resets,
+           o->model,
+           nx,
+           ny,
+           nz,
+           re,
+           tau,
+           s,
+           areaMesh,
+           areaVox,
+           resets,
            now_s() - t0);
     free(vel);
     free(tris);

@@ -33,19 +33,31 @@ static Model make_cube(float h) {
     m.faces = (Face *)calloc(12, sizeof(Face));
 
     Vertex verts[8] = {
-        {-h, -h, -h}, { h, -h, -h}, { h,  h, -h}, {-h,  h, -h},
-        {-h, -h,  h}, { h, -h,  h}, { h,  h,  h}, {-h,  h,  h},
+        {-h, -h, -h},
+        {h, -h, -h},
+        {h, h, -h},
+        {-h, h, -h},
+        {-h, -h, h},
+        {h, -h, h},
+        {h, h, h},
+        {-h, h, h},
     };
     memcpy(m.vertices, verts, sizeof(verts));
 
     /* OBJ face indices are 1-based. */
     Face faces[12] = {
-        {1, 2, 3}, {1, 3, 4},   /* -Z */
-        {5, 7, 6}, {5, 8, 7},   /* +Z */
-        {1, 5, 6}, {1, 6, 2},   /* -Y */
-        {4, 3, 7}, {4, 7, 8},   /* +Y */
-        {1, 4, 8}, {1, 8, 5},   /* -X */
-        {2, 6, 7}, {2, 7, 3},   /* +X */
+        {1, 2, 3},
+        {1, 3, 4}, /* -Z */
+        {5, 7, 6},
+        {5, 8, 7}, /* +Z */
+        {1, 5, 6},
+        {1, 6, 2}, /* -Y */
+        {4, 3, 7},
+        {4, 7, 8}, /* +Y */
+        {1, 4, 8},
+        {1, 8, 5}, /* -X */
+        {2, 6, 7},
+        {2, 7, 3}, /* +X */
     };
     memcpy(m.faces, faces, sizeof(faces));
     return m;
@@ -64,18 +76,30 @@ static Model make_slab_z(void) {
 
     float hx = 0.1f, hy = 0.2f, hz = 0.8f;
     Vertex verts[8] = {
-        {-hx, -hy, -hz}, { hx, -hy, -hz}, { hx,  hy, -hz}, {-hx,  hy, -hz},
-        {-hx, -hy,  hz}, { hx, -hy,  hz}, { hx,  hy,  hz}, {-hx,  hy,  hz},
+        {-hx, -hy, -hz},
+        {hx, -hy, -hz},
+        {hx, hy, -hz},
+        {-hx, hy, -hz},
+        {-hx, -hy, hz},
+        {hx, -hy, hz},
+        {hx, hy, hz},
+        {-hx, hy, hz},
     };
     memcpy(m.vertices, verts, sizeof(verts));
 
     Face faces[12] = {
-        {1, 2, 3}, {1, 3, 4},
-        {5, 7, 6}, {5, 8, 7},
-        {1, 5, 6}, {1, 6, 2},
-        {4, 3, 7}, {4, 7, 8},
-        {1, 4, 8}, {1, 8, 5},
-        {2, 6, 7}, {2, 7, 3},
+        {1, 2, 3},
+        {1, 3, 4},
+        {5, 7, 6},
+        {5, 8, 7},
+        {1, 5, 6},
+        {1, 6, 2},
+        {4, 3, 7},
+        {4, 7, 8},
+        {1, 4, 8},
+        {1, 8, 5},
+        {2, 6, 7},
+        {2, 7, 3},
     };
     memcpy(m.faces, faces, sizeof(faces));
     return m;
@@ -136,8 +160,7 @@ static void test_align_longest_x(void) {
     Model slab = make_slab_z();
     int R = 32;
 
-    VoxelGrid *g =
-        Voxelize_FromModel(&slab, R, 0.05f, 1, VOXELIZE_MODE_SOLID);
+    VoxelGrid *g = Voxelize_FromModel(&slab, R, 0.05f, 1, VOXELIZE_MODE_SOLID);
     CHECK(g != NULL, "voxelize returned non-null");
     if (g) {
         /* After alignment, the slab should span more cells in X than in Z. */
@@ -146,10 +169,14 @@ static void test_align_longest_x(void) {
             for (int y = 0; y < R; y++) {
                 for (int x = 0; x < R; x++) {
                     if (g->data[x + R * (y + R * z)]) {
-                        if (x < x_min) x_min = x;
-                        if (x > x_max) x_max = x;
-                        if (z < z_min) z_min = z;
-                        if (z > z_max) z_max = z;
+                        if (x < x_min)
+                            x_min = x;
+                        if (x > x_max)
+                            x_max = x;
+                        if (z < z_min)
+                            z_min = z;
+                        if (z > z_max)
+                            z_max = z;
                     }
                 }
             }
@@ -169,12 +196,15 @@ static void test_determinism(void) {
     printf("test_determinism\n");
     Model cube = make_cube(1.0f);
 
-    VoxelGrid *g1 = Voxelize_FromModel(&cube, 16, 0.05f, 1, VOXELIZE_MODE_SOLID);
-    VoxelGrid *g2 = Voxelize_FromModel(&cube, 16, 0.05f, 1, VOXELIZE_MODE_SOLID);
+    VoxelGrid *g1 =
+        Voxelize_FromModel(&cube, 16, 0.05f, 1, VOXELIZE_MODE_SOLID);
+    VoxelGrid *g2 =
+        Voxelize_FromModel(&cube, 16, 0.05f, 1, VOXELIZE_MODE_SOLID);
     CHECK(g1 && g2, "both voxelizations succeeded");
     if (g1 && g2) {
         size_t n = 16 * 16 * 16;
-        CHECK(memcmp(g1->data, g2->data, n) == 0, "two runs produce identical grids");
+        CHECK(memcmp(g1->data, g2->data, n) == 0,
+              "two runs produce identical grids");
     }
     Voxelize_Free(g1);
     Voxelize_Free(g2);

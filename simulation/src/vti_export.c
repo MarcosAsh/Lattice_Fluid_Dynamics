@@ -109,25 +109,29 @@ void writeVTI(LBMGrid *grid, VTKStats *stats, const char *path, int step) {
     size_t tkeOffset = rmsOffset + sizeof(uint64_t) + f3;
 
     // VTI header
-    fprintf(
-        f,
-        "<?xml version=\"1.0\"?>\n"
-        "<VTKFile type=\"ImageData\" version=\"1.0\""
-        " byte_order=\"LittleEndian\" header_type=\"UInt64\">\n"
-        "  <ImageData WholeExtent=\"0 %d 0 %d 0 %d\""
-        " Origin=\"0 0 0\" Spacing=\"1 1 1\">\n"
-        "    <Piece Extent=\"0 %d 0 %d 0 %d\">\n"
-        "      <PointData Vectors=\"velocity\" Scalars=\"rho\">\n"
-        "        <DataArray type=\"Float32\" Name=\"velocity\""
-        " NumberOfComponents=\"3\" format=\"appended\""
-        " offset=\"0\"/>\n"
-        "        <DataArray type=\"Float32\" Name=\"rho\""
-        " format=\"appended\" offset=\"%lu\"/>\n"
-        "        <DataArray type=\"Int32\" Name=\"solid\""
-        " format=\"appended\" offset=\"%lu\"/>\n",
-        nx, ny, nz, nx, ny, nz,
-        (unsigned long)rhoOffset,
-        (unsigned long)solidOffset);
+    fprintf(f,
+            "<?xml version=\"1.0\"?>\n"
+            "<VTKFile type=\"ImageData\" version=\"1.0\""
+            " byte_order=\"LittleEndian\" header_type=\"UInt64\">\n"
+            "  <ImageData WholeExtent=\"0 %d 0 %d 0 %d\""
+            " Origin=\"0 0 0\" Spacing=\"1 1 1\">\n"
+            "    <Piece Extent=\"0 %d 0 %d 0 %d\">\n"
+            "      <PointData Vectors=\"velocity\" Scalars=\"rho\">\n"
+            "        <DataArray type=\"Float32\" Name=\"velocity\""
+            " NumberOfComponents=\"3\" format=\"appended\""
+            " offset=\"0\"/>\n"
+            "        <DataArray type=\"Float32\" Name=\"rho\""
+            " format=\"appended\" offset=\"%lu\"/>\n"
+            "        <DataArray type=\"Int32\" Name=\"solid\""
+            " format=\"appended\" offset=\"%lu\"/>\n",
+            nx,
+            ny,
+            nz,
+            nx,
+            ny,
+            nz,
+            (unsigned long)rhoOffset,
+            (unsigned long)solidOffset);
 
     if (hasStats) {
         fprintf(
@@ -167,16 +171,14 @@ void writeVTI(LBMGrid *grid, VTKStats *stats, const char *path, int step) {
     // Solid array
     uint64_t solidDataSize = (uint64_t)i1;
     writeOk = writeOk && fwrite(&solidDataSize, sizeof(uint64_t), 1, f) == 1;
-    writeOk = writeOk &&
-              fwrite(solid, sizeof(int), total, f) == (size_t)total;
+    writeOk = writeOk && fwrite(solid, sizeof(int), total, f) == (size_t)total;
 
     if (hasStats) {
         float inv = 1.0f / (float)stats->count;
 
         // Mean velocity (time-averaged), 3 components per cell.
         uint64_t meanSize = (uint64_t)f3;
-        writeOk = writeOk &&
-                  fwrite(&meanSize, sizeof(uint64_t), 1, f) == 1;
+        writeOk = writeOk && fwrite(&meanSize, sizeof(uint64_t), 1, f) == 1;
         for (int i = 0; i < total && writeOk; i++) {
             float mean[3] = {
                 stats->sumVel[i * 3] * inv,
@@ -188,8 +190,7 @@ void writeVTI(LBMGrid *grid, VTKStats *stats, const char *path, int step) {
 
         // RMS velocity fluctuation per component: sqrt(<u'^2>).
         uint64_t rmsSize = (uint64_t)f3;
-        writeOk = writeOk &&
-                  fwrite(&rmsSize, sizeof(uint64_t), 1, f) == 1;
+        writeOk = writeOk && fwrite(&rmsSize, sizeof(uint64_t), 1, f) == 1;
         for (int i = 0; i < total && writeOk; i++) {
             float rms[3];
             for (int c = 0; c < 3; c++) {
@@ -202,8 +203,7 @@ void writeVTI(LBMGrid *grid, VTKStats *stats, const char *path, int step) {
 
         // Turbulent kinetic energy: k = 0.5 * (u'u' + v'v' + w'w').
         uint64_t tkeSize = (uint64_t)f1;
-        writeOk = writeOk &&
-                  fwrite(&tkeSize, sizeof(uint64_t), 1, f) == 1;
+        writeOk = writeOk && fwrite(&tkeSize, sizeof(uint64_t), 1, f) == 1;
         for (int i = 0; i < total && writeOk; i++) {
             float k = 0.0f;
             for (int c = 0; c < 3; c++) {
@@ -229,6 +229,7 @@ void writeVTI(LBMGrid *grid, VTKStats *stats, const char *path, int step) {
     fclose(f);
     free(vel);
     free(solid);
-    printf("VTK: wrote %s%s\n", filename,
+    printf("VTK: wrote %s%s\n",
+           filename,
            hasStats ? " (with turbulence stats)" : "");
 }

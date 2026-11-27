@@ -4,9 +4,9 @@
 #include <numeric>
 #include <cassert>
 
-float softmax_cross_entropy(const std::vector<float>& logits,
+float softmax_cross_entropy(const std::vector<float> &logits,
                             int target,
-                            std::vector<float>& grad) {
+                            std::vector<float> &grad) {
     int V = (int)logits.size();
     if (target < 0 || target >= V) {
         grad.assign(V, 0.0f);
@@ -28,8 +28,8 @@ float softmax_cross_entropy(const std::vector<float>& logits,
     return loss;
 }
 
-std::shared_ptr<ADTensor> mse_loss(const std::shared_ptr<ADTensor>& pred,
-                                   const std::shared_ptr<ADTensor>& target) {
+std::shared_ptr<ADTensor> mse_loss(const std::shared_ptr<ADTensor> &pred,
+                                   const std::shared_ptr<ADTensor> &target) {
     assert(pred->val.data.size() == target->val.data.size());
     // diff = pred - target
     auto diff = sub(pred, target);

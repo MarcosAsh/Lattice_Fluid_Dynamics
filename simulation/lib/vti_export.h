@@ -7,10 +7,10 @@
 // per-cell sum and sum-of-squares of each velocity component; the mean,
 // RMS fluctuation and turbulent kinetic energy are derived at write time.
 typedef struct {
-    int total;          // number of cells
-    long count;         // samples accumulated so far
-    float *sumVel;      // 3*total: running sum of (u, v, w)
-    float *sumVelSq;    // 3*total: running sum of (u^2, v^2, w^2)
+    int total;       // number of cells
+    long count;      // samples accumulated so far
+    float *sumVel;   // 3*total: running sum of (u, v, w)
+    float *sumVelSq; // 3*total: running sum of (u^2, v^2, w^2)
 } VTKStats;
 
 // Allocate an accumulator for a grid of `total` cells, or NULL on failure.

@@ -19,16 +19,16 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define MAGIC 0x4C545753
-#define VERSION 1
+#define MAGIC      0x4C545753
+#define VERSION    1
 #define NUM_PARAMS 12
 
 // Weight dimensions baked into the architecture
-#define IN_DIM 3
-#define H1 256
-#define HID1 512
-#define H2 128
-#define HID2 256
+#define IN_DIM  3
+#define H1      256
+#define HID1    512
+#define H2      128
+#define HID2    256
 #define OUT_DIM 2
 
 struct MLPredictor {
@@ -37,34 +37,33 @@ struct MLPredictor {
     float std_dev[3];
 
     // fc1: Linear(3, 256)
-    float fc1_W[H1 * IN_DIM];   // [256 x 3]
-    float fc1_b[H1];            // [256 x 1]
+    float fc1_W[H1 * IN_DIM]; // [256 x 3]
+    float fc1_b[H1];          // [256 x 1]
 
     // act1: SwiGLU(256, 512)
-    float act1_Wg[HID1 * H1];   // [512 x 256]
-    float act1_Wu[HID1 * H1];   // [512 x 256]
-    float act1_Wd[H1 * HID1];   // [256 x 512]
+    float act1_Wg[HID1 * H1]; // [512 x 256]
+    float act1_Wu[HID1 * H1]; // [512 x 256]
+    float act1_Wd[H1 * HID1]; // [256 x 512]
 
     // fc2: Linear(256, 128)
-    float fc2_W[H2 * H1];       // [128 x 256]
-    float fc2_b[H2];            // [128 x 1]
+    float fc2_W[H2 * H1]; // [128 x 256]
+    float fc2_b[H2];      // [128 x 1]
 
     // act2: SwiGLU(128, 256)
-    float act2_Wg[HID2 * H2];   // [256 x 128]
-    float act2_Wu[HID2 * H2];   // [256 x 128]
-    float act2_Wd[H2 * HID2];   // [128 x 256]
+    float act2_Wg[HID2 * H2]; // [256 x 128]
+    float act2_Wu[HID2 * H2]; // [256 x 128]
+    float act2_Wd[H2 * HID2]; // [128 x 256]
 
     // fc3: Linear(128, 2)
-    float fc3_W[OUT_DIM * H2];   // [2 x 128]
-    float fc3_b[OUT_DIM];        // [2 x 1]
+    float fc3_W[OUT_DIM * H2]; // [2 x 128]
+    float fc3_b[OUT_DIM];      // [2 x 1]
 };
 
 // Helpers
 
 // Read one parameter blob from the file and copy into dst.
 // Validates ndim, shape, and total element count.
-static int read_param(FILE *f, float *dst, int expect_rows,
-                      int expect_cols) {
+static int read_param(FILE *f, float *dst, int expect_rows, int expect_cols) {
     uint32_t ndim;
     if (fread(&ndim, 4, 1, f) != 1)
         return 0;
@@ -93,8 +92,8 @@ static int read_param(FILE *f, float *dst, int expect_rows,
 
 // Matrix-vector multiply: y = A * x
 // A is [rows x cols] stored row-major, x has length cols, y has length rows.
-static void matvec(const float *A, const float *x, float *y, int rows,
-                   int cols) {
+static void
+matvec(const float *A, const float *x, float *y, int rows, int cols) {
     for (int r = 0; r < rows; r++) {
         float sum = 0.0f;
         const float *row = A + r * cols;
@@ -119,10 +118,14 @@ static float sigmoidf(float x) {
 //
 // tmp_gate has length hidden_dim, tmp_up has length hidden_dim,
 // out has length embed_dim.
-static void swiglu_forward(const float *Wg, const float *Wu,
-                           const float *Wd, const float *x,
-                           float *out, float *tmp_gate,
-                           float *tmp_up, int embed_dim,
+static void swiglu_forward(const float *Wg,
+                           const float *Wu,
+                           const float *Wd,
+                           const float *x,
+                           float *out,
+                           float *tmp_gate,
+                           float *tmp_up,
+                           int embed_dim,
                            int hidden_dim) {
     // gate = W_gate @ x
     matvec(Wg, x, tmp_gate, hidden_dim, embed_dim);
@@ -142,10 +145,8 @@ static void swiglu_forward(const float *Wg, const float *Wu,
 
 // Public API
 
-MLPredictor *ML_Load(const char *weights_path,
-                     const char *norm_path) {
-    MLPredictor *m =
-        (MLPredictor *)calloc(1, sizeof(MLPredictor));
+MLPredictor *ML_Load(const char *weights_path, const char *norm_path) {
+    MLPredictor *m = (MLPredictor *)calloc(1, sizeof(MLPredictor));
     if (!m)
         return NULL;
 
@@ -168,33 +169,30 @@ MLPredictor *ML_Load(const char *weights_path,
     // Load weights
     FILE *wf = fopen(weights_path, "rb");
     if (!wf) {
-        fprintf(stderr, "ml_predict: cannot open %s\n",
-                weights_path);
+        fprintf(stderr, "ml_predict: cannot open %s\n", weights_path);
         free(m);
         return NULL;
     }
 
     uint32_t magic, version, count;
     if (fread(&magic, 4, 1, wf) != 1 || magic != MAGIC) {
-        fprintf(stderr, "ml_predict: bad magic in %s\n",
-                weights_path);
+        fprintf(stderr, "ml_predict: bad magic in %s\n", weights_path);
         fclose(wf);
         free(m);
         return NULL;
     }
     if (fread(&version, 4, 1, wf) != 1 || version != VERSION) {
-        fprintf(stderr, "ml_predict: bad version in %s\n",
-                weights_path);
+        fprintf(stderr, "ml_predict: bad version in %s\n", weights_path);
         fclose(wf);
         free(m);
         return NULL;
     }
-    if (fread(&count, 4, 1, wf) != 1 ||
-        count != NUM_PARAMS) {
+    if (fread(&count, 4, 1, wf) != 1 || count != NUM_PARAMS) {
         fprintf(stderr,
                 "ml_predict: param count mismatch "
                 "(got %u, expected %d)\n",
-                count, NUM_PARAMS);
+                count,
+                NUM_PARAMS);
         fclose(wf);
         free(m);
         return NULL;
@@ -225,8 +223,9 @@ MLPredictor *ML_Load(const char *weights_path,
     fclose(wf);
 
     if (!ok) {
-        fprintf(stderr, "ml_predict: failed reading params "
-                        "from %s\n",
+        fprintf(stderr,
+                "ml_predict: failed reading params "
+                "from %s\n",
                 weights_path);
         free(m);
         return NULL;
@@ -239,15 +238,18 @@ void ML_Free(MLPredictor *m) {
     free(m);
 }
 
-void ML_Predict(MLPredictor *m, float wind_speed,
-                float reynolds, float model_id, float *cd,
+void ML_Predict(MLPredictor *m,
+                float wind_speed,
+                float reynolds,
+                float model_id,
+                float *cd,
                 float *cl) {
     // Scratch buffers on the stack. Largest intermediate is 512
     // floats (the SwiGLU hidden dimension for act1).
     float buf_a[HID1]; // max(HID1, HID2) = 512
     float buf_b[HID1];
-    float h1[H1];      // 256
-    float h2[H2];      // 128
+    float h1[H1];       // 256
+    float h2[H2];       // 128
     float out[OUT_DIM]; // 2
 
     // Z-score normalize inputs
@@ -261,16 +263,16 @@ void ML_Predict(MLPredictor *m, float wind_speed,
     add_bias(h1, m->fc1_b, H1);
 
     // act1: SwiGLU(256, 512) -> h1    [256]
-    swiglu_forward(m->act1_Wg, m->act1_Wu, m->act1_Wd, h1,
-                   h1, buf_a, buf_b, H1, HID1);
+    swiglu_forward(
+        m->act1_Wg, m->act1_Wu, m->act1_Wd, h1, h1, buf_a, buf_b, H1, HID1);
 
     // fc2: h2 = W2 * h1 + b2          [128]
     matvec(m->fc2_W, h1, h2, H2, H1);
     add_bias(h2, m->fc2_b, H2);
 
     // act2: SwiGLU(128, 256) -> h2    [128]
-    swiglu_forward(m->act2_Wg, m->act2_Wu, m->act2_Wd, h2,
-                   h2, buf_a, buf_b, H2, HID2);
+    swiglu_forward(
+        m->act2_Wg, m->act2_Wu, m->act2_Wd, h2, h2, buf_a, buf_b, H2, HID2);
 
     // fc3: out = W3 * h2 + b3         [2]
     matvec(m->fc3_W, h2, out, OUT_DIM, H2);

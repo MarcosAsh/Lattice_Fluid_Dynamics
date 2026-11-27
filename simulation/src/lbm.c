@@ -263,8 +263,10 @@ LBMGrid *LBM_Create(int sizeX, int sizeY, int sizeZ, float viscosity) {
     int diagZeros[2] = {0, 0};
     glGenBuffers(1, &grid->diagBuffer);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->diagBuffer);
-    glBufferData(
-        GL_SHADER_STORAGE_BUFFER, sizeof(diagZeros), diagZeros, GL_DYNAMIC_COPY);
+    glBufferData(GL_SHADER_STORAGE_BUFFER,
+                 sizeof(diagZeros),
+                 diagZeros,
+                 GL_DYNAMIC_COPY);
 
     // Force GPU to finish all pending DMA transfers before any compute
     // dispatch. Without this, NVIDIA T4 can evict freshly uploaded pages.
@@ -342,8 +344,7 @@ LBMGrid *LBM_Create(int sizeX, int sizeY, int sizeZ, float viscosity) {
         glGetUniformLocation(grid->streamShader, "zOffset");
     grid->stream_fNewZOffsetLoc =
         glGetUniformLocation(grid->streamShader, "fNewZOffset");
-    grid->stream_slabZLoc =
-        glGetUniformLocation(grid->streamShader, "slabZ");
+    grid->stream_slabZLoc = glGetUniformLocation(grid->streamShader, "slabZ");
     grid->stream_periodicXLoc =
         glGetUniformLocation(grid->streamShader, "periodicX");
     grid->stream_fNewZCountLoc =
@@ -798,8 +799,7 @@ void LBM_Step(LBMGrid *grid,
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, grid->solidBuffer);
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 14, grid->diagBuffer);
 
-    size_t fSliceBytes =
-        (size_t)19 * grid->sizeX * grid->sizeY * sizeof(float);
+    size_t fSliceBytes = (size_t)19 * grid->sizeX * grid->sizeY * sizeof(float);
     int dispX = (grid->sizeX + 7) / 8;
     int dispY = (grid->sizeY + 7) / 8;
 
@@ -978,8 +978,7 @@ void LBM_SetForceAveraging(LBMGrid *grid, int enable) {
 // program active, gridSize/zOffset uniforms available, and buffers
 // 4 (velocity), 5 (solid), 6 (force) bound.
 static void dispatchForceShader(LBMGrid *grid) {
-    size_t fSliceBytes =
-        (size_t)19 * grid->sizeX * grid->sizeY * sizeof(float);
+    size_t fSliceBytes = (size_t)19 * grid->sizeX * grid->sizeY * sizeof(float);
     int dispX = (grid->sizeX + 7) / 8;
     int dispY = (grid->sizeY + 7) / 8;
     int wgBase = 0;
@@ -1434,7 +1433,9 @@ void LBM_SetSolidMesh(LBMGrid *grid,
         free(triBounds);
 }
 
-float LBM_MeshFrontalArea(LBMGrid *grid, const float *triangles, int numTriangles) {
+float LBM_MeshFrontalArea(LBMGrid *grid,
+                          const float *triangles,
+                          int numTriangles) {
     // Rasterise the y-z silhouette at 8 samples per cell
     const int sub = 8;
     float scaleY = grid->sizeY / 4.0f;
@@ -1451,8 +1452,8 @@ float LBM_MeshFrontalArea(LBMGrid *grid, const float *triangles, int numTriangle
             py[k] = (tri[k * 4 + 1] + 2.0f) * scaleY * sub;
             pz[k] = (tri[k * 4 + 2] + 2.0f) * scaleZ * sub;
         }
-        float area2 =
-            (py[1] - py[0]) * (pz[2] - pz[0]) - (py[2] - py[0]) * (pz[1] - pz[0]);
+        float area2 = (py[1] - py[0]) * (pz[2] - pz[0]) -
+                      (py[2] - py[0]) * (pz[1] - pz[0]);
         if (fabsf(area2) < 1e-12f)
             continue;
         int y0 = (int)floorf(fminf(py[0], fminf(py[1], py[2])));
@@ -1470,9 +1471,12 @@ float LBM_MeshFrontalArea(LBMGrid *grid, const float *triangles, int numTriangle
         for (int z = z0; z < z1; z++) {
             for (int y = y0; y < y1; y++) {
                 float sy = y + 0.5f, sz = z + 0.5f;
-                float w0 = (py[1] - sy) * (pz[2] - sz) - (py[2] - sy) * (pz[1] - sz);
-                float w1 = (py[2] - sy) * (pz[0] - sz) - (py[0] - sy) * (pz[2] - sz);
-                float w2 = (py[0] - sy) * (pz[1] - sz) - (py[1] - sy) * (pz[0] - sz);
+                float w0 =
+                    (py[1] - sy) * (pz[2] - sz) - (py[2] - sy) * (pz[1] - sz);
+                float w1 =
+                    (py[2] - sy) * (pz[0] - sz) - (py[0] - sy) * (pz[2] - sz);
+                float w2 =
+                    (py[0] - sy) * (pz[1] - sz) - (py[1] - sy) * (pz[0] - sz);
                 if ((w0 >= 0 && w1 >= 0 && w2 >= 0) ||
                     (w0 <= 0 && w1 <= 0 && w2 <= 0))
                     mask[(size_t)z * ny + y] = 1;

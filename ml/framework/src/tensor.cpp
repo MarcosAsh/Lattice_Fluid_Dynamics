@@ -8,10 +8,12 @@
 #include <algorithm>
 #include <stdexcept>
 
-int Tensor::compute_numel(const std::vector<int>& shape) {
-    if (shape.empty()) return 0;
+int Tensor::compute_numel(const std::vector<int> &shape) {
+    if (shape.empty())
+        return 0;
     size_t n = 1;
-    for (int d : shape) n *= (size_t)d;
+    for (int d : shape)
+        n *= (size_t)d;
     return (int)n;
 }
 
@@ -25,12 +27,13 @@ void Tensor::sync_rows_cols() {
     }
 }
 
-Tensor::Tensor(const std::vector<int>& s)
+Tensor::Tensor(const std::vector<int> &s)
     : rows(-1), cols(-1), shape(s), data(compute_numel(s), 0.0f) {
     sync_rows_cols();
 }
 
-Tensor::Tensor(int r, int c) : rows(r), cols(c), shape({r, c}), data(r * c, 0.0f) {}
+Tensor::Tensor(int r, int c)
+    : rows(r), cols(c), shape({r, c}), data(r * c, 0.0f) {}
 
 Tensor::Tensor(int size) : Tensor(size, 1) {}
 
@@ -38,31 +41,41 @@ void Tensor::fill(float value) {
     std::fill(data.begin(), data.end(), value);
 }
 
-void Tensor::print(const std::string& name) const {
+void Tensor::print(const std::string &name) const {
     std::cout << name << " [";
     for (size_t i = 0; i < shape.size(); ++i) {
-        if (i > 0) std::cout << "x";
+        if (i > 0)
+            std::cout << "x";
         std::cout << shape[i];
     }
     std::cout << "]: ";
     int n = std::min(numel(), 20);
-    for (int i = 0; i < n; ++i) std::cout << data[i] << " ";
-    if (numel() > 20) std::cout << "...";
+    for (int i = 0; i < n; ++i)
+        std::cout << data[i] << " ";
+    if (numel() > 20)
+        std::cout << "...";
     std::cout << "\n";
 }
 
-Tensor Tensor::matmul(const Tensor& other) const {
+Tensor Tensor::matmul(const Tensor &other) const {
     assert(ndim() == 2 && other.ndim() == 2);
     assert(cols == other.rows);
     Tensor result(rows, other.cols);
 #ifdef USE_ACCELERATE
-    cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
-                rows, other.cols, cols,
+    cblas_sgemm(CblasRowMajor,
+                CblasNoTrans,
+                CblasNoTrans,
+                rows,
+                other.cols,
+                cols,
                 1.0f,
-                data.data(), cols,
-                other.data.data(), other.cols,
+                data.data(),
+                cols,
+                other.data.data(),
+                other.cols,
                 0.0f,
-                result.data.data(), other.cols);
+                result.data.data(),
+                other.cols);
     return result;
 #else
     const int B = 32;
@@ -75,8 +88,9 @@ Tensor Tensor::matmul(const Tensor& other) const {
                 for (int i = ii; i < iMax; ++i) {
                     for (int k = kk; k < kMax; ++k) {
                         const float a = (*this)(i, k);
-                        float* res_ptr = &result.data[i * other.cols + jj];
-                        const float* other_ptr = &other.data[k * other.cols + jj];
+                        float *res_ptr = &result.data[i * other.cols + jj];
+                        const float *other_ptr =
+                            &other.data[k * other.cols + jj];
                         int len = jMax - jj;
                         int j = 0;
 #if defined(__ARM_NEON__)
@@ -100,7 +114,7 @@ Tensor Tensor::matmul(const Tensor& other) const {
 #endif
 }
 
-float Tensor::dot(const Tensor& other) const {
+float Tensor::dot(const Tensor &other) const {
     assert(data.size() == other.data.size());
     float sum = 0.0f;
     for (size_t i = 0; i < data.size(); ++i)
@@ -108,7 +122,7 @@ float Tensor::dot(const Tensor& other) const {
     return sum;
 }
 
-Tensor Tensor::operator+(const Tensor& other) const {
+Tensor Tensor::operator+(const Tensor &other) const {
     assert(shape == other.shape && "Tensor dimension mismatch in addition");
     Tensor result(shape);
     for (size_t i = 0; i < data.size(); ++i) {
@@ -130,14 +144,15 @@ Tensor Tensor::transpose() const {
 
 // N-dim operations
 
-Tensor Tensor::reshape(const std::vector<int>& new_shape) const {
+Tensor Tensor::reshape(const std::vector<int> &new_shape) const {
     // Allow one -1 dimension to be inferred
     int total = numel();
     int neg_idx = -1;
     int product = 1;
     for (int i = 0; i < static_cast<int>(new_shape.size()); ++i) {
         if (new_shape[i] == -1) {
-            if (neg_idx != -1) throw std::runtime_error("reshape: only one -1 allowed");
+            if (neg_idx != -1)
+                throw std::runtime_error("reshape: only one -1 allowed");
             neg_idx = i;
         } else {
             product *= new_shape[i];
@@ -145,7 +160,9 @@ Tensor Tensor::reshape(const std::vector<int>& new_shape) const {
     }
     std::vector<int> resolved = new_shape;
     if (neg_idx != -1) {
-        if (product == 0) throw std::runtime_error("reshape: cannot infer dim with 0 product");
+        if (product == 0)
+            throw std::runtime_error(
+                "reshape: cannot infer dim with 0 product");
         resolved[neg_idx] = total / product;
     }
     if (compute_numel(resolved) != total) {
@@ -160,23 +177,28 @@ Tensor Tensor::squeeze(int dim) const {
     std::vector<int> new_shape;
     if (dim == -1) {
         for (int d : shape) {
-            if (d != 1) new_shape.push_back(d);
+            if (d != 1)
+                new_shape.push_back(d);
         }
     } else {
-        if (dim < 0) dim += ndim();
+        if (dim < 0)
+            dim += ndim();
         for (int i = 0; i < ndim(); ++i) {
-            if (i == dim && shape[i] == 1) continue;
+            if (i == dim && shape[i] == 1)
+                continue;
             new_shape.push_back(shape[i]);
         }
     }
-    if (new_shape.empty()) new_shape.push_back(1);
+    if (new_shape.empty())
+        new_shape.push_back(1);
     Tensor result(new_shape);
     std::copy(data.begin(), data.end(), result.data.begin());
     return result;
 }
 
 Tensor Tensor::unsqueeze(int dim) const {
-    if (dim < 0) dim += ndim() + 1;
+    if (dim < 0)
+        dim += ndim() + 1;
     if (dim < 0 || dim > ndim())
         throw std::out_of_range("unsqueeze: bad dim");
     std::vector<int> new_shape(shape.begin(), shape.begin() + dim);
@@ -187,7 +209,7 @@ Tensor Tensor::unsqueeze(int dim) const {
     return result;
 }
 
-Tensor Tensor::permute(const std::vector<int>& order) const {
+Tensor Tensor::permute(const std::vector<int> &order) const {
     assert(static_cast<int>(order.size()) == ndim());
     std::vector<int> new_shape(ndim());
     for (int i = 0; i < ndim(); ++i) {
@@ -225,17 +247,24 @@ Tensor Tensor::permute(const std::vector<int>& order) const {
 }
 
 Tensor Tensor::flatten(int start_dim, int end_dim) const {
-    if (start_dim < 0) start_dim += ndim();
-    if (end_dim < 0) end_dim += ndim();
-    if (start_dim < 0) start_dim = 0;
-    if (end_dim >= ndim()) end_dim = ndim() - 1;
+    if (start_dim < 0)
+        start_dim += ndim();
+    if (end_dim < 0)
+        end_dim += ndim();
+    if (start_dim < 0)
+        start_dim = 0;
+    if (end_dim >= ndim())
+        end_dim = ndim() - 1;
 
     std::vector<int> new_shape;
-    for (int i = 0; i < start_dim; ++i) new_shape.push_back(shape[i]);
+    for (int i = 0; i < start_dim; ++i)
+        new_shape.push_back(shape[i]);
     int flat = 1;
-    for (int i = start_dim; i <= end_dim; ++i) flat *= shape[i];
+    for (int i = start_dim; i <= end_dim; ++i)
+        flat *= shape[i];
     new_shape.push_back(flat);
-    for (int i = end_dim + 1; i < ndim(); ++i) new_shape.push_back(shape[i]);
+    for (int i = end_dim + 1; i < ndim(); ++i)
+        new_shape.push_back(shape[i]);
 
     Tensor result(new_shape);
     std::copy(data.begin(), data.end(), result.data.begin());

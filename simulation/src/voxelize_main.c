@@ -43,9 +43,12 @@ int main(int argc, char **argv) {
             padding = (float)atof(argv[++i]);
         } else if (strcmp(a, "--mode") == 0 && i + 1 < argc) {
             const char *m = argv[++i];
-            if (strcmp(m, "solid") == 0) mode = VOXELIZE_MODE_SOLID;
-            else if (strcmp(m, "surface") == 0) mode = VOXELIZE_MODE_SURFACE;
-            else if (strcmp(m, "auto") == 0) mode = VOXELIZE_MODE_AUTO;
+            if (strcmp(m, "solid") == 0)
+                mode = VOXELIZE_MODE_SOLID;
+            else if (strcmp(m, "surface") == 0)
+                mode = VOXELIZE_MODE_SURFACE;
+            else if (strcmp(m, "auto") == 0)
+                mode = VOXELIZE_MODE_AUTO;
             else {
                 fprintf(stderr, "unknown mode: %s\n", m);
                 return 2;
@@ -83,11 +86,17 @@ int main(int argc, char **argv) {
     }
 
     float frac = Voxelize_SolidFraction(grid);
-    size_t total = (size_t)grid->resolution * grid->resolution * grid->resolution;
+    size_t total =
+        (size_t)grid->resolution * grid->resolution * grid->resolution;
     size_t solid = (size_t)(frac * (float)total + 0.5f);
     printf("voxelized %s: %dx%dx%d, solid=%zu/%zu (%.2f%%)\n",
-           input_path, grid->resolution, grid->resolution, grid->resolution,
-           solid, total, 100.0f * frac);
+           input_path,
+           grid->resolution,
+           grid->resolution,
+           grid->resolution,
+           solid,
+           total,
+           100.0f * frac);
 
     int rc = 0;
     if (output_path) {

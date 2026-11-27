@@ -8,7 +8,8 @@ ADLinear::ADLinear(int input_dim, int output_dim) {
     std::mt19937 gen(std::random_device{}());
     float r = std::sqrt(6.0f / (input_dim + output_dim));
     std::uniform_real_distribution<float> dist(-r, r);
-    for (auto &v : tW.data) v = dist(gen);
+    for (auto &v : tW.data)
+        v = dist(gen);
     tb.fill(0.0f);
     W = make_ad(tW);
     register_parameter(W);
@@ -16,8 +17,8 @@ ADLinear::ADLinear(int input_dim, int output_dim) {
     register_parameter(b);
 }
 
-std::shared_ptr<ADTensor> ADLinear::forward(
-    const std::shared_ptr<ADTensor>& x) const {
+std::shared_ptr<ADTensor>
+ADLinear::forward(const std::shared_ptr<ADTensor> &x) const {
     auto y = matmul(W, x);
     int seq_len = x->val.cols;
     if (seq_len != cached_seq_len) {

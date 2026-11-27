@@ -33,12 +33,18 @@ static Vec3 *copy_and_normalize_vertices(const Model *model,
         float x = model->vertices[i].x;
         float y = model->vertices[i].y;
         float z = model->vertices[i].z;
-        if (x < min_x) min_x = x;
-        if (x > max_x) max_x = x;
-        if (y < min_y) min_y = y;
-        if (y > max_y) max_y = y;
-        if (z < min_z) min_z = z;
-        if (z > max_z) max_z = z;
+        if (x < min_x)
+            min_x = x;
+        if (x > max_x)
+            max_x = x;
+        if (y < min_y)
+            min_y = y;
+        if (y > max_y)
+            max_y = y;
+        if (z < min_z)
+            min_z = z;
+        if (z > max_z)
+            max_z = z;
     }
 
     float cx = 0.5f * (min_x + max_x);
@@ -65,20 +71,26 @@ static Vec3 *copy_and_normalize_vertices(const Model *model,
                 v[i].x = v[i].y;
                 v[i].y = tmp;
             }
-            float t = size_x; size_x = size_y; size_y = t;
+            float t = size_x;
+            size_x = size_y;
+            size_y = t;
         } else if (size_z > size_x && size_z > size_y) {
             for (int i = 0; i < model->vertexCount; i++) {
                 float tmp = v[i].x;
                 v[i].x = v[i].z;
                 v[i].z = tmp;
             }
-            float t = size_x; size_x = size_z; size_z = t;
+            float t = size_x;
+            size_x = size_z;
+            size_z = t;
         }
     }
 
     float max_dim = size_x;
-    if (size_y > max_dim) max_dim = size_y;
-    if (size_z > max_dim) max_dim = size_z;
+    if (size_y > max_dim)
+        max_dim = size_y;
+    if (size_z > max_dim)
+        max_dim = size_z;
     if (max_dim < VOXELIZE_EPS) {
         free(v);
         return NULL;
@@ -103,7 +115,8 @@ typedef struct {
 static int hitlist_push(HitList *h, float x) {
     if (h->count >= h->capacity) {
         int new_cap = h->capacity ? h->capacity * 2 : 4;
-        float *new_xs = (float *)realloc(h->xs, (size_t)new_cap * sizeof(float));
+        float *new_xs =
+            (float *)realloc(h->xs, (size_t)new_cap * sizeof(float));
         if (!new_xs)
             return -1;
         h->xs = new_xs;
@@ -116,8 +129,10 @@ static int hitlist_push(HitList *h, float x) {
 static int cmp_float(const void *a, const void *b) {
     float fa = *(const float *)a;
     float fb = *(const float *)b;
-    if (fa < fb) return -1;
-    if (fa > fb) return 1;
+    if (fa < fb)
+        return -1;
+    if (fa > fb)
+        return 1;
     return 0;
 }
 
@@ -150,10 +165,14 @@ static void voxelize_solid(const Vec3 *verts,
         int gy_hi = (int)ceilf((y_max + 1.0f) * 0.5f * R) + 1;
         int gz_lo = (int)floorf((z_min + 1.0f) * 0.5f * R);
         int gz_hi = (int)ceilf((z_max + 1.0f) * 0.5f * R) + 1;
-        if (gy_lo < 0) gy_lo = 0;
-        if (gz_lo < 0) gz_lo = 0;
-        if (gy_hi > R) gy_hi = R;
-        if (gz_hi > R) gz_hi = R;
+        if (gy_lo < 0)
+            gy_lo = 0;
+        if (gz_lo < 0)
+            gz_lo = 0;
+        if (gy_hi > R)
+            gy_hi = R;
+        if (gz_hi > R)
+            gz_hi = R;
         if (gy_lo >= gy_hi || gz_lo >= gz_hi)
             continue;
 
@@ -220,8 +239,10 @@ static void voxelize_solid(const Vec3 *verts,
                 float x1 = h->xs[i + 1];
                 int gx0 = (int)ceilf((x0 + 1.0f) * 0.5f * R - 0.5f);
                 int gx1 = (int)floorf((x1 + 1.0f) * 0.5f * R - 0.5f) + 1;
-                if (gx0 < 0) gx0 = 0;
-                if (gx1 > R) gx1 = R;
+                if (gx0 < 0)
+                    gx0 = 0;
+                if (gx1 > R)
+                    gx1 = R;
                 for (int gx = gx0; gx < gx1; gx++) {
                     grid[voxel_index(gx, gy, gz, R)] = 1;
                 }
@@ -261,12 +282,18 @@ static void voxelize_surface(const Vec3 *verts,
         int gy1 = (int)ceilf((y_max + 1.0f) * 0.5f * R);
         int gz0 = (int)floorf((z_min + 1.0f) * 0.5f * R);
         int gz1 = (int)ceilf((z_max + 1.0f) * 0.5f * R);
-        if (gx0 < 0) gx0 = 0;
-        if (gy0 < 0) gy0 = 0;
-        if (gz0 < 0) gz0 = 0;
-        if (gx1 > R) gx1 = R;
-        if (gy1 > R) gy1 = R;
-        if (gz1 > R) gz1 = R;
+        if (gx0 < 0)
+            gx0 = 0;
+        if (gy0 < 0)
+            gy0 = 0;
+        if (gz0 < 0)
+            gz0 = 0;
+        if (gx1 > R)
+            gx1 = R;
+        if (gy1 > R)
+            gy1 = R;
+        if (gz1 > R)
+            gz1 = R;
 
         for (int z = gz0; z < gz1; z++) {
             for (int y = gy0; y < gy1; y++) {
@@ -283,9 +310,12 @@ static int faces_valid(const Model *model) {
         int i0 = model->faces[i].v1 - 1;
         int i1 = model->faces[i].v2 - 1;
         int i2 = model->faces[i].v3 - 1;
-        if (i0 < 0 || i0 >= model->vertexCount) return 0;
-        if (i1 < 0 || i1 >= model->vertexCount) return 0;
-        if (i2 < 0 || i2 >= model->vertexCount) return 0;
+        if (i0 < 0 || i0 >= model->vertexCount)
+            return 0;
+        if (i1 < 0 || i1 >= model->vertexCount)
+            return 0;
+        if (i2 < 0 || i2 >= model->vertexCount)
+            return 0;
     }
     return 1;
 }
@@ -299,8 +329,10 @@ VoxelGrid *Voxelize_FromModel(const Model *model,
         model->faceCount <= 0) {
         return NULL;
     }
-    if (padding < 0.0f) padding = 0.0f;
-    if (padding >= 0.5f) padding = 0.499f;
+    if (padding < 0.0f)
+        padding = 0.0f;
+    if (padding >= 0.5f)
+        padding = 0.499f;
     if (!faces_valid(model))
         return NULL;
 
@@ -323,17 +355,20 @@ VoxelGrid *Voxelize_FromModel(const Model *model,
     }
 
     if (mode == VOXELIZE_MODE_SURFACE) {
-        voxelize_surface(verts, model->faces, model->faceCount, resolution,
-                         grid->data);
+        voxelize_surface(
+            verts, model->faces, model->faceCount, resolution, grid->data);
     } else {
-        voxelize_solid(verts, model->faces, model->faceCount, resolution,
-                       grid->data);
+        voxelize_solid(
+            verts, model->faces, model->faceCount, resolution, grid->data);
         if (mode == VOXELIZE_MODE_AUTO) {
             float frac = Voxelize_SolidFraction(grid);
             if (frac < 0.001f || frac > 0.99f) {
                 memset(grid->data, 0, n);
-                voxelize_surface(verts, model->faces, model->faceCount,
-                                 resolution, grid->data);
+                voxelize_surface(verts,
+                                 model->faces,
+                                 model->faceCount,
+                                 resolution,
+                                 grid->data);
             }
         }
     }
@@ -348,7 +383,8 @@ float Voxelize_SolidFraction(const VoxelGrid *grid) {
     size_t n = (size_t)grid->resolution * grid->resolution * grid->resolution;
     size_t solid = 0;
     for (size_t i = 0; i < n; i++) {
-        if (grid->data[i]) solid++;
+        if (grid->data[i])
+            solid++;
     }
     return (float)solid / (float)n;
 }
@@ -365,12 +401,16 @@ int Voxelize_WriteBinary(const VoxelGrid *grid, const char *path) {
     uint32_t version = 1;
     uint32_t resolution = (uint32_t)grid->resolution;
 
-    if (fwrite(magic, 1, 4, f) != 4) goto fail;
-    if (fwrite(&version, sizeof(uint32_t), 1, f) != 1) goto fail;
-    if (fwrite(&resolution, sizeof(uint32_t), 1, f) != 1) goto fail;
+    if (fwrite(magic, 1, 4, f) != 4)
+        goto fail;
+    if (fwrite(&version, sizeof(uint32_t), 1, f) != 1)
+        goto fail;
+    if (fwrite(&resolution, sizeof(uint32_t), 1, f) != 1)
+        goto fail;
 
     size_t n = (size_t)grid->resolution * grid->resolution * grid->resolution;
-    if (fwrite(grid->data, 1, n, f) != n) goto fail;
+    if (fwrite(grid->data, 1, n, f) != n)
+        goto fail;
 
     fclose(f);
     return 0;
@@ -381,7 +421,8 @@ fail:
 }
 
 void Voxelize_Free(VoxelGrid *grid) {
-    if (!grid) return;
+    if (!grid)
+        return;
     free(grid->data);
     free(grid);
 }

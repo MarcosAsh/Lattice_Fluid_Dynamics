@@ -3,22 +3,27 @@
 #include "autodiff.hpp"
 
 class SGD {
-public:
+  public:
     explicit SGD(float lr);
     void step();
     void zero_grad();
 
-private:
+  private:
     float lr;
 };
 class AdamW {
-public:
-    AdamW(float lr, float beta1=0.9f, float beta2=0.999f, float eps=1e-8f,
-          float weight_decay=0.01f, float clip_norm=1.0f);
+  public:
+    AdamW(float lr,
+          float beta1 = 0.9f,
+          float beta2 = 0.999f,
+          float eps = 1e-8f,
+          float weight_decay = 0.01f,
+          float clip_norm = 1.0f);
     void step();
     void zero_grad();
     float lr;
-private:
+
+  private:
     float beta1;
     float beta2;
     float eps;

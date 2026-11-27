@@ -151,8 +151,14 @@ static int load_normalizer(const char *path, float mean[4], float std[4]) {
     }
     printf("SR: normalizer mean=(%.4f, %.4f, %.4f, %.4f) "
            "std=(%.4f, %.4f, %.4f, %.4f)\n",
-           mean[0], mean[1], mean[2], mean[3],
-           std[0], std[1], std[2], std[3]);
+           mean[0],
+           mean[1],
+           mean[2],
+           mean[3],
+           std[0],
+           std[1],
+           std[2],
+           std[3]);
     return 1;
 }
 
@@ -166,34 +172,53 @@ static int compute_offsets(SuperResUpscaler *sr) {
     int off = 0;
 
     // net.0.bias (H)
-    sr->bOff0 = off; off += H;
+    sr->bOff0 = off;
+    off += H;
     // net.0.weight (H, 108)
-    sr->wOff0 = off; off += H * 108;
+    sr->wOff0 = off;
+    off += H * 108;
     // net.2.bias (H)
-    sr->bOff1 = off; off += H;
+    sr->bOff1 = off;
+    off += H;
     // net.2.weight (H, H)
-    sr->wOff1 = off; off += H * H;
+    sr->wOff1 = off;
+    off += H * H;
     // net.4.bias (H)
-    sr->bOff2 = off; off += H;
+    sr->bOff2 = off;
+    off += H;
     // net.4.weight (H, H)
-    sr->wOff2 = off; off += H * H;
+    sr->wOff2 = off;
+    off += H * H;
     // net.6.bias (32)
-    sr->bOff3 = off; off += 32;
+    sr->bOff3 = off;
+    off += 32;
     // net.6.weight (32, H)
-    sr->wOff3 = off; off += 32 * H;
+    sr->wOff3 = off;
+    off += 32 * H;
 
     printf("SR: weight offsets: W0=%d b0=%d W1=%d b1=%d "
            "W2=%d b2=%d W3=%d b3=%d (total=%d)\n",
-           sr->wOff0, sr->bOff0, sr->wOff1, sr->bOff1,
-           sr->wOff2, sr->bOff2, sr->wOff3, sr->bOff3, off);
+           sr->wOff0,
+           sr->bOff0,
+           sr->wOff1,
+           sr->bOff1,
+           sr->wOff2,
+           sr->bOff2,
+           sr->wOff3,
+           sr->bOff3,
+           off);
     return off;
 }
 
-SuperResUpscaler *SR_Create(int coarseX, int coarseY, int coarseZ,
+SuperResUpscaler *SR_Create(int coarseX,
+                            int coarseY,
+                            int coarseZ,
                             const char *weightsPath,
                             const char *normPath) {
-    SuperResUpscaler *sr = (SuperResUpscaler *)calloc(1, sizeof(SuperResUpscaler));
-    if (!sr) return NULL;
+    SuperResUpscaler *sr =
+        (SuperResUpscaler *)calloc(1, sizeof(SuperResUpscaler));
+    if (!sr)
+        return NULL;
 
     sr->coarseX = coarseX;
     sr->coarseY = coarseY;
@@ -203,8 +228,12 @@ SuperResUpscaler *SR_Create(int coarseX, int coarseY, int coarseZ,
     sr->fineZ = coarseZ * 2;
 
     printf("SR: coarse %dx%dx%d -> fine %dx%dx%d\n",
-           coarseX, coarseY, coarseZ,
-           sr->fineX, sr->fineY, sr->fineZ);
+           coarseX,
+           coarseY,
+           coarseZ,
+           sr->fineX,
+           sr->fineY,
+           sr->fineZ);
 
     // Load and compile compute shader
     sr->shaderProgram = createComputeShader("shaders/superres_upscale.comp");
@@ -256,14 +285,17 @@ SuperResUpscaler *SR_Create(int coarseX, int coarseY, int coarseZ,
     glGenBuffers(1, &sr->weightsBuffer);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, sr->weightsBuffer);
     glBufferData(GL_SHADER_STORAGE_BUFFER,
-                 weightCount * sizeof(float), weightData, GL_STATIC_DRAW);
+                 weightCount * sizeof(float),
+                 weightData,
+                 GL_STATIC_DRAW);
     free(weightData);
 
     // Load normalizer
     load_normalizer(normPath, sr->normMean, sr->normStd);
 
     // Allocate fine velocity buffer
-    size_t fineSize = (size_t)sr->fineX * sr->fineY * sr->fineZ * 4 * sizeof(float);
+    size_t fineSize =
+        (size_t)sr->fineX * sr->fineY * sr->fineZ * 4 * sizeof(float);
     glGenBuffers(1, &sr->fineVelBuffer);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, sr->fineVelBuffer);
     glBufferData(GL_SHADER_STORAGE_BUFFER, fineSize, NULL, GL_DYNAMIC_COPY);
@@ -275,15 +307,20 @@ SuperResUpscaler *SR_Create(int coarseX, int coarseY, int coarseZ,
 }
 
 void SR_Free(SuperResUpscaler *sr) {
-    if (!sr) return;
-    if (sr->shaderProgram) glDeleteProgram(sr->shaderProgram);
-    if (sr->fineVelBuffer) glDeleteBuffers(1, &sr->fineVelBuffer);
-    if (sr->weightsBuffer) glDeleteBuffers(1, &sr->weightsBuffer);
+    if (!sr)
+        return;
+    if (sr->shaderProgram)
+        glDeleteProgram(sr->shaderProgram);
+    if (sr->fineVelBuffer)
+        glDeleteBuffers(1, &sr->fineVelBuffer);
+    if (sr->weightsBuffer)
+        glDeleteBuffers(1, &sr->weightsBuffer);
     free(sr);
 }
 
 void SR_Upscale(SuperResUpscaler *sr, GLuint coarseVelBuffer) {
-    if (!sr || !sr->shaderProgram) return;
+    if (!sr || !sr->shaderProgram)
+        return;
 
     glUseProgram(sr->shaderProgram);
 
@@ -296,11 +333,15 @@ void SR_Upscale(SuperResUpscaler *sr, GLuint coarseVelBuffer) {
     glUniform3i(sr->coarseSizeLoc, sr->coarseX, sr->coarseY, sr->coarseZ);
     glUniform3i(sr->fineSizeLoc, sr->fineX, sr->fineY, sr->fineZ);
     glUniform4f(sr->normMeanLoc,
-                sr->normMean[0], sr->normMean[1],
-                sr->normMean[2], sr->normMean[3]);
+                sr->normMean[0],
+                sr->normMean[1],
+                sr->normMean[2],
+                sr->normMean[3]);
     glUniform4f(sr->normStdLoc,
-                sr->normStd[0], sr->normStd[1],
-                sr->normStd[2], sr->normStd[3]);
+                sr->normStd[0],
+                sr->normStd[1],
+                sr->normStd[2],
+                sr->normStd[3]);
     glUniform1i(sr->hiddenDimLoc, HIDDEN_DIM);
     glUniform1i(sr->wOff0Loc, sr->wOff0);
     glUniform1i(sr->bOff0Loc, sr->bOff0);
@@ -324,8 +365,12 @@ GLuint SR_GetFineVelocityBuffer(SuperResUpscaler *sr) {
 }
 
 void SR_GetFineSize(SuperResUpscaler *sr, int *fineX, int *fineY, int *fineZ) {
-    if (!sr) return;
-    if (fineX) *fineX = sr->fineX;
-    if (fineY) *fineY = sr->fineY;
-    if (fineZ) *fineZ = sr->fineZ;
+    if (!sr)
+        return;
+    if (fineX)
+        *fineX = sr->fineX;
+    if (fineY)
+        *fineY = sr->fineY;
+    if (fineZ)
+        *fineZ = sr->fineZ;
 }

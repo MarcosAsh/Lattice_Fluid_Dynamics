@@ -7,8 +7,9 @@ namespace quant {
 bool g_qat_enabled = false;
 int g_qat_bits = 8;
 
-void fake_quantize_inplace(Tensor& t) {
-    if (!g_qat_enabled) return;
+void fake_quantize_inplace(Tensor &t) {
+    if (!g_qat_enabled)
+        return;
     // compute min and max
     float mn = std::numeric_limits<float>::infinity();
     float mx = -mn;
@@ -18,19 +19,20 @@ void fake_quantize_inplace(Tensor& t) {
     }
     int levels = (1 << g_qat_bits) - 1;
     float range = mx - mn;
-    if (range < 1e-8f) return;  // uniform tensor, nothing to quantize
+    if (range < 1e-8f)
+        return; // uniform tensor, nothing to quantize
     float scale = levels / range;
     // quantize and dequantize
-    for (auto& v : t.data) {
+    for (auto &v : t.data) {
         float q = std::round((v - mn) * scale);
         q = std::min<float>(std::max<float>(q, 0), levels);
         v = q / scale + mn;
     }
 }
 
-void post_training_quantize(const Tensor& t,
-                            std::vector<uint8_t>& out_data,
-                            float& scale_out) {
+void post_training_quantize(const Tensor &t,
+                            std::vector<uint8_t> &out_data,
+                            float &scale_out) {
     // compute min and max
     float mn = std::numeric_limits<float>::infinity();
     float mx = -mn;
@@ -40,7 +42,8 @@ void post_training_quantize(const Tensor& t,
     }
     int levels = (1 << g_qat_bits) - 1;
     float range = mx - mn;
-    if (range < 1e-8f) range = 1e-8f;
+    if (range < 1e-8f)
+        range = 1e-8f;
     scale_out = levels / range;
     size_t N = t.data.size();
     out_data.resize(N);

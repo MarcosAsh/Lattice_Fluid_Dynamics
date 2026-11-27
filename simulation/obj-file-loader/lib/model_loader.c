@@ -6,8 +6,8 @@
 // Largest polygon we fan-triangulate; ample for any real OBJ face.
 #define MAX_FACE_VERTS 64
 
-static int countVerticesInFile(const char* filePath) {
-    FILE* file = fopen(filePath, "r");
+static int countVerticesInFile(const char *filePath) {
+    FILE *file = fopen(filePath, "r");
     if (!file) {
         printf("Error: Could not open file %s\n", filePath);
         return 0;
@@ -28,12 +28,14 @@ static int countVerticesInFile(const char* filePath) {
 }
 
 // Number of whitespace-separated vertex tokens on a face line (after 'f').
-static int countFaceVerts(const char* line) {
-    const char* p = line + 1;  // skip the leading 'f'
+static int countFaceVerts(const char *line) {
+    const char *p = line + 1; // skip the leading 'f'
     int n = 0;
     while (*p) {
-        while (*p == ' ' || *p == '\t') p++;
-        if (*p == '\0' || *p == '\n' || *p == '\r') break;
+        while (*p == ' ' || *p == '\t')
+            p++;
+        if (*p == '\0' || *p == '\n' || *p == '\r')
+            break;
         n++;
         while (*p && *p != ' ' && *p != '\t' && *p != '\n' && *p != '\r') {
             p++;
@@ -43,8 +45,8 @@ static int countFaceVerts(const char* line) {
 }
 
 // Triangle count after fan-triangulating every face (k verts -> k-2 tris).
-static int countTrianglesInFile(const char* filePath) {
-    FILE* file = fopen(filePath, "r");
+static int countTrianglesInFile(const char *filePath) {
+    FILE *file = fopen(filePath, "r");
     if (!file) {
         printf("Error: could not open file %s\n", filePath);
         return 0;
@@ -68,23 +70,24 @@ static int countTrianglesInFile(const char* filePath) {
 
 // Parse a single vertex index from OBJ face format
 // Handles: "v", "v/vt", "v/vt/vn", "v//vn"
-static int parseVertexIndex(const char* token) {
+static int parseVertexIndex(const char *token) {
     int v = 0;
-    sscanf(token, "%d", &v);  // Just get the first number
+    sscanf(token, "%d", &v); // Just get the first number
     return v;
 }
 
-Model loadOBJ(const char* filePath) {
+Model loadOBJ(const char *filePath) {
     Model model = {0};
 
     int vertexCount = countVerticesInFile(filePath);
     int triangleCount = countTrianglesInFile(filePath);
 
     printf("File contains %d vertices and %d triangles.\n",
-           vertexCount, triangleCount);
+           vertexCount,
+           triangleCount);
 
-    model.vertices = (Vertex*)malloc(vertexCount * sizeof(Vertex));
-    model.faces = (Face*)malloc(triangleCount * sizeof(Face));
+    model.vertices = (Vertex *)malloc(vertexCount * sizeof(Vertex));
+    model.faces = (Face *)malloc(triangleCount * sizeof(Face));
 
     if ((vertexCount > 0 && !model.vertices) ||
         (triangleCount > 0 && !model.faces)) {
@@ -94,7 +97,7 @@ Model loadOBJ(const char* filePath) {
         return (Model){0};
     }
 
-    FILE* file = fopen(filePath, "r");
+    FILE *file = fopen(filePath, "r");
     if (!file) {
         printf("Error: Could not open file %s\n", filePath);
         free(model.vertices);
@@ -109,14 +112,14 @@ Model loadOBJ(const char* filePath) {
         if (line[0] == 'v' && line[1] == ' ') {
             // Parse vertex (guarded like the face write below).
             if (vertexIndex < vertexCount) {
-                sscanf(line, "v %f %f %f",
+                sscanf(line,
+                       "v %f %f %f",
                        &model.vertices[vertexIndex].x,
                        &model.vertices[vertexIndex].y,
                        &model.vertices[vertexIndex].z);
                 vertexIndex++;
             }
-        }
-        else if (line[0] == 'f' && line[1] == ' ') {
+        } else if (line[0] == 'f' && line[1] == ' ') {
             // Parse face. Handles f v, f v/vt, f v/vt/vn, and f v//vn, with
             // any number of vertices. Polygons are fan-triangulated
             // (v0, vk, vk+1); the previous loader kept only each face's
@@ -124,15 +127,17 @@ Model loadOBJ(const char* filePath) {
             int idx[MAX_FACE_VERTS];
             int nv = 0;
 
-            char* ptr = line + 1;  // skip 'f'
+            char *ptr = line + 1; // skip 'f'
             while (*ptr && nv < MAX_FACE_VERTS) {
-                while (*ptr == ' ' || *ptr == '\t') ptr++;
-                if (*ptr == '\0' || *ptr == '\n' || *ptr == '\r') break;
+                while (*ptr == ' ' || *ptr == '\t')
+                    ptr++;
+                if (*ptr == '\0' || *ptr == '\n' || *ptr == '\r')
+                    break;
 
                 char tok[64];
                 int i = 0;
-                while (*ptr && *ptr != ' ' && *ptr != '\t' &&
-                       *ptr != '\n' && *ptr != '\r' && i < 63) {
+                while (*ptr && *ptr != ' ' && *ptr != '\t' && *ptr != '\n' &&
+                       *ptr != '\r' && i < 63) {
                     tok[i++] = *ptr++;
                 }
                 tok[i] = '\0';
@@ -154,12 +159,13 @@ Model loadOBJ(const char* filePath) {
     model.faceCount = faceIndex;
 
     printf("Successfully loaded model with %d vertices and %d triangles.\n",
-           vertexIndex, faceIndex);
+           vertexIndex,
+           faceIndex);
 
     return model;
 }
 
-void freeModel(Model* model) {
+void freeModel(Model *model) {
     free(model->vertices);
     free(model->faces);
     model->vertices = NULL;

@@ -15,8 +15,8 @@ typedef enum {
 } VoxelizeMode;
 
 typedef struct {
-    int resolution;   /* R (grid is R x R x R)               */
-    uint8_t *data;    /* R*R*R bytes, index = x + R*(y + R*z) */
+    int resolution; /* R (grid is R x R x R)               */
+    uint8_t *data;  /* R*R*R bytes, index = x + R*(y + R*z) */
 } VoxelGrid;
 
 /*

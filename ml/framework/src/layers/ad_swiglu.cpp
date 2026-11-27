@@ -3,7 +3,7 @@
 #include <cmath>
 
 // Custom autodiff op: swish(x) = x * sigmoid(x)
-static std::shared_ptr<ADTensor> swish_ad(const std::shared_ptr<ADTensor>& a) {
+static std::shared_ptr<ADTensor> swish_ad(const std::shared_ptr<ADTensor> &a) {
     Tensor v(a->val.rows, a->val.cols);
     for (size_t i = 0; i < v.data.size(); ++i) {
         float x = a->val.data[i];
@@ -32,19 +32,26 @@ ADSwiGLU::ADSwiGLU(int embed_dim, int hidden_dim) {
     std::mt19937 gen(std::random_device{}());
     float r1 = std::sqrt(6.0f / (embed_dim + hidden_dim));
     std::uniform_real_distribution<float> dist1(-r1, r1);
-    for (auto& v : tWg.data) v = dist1(gen);
-    for (auto& v : tWu.data) v = dist1(gen);
+    for (auto &v : tWg.data)
+        v = dist1(gen);
+    for (auto &v : tWu.data)
+        v = dist1(gen);
 
     float r2 = std::sqrt(6.0f / (hidden_dim + embed_dim));
     std::uniform_real_distribution<float> dist2(-r2, r2);
-    for (auto& v : tWd.data) v = dist2(gen);
+    for (auto &v : tWd.data)
+        v = dist2(gen);
 
-    W_gate = make_ad(tWg); register_parameter(W_gate);
-    W_up   = make_ad(tWu); register_parameter(W_up);
-    W_down = make_ad(tWd); register_parameter(W_down);
+    W_gate = make_ad(tWg);
+    register_parameter(W_gate);
+    W_up = make_ad(tWu);
+    register_parameter(W_up);
+    W_down = make_ad(tWd);
+    register_parameter(W_down);
 }
 
-std::shared_ptr<ADTensor> ADSwiGLU::forward(const std::shared_ptr<ADTensor>& x) {
+std::shared_ptr<ADTensor>
+ADSwiGLU::forward(const std::shared_ptr<ADTensor> &x) {
     // Gate path: swish(x @ W_gate^T)
     auto gate = matmul(W_gate, x);
     auto gate_act = swish_ad(gate);

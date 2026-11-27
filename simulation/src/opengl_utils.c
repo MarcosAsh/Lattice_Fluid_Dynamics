@@ -90,8 +90,7 @@ static GLuint loadShader(const char *path, GLenum type) {
     source[length] = '\0';
 
     GLuint shader = glCreateShader(type);
-    glShaderSource(
-        shader, 1, (const GLchar *const *)&source, NULL);
+    glShaderSource(shader, 1, (const GLchar *const *)&source, NULL);
     glCompileShader(shader);
 
     GLint status;
@@ -115,15 +114,12 @@ static GLuint loadShader(const char *path, GLenum type) {
     return shader;
 }
 
-GLuint createShaderProgram(
-    const char *vertexPath, const char *fragmentPath) {
-    GLuint vertexShader =
-        loadShader(vertexPath, GL_VERTEX_SHADER);
+GLuint createShaderProgram(const char *vertexPath, const char *fragmentPath) {
+    GLuint vertexShader = loadShader(vertexPath, GL_VERTEX_SHADER);
     if (!vertexShader)
         return 0;
 
-    GLuint fragmentShader =
-        loadShader(fragmentPath, GL_FRAGMENT_SHADER);
+    GLuint fragmentShader = loadShader(fragmentPath, GL_FRAGMENT_SHADER);
     if (!fragmentShader) {
         glDeleteShader(vertexShader);
         return 0;
@@ -157,8 +153,7 @@ GLuint createShaderProgram(
 }
 
 GLuint createComputeShader(const char *computePath) {
-    GLuint computeShader =
-        loadShader(computePath, GL_COMPUTE_SHADER);
+    GLuint computeShader = loadShader(computePath, GL_COMPUTE_SHADER);
     if (!computeShader)
         return 0;
 

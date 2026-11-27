@@ -11,15 +11,15 @@
 static int tests_passed = 0;
 static int tests_total = 0;
 
-#define CHECK(cond, msg)                                       \
-    do {                                                       \
-        tests_total++;                                         \
-        if (!(cond)) {                                         \
-            fprintf(stderr, "  FAIL: %s\n", msg);              \
-        } else {                                               \
-            printf("  PASS: %s\n", msg);                       \
-            tests_passed++;                                    \
-        }                                                      \
+#define CHECK(cond, msg)                                                       \
+    do {                                                                       \
+        tests_total++;                                                         \
+        if (!(cond)) {                                                         \
+            fprintf(stderr, "  FAIL: %s\n", msg);                              \
+        } else {                                                               \
+            printf("  PASS: %s\n", msg);                                       \
+            tests_passed++;                                                    \
+        }                                                                      \
     } while (0)
 
 static void test_mse_loss() {
@@ -48,10 +48,8 @@ static void test_mse_loss() {
     printf("test: mse_loss gradient\n");
     loss2->backward();
     // d/d pred = 2*(pred-target)/N = 2*[1,0]/2 = [1,0]
-    CHECK(std::fabs(pred2->grad.data[0] - 1.0f) < 1e-5f,
-          "grad[0] = 1.0");
-    CHECK(std::fabs(pred2->grad.data[1]) < 1e-5f,
-          "grad[1] = 0.0");
+    CHECK(std::fabs(pred2->grad.data[0] - 1.0f) < 1e-5f, "grad[0] = 1.0");
+    CHECK(std::fabs(pred2->grad.data[1]) < 1e-5f, "grad[1] = 0.0");
 }
 
 static void test_weights_io() {
@@ -62,18 +60,20 @@ static void test_weights_io() {
     ADLinear layer(4, 2);
 
     // Grab a copy of the weights before saving
-    auto& params = get_parameters();
+    auto &params = get_parameters();
     std::vector<float> w_orig(params[0]->val.data.begin(),
                               params[0]->val.data.end());
     std::vector<float> b_orig(params[1]->val.data.begin(),
                               params[1]->val.data.end());
 
-    const char* path = "/tmp/test_lattice_weights.bin";
+    const char *path = "/tmp/test_lattice_weights.bin";
     CHECK(save_weights(path), "save_weights succeeds");
 
     // Corrupt the weights
-    for (auto& v : params[0]->val.data) v = 999.0f;
-    for (auto& v : params[1]->val.data) v = 999.0f;
+    for (auto &v : params[0]->val.data)
+        v = 999.0f;
+    for (auto &v : params[1]->val.data)
+        v = 999.0f;
 
     CHECK(load_weights(path), "load_weights succeeds");
 
@@ -98,7 +98,6 @@ int main() {
     printf("=== ML Framework Tests ===\n\n");
     test_mse_loss();
     test_weights_io();
-    printf("\n=== Results: %d/%d passed ===\n",
-           tests_passed, tests_total);
+    printf("\n=== Results: %d/%d passed ===\n", tests_passed, tests_total);
     return tests_passed == tests_total ? 0 : 1;
 }

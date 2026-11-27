@@ -36,8 +36,8 @@ struct Sample {
 struct Dataset {
     std::vector<Sample> samples;
 
-    bool load(const std::string& path) {
-        FILE* f = fopen(path.c_str(), "rb");
+    bool load(const std::string &path) {
+        FILE *f = fopen(path.c_str(), "rb");
         if (!f) {
             fprintf(stderr, "Cannot open %s\n", path.c_str());
             return false;
@@ -58,7 +58,8 @@ struct Dataset {
         }
 
         if (num_features != 5) {
-            fprintf(stderr, "Expected 5 features per record, got %u\n",
+            fprintf(stderr,
+                    "Expected 5 features per record, got %u\n",
                     num_features);
             fclose(f);
             return false;
@@ -86,13 +87,13 @@ struct Normalizer {
     float mean[3];
     float std_dev[3];
 
-    void fit(const std::vector<Sample>& samples) {
+    void fit(const std::vector<Sample> &samples) {
         for (int j = 0; j < 3; ++j) {
             mean[j] = 0;
             std_dev[j] = 0;
         }
         int N = static_cast<int>(samples.size());
-        for (auto& s : samples) {
+        for (auto &s : samples) {
             float feats[3] = {s.wind_speed, s.reynolds, s.model_id};
             for (int j = 0; j < 3; ++j)
                 mean[j] += feats[j];
@@ -100,7 +101,7 @@ struct Normalizer {
         for (int j = 0; j < 3; ++j)
             mean[j] /= N;
 
-        for (auto& s : samples) {
+        for (auto &s : samples) {
             float feats[3] = {s.wind_speed, s.reynolds, s.model_id};
             for (int j = 0; j < 3; ++j) {
                 float d = feats[j] - mean[j];
@@ -109,7 +110,8 @@ struct Normalizer {
         }
         for (int j = 0; j < 3; ++j) {
             std_dev[j] = std::sqrt(std_dev[j] / N);
-            if (std_dev[j] < 1e-8f) std_dev[j] = 1.0f;
+            if (std_dev[j] < 1e-8f)
+                std_dev[j] = 1.0f;
         }
     }
 
@@ -120,14 +122,13 @@ struct Normalizer {
 
 // Pack samples into [features x batch] tensors
 
-static std::shared_ptr<ADTensor> pack_inputs(
-    const std::vector<Sample>& samples,
-    const std::vector<int>& indices,
-    const Normalizer& norm) {
+static std::shared_ptr<ADTensor> pack_inputs(const std::vector<Sample> &samples,
+                                             const std::vector<int> &indices,
+                                             const Normalizer &norm) {
     int B = static_cast<int>(indices.size());
     Tensor t(3, B);
     for (int b = 0; b < B; ++b) {
-        auto& s = samples[indices[b]];
+        auto &s = samples[indices[b]];
         t(0, b) = norm.normalize(s.wind_speed, 0);
         t(1, b) = norm.normalize(s.reynolds, 1);
         t(2, b) = norm.normalize(s.model_id, 2);
@@ -135,13 +136,13 @@ static std::shared_ptr<ADTensor> pack_inputs(
     return make_ad(t);
 }
 
-static std::shared_ptr<ADTensor> pack_targets(
-    const std::vector<Sample>& samples,
-    const std::vector<int>& indices) {
+static std::shared_ptr<ADTensor>
+pack_targets(const std::vector<Sample> &samples,
+             const std::vector<int> &indices) {
     int B = static_cast<int>(indices.size());
     Tensor t(2, B);
     for (int b = 0; b < B; ++b) {
-        auto& s = samples[indices[b]];
+        auto &s = samples[indices[b]];
         t(0, b) = s.cd;
         t(1, b) = s.cl;
     }
@@ -160,7 +161,7 @@ struct SurrogateModel {
     ADSwiGLU act2{128, 256};
     ADLinear fc3{128, 2};
 
-    std::shared_ptr<ADTensor> forward(const std::shared_ptr<ADTensor>& x) {
+    std::shared_ptr<ADTensor> forward(const std::shared_ptr<ADTensor> &x) {
         auto h = act1.forward(fc1.forward(x));
         h = act2.forward(fc2.forward(h));
         return fc3.forward(h);
@@ -169,12 +170,12 @@ struct SurrogateModel {
 
 // Evaluate on a set of indices, return mean L1 error for Cd and Cl
 
-static void evaluate(SurrogateModel& model,
-                     const std::vector<Sample>& samples,
-                     const std::vector<int>& indices,
-                     const Normalizer& norm,
-                     float* cd_mae,
-                     float* cl_mae) {
+static void evaluate(SurrogateModel &model,
+                     const std::vector<Sample> &samples,
+                     const std::vector<int> &indices,
+                     const Normalizer &norm,
+                     float *cd_mae,
+                     float *cl_mae) {
     auto x = pack_inputs(samples, indices, norm);
     auto pred = model.forward(x);
 
@@ -190,13 +191,15 @@ static void evaluate(SurrogateModel& model,
 
 // main
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
     std::string data_path = "dataset/training_data.bin";
-    if (argc > 1) data_path = argv[1];
+    if (argc > 1)
+        data_path = argv[1];
 
     printf("Loading dataset: %s\n", data_path.c_str());
     Dataset dataset;
-    if (!dataset.load(data_path)) return 1;
+    if (!dataset.load(data_path))
+        return 1;
     printf("Loaded %zu samples\n", dataset.samples.size());
 
     if (dataset.samples.size() < 10) {
@@ -215,8 +218,7 @@ int main(int argc, char* argv[]) {
     int split = static_cast<int>(all_indices.size() * 0.8);
     std::vector<int> train_idx(all_indices.begin(),
                                all_indices.begin() + split);
-    std::vector<int> val_idx(all_indices.begin() + split,
-                             all_indices.end());
+    std::vector<int> val_idx(all_indices.begin() + split, all_indices.end());
 
     printf("Train: %zu, Val: %zu\n", train_idx.size(), val_idx.size());
 
@@ -230,13 +232,17 @@ int main(int argc, char* argv[]) {
         norm.fit(train_samples);
     }
     printf("Normalizer: mean=[%.2f, %.1f, %.2f] std=[%.2f, %.1f, %.2f]\n",
-           norm.mean[0], norm.mean[1], norm.mean[2],
-           norm.std_dev[0], norm.std_dev[1], norm.std_dev[2]);
+           norm.mean[0],
+           norm.mean[1],
+           norm.mean[2],
+           norm.std_dev[0],
+           norm.std_dev[1],
+           norm.std_dev[2]);
 
     // Build model
     SurrogateModel model;
     int num_params = 0;
-    for (auto& p : get_parameters())
+    for (auto &p : get_parameters())
         num_params += p->val.numel();
     printf("Model parameters: %d\n", num_params);
 
@@ -246,8 +252,8 @@ int main(int argc, char* argv[]) {
     float lr = 1e-3f;
     AdamW optimizer(lr, 0.9f, 0.999f, 1e-8f, 1e-4f, 1.0f);
 
-    printf("\nTraining: %d epochs, batch=%d, lr=%.1e\n\n", epochs,
-           batch_size, lr);
+    printf(
+        "\nTraining: %d epochs, batch=%d, lr=%.1e\n\n", epochs, batch_size, lr);
 
     float best_val_cd_mae = 1e9f;
     int patience = 0;
@@ -280,7 +286,8 @@ int main(int argc, char* argv[]) {
             epoch_loss += loss->val.data[0];
             num_batches++;
 
-            if (std::isnan(loss->val.data[0]) || std::isinf(loss->val.data[0])) {
+            if (std::isnan(loss->val.data[0]) ||
+                std::isinf(loss->val.data[0])) {
                 fprintf(stderr, "NaN/Inf loss at epoch %d, aborting\n", epoch);
                 return 1;
             }
@@ -291,12 +298,14 @@ int main(int argc, char* argv[]) {
         // Validate every 10 epochs
         if (epoch % 10 == 0 || epoch == epochs - 1) {
             float cd_mae, cl_mae;
-            evaluate(model, dataset.samples, val_idx, norm,
-                     &cd_mae, &cl_mae);
+            evaluate(model, dataset.samples, val_idx, norm, &cd_mae, &cl_mae);
 
             printf("epoch %3d  loss=%.6f  val_cd_mae=%.4f  "
                    "val_cl_mae=%.4f",
-                   epoch, epoch_loss, cd_mae, cl_mae);
+                   epoch,
+                   epoch_loss,
+                   cd_mae,
+                   cl_mae);
 
             if (cd_mae < best_val_cd_mae) {
                 best_val_cd_mae = cd_mae;
@@ -320,32 +329,45 @@ int main(int argc, char* argv[]) {
 
     float cd_mae, cl_mae;
     evaluate(model, dataset.samples, val_idx, norm, &cd_mae, &cl_mae);
-    printf("\nFinal validation: Cd MAE=%.4f, Cl MAE=%.4f\n",
-           cd_mae, cl_mae);
+    printf("\nFinal validation: Cd MAE=%.4f, Cl MAE=%.4f\n", cd_mae, cl_mae);
 
     // Also print some example predictions
     printf("\nSample predictions (val set):\n");
     printf("  %-8s %-8s %-6s | %-8s %-8s | %-8s %-8s\n",
-           "wind", "Re", "model", "true_Cd", "true_Cl",
-           "pred_Cd", "pred_Cl");
+           "wind",
+           "Re",
+           "model",
+           "true_Cd",
+           "true_Cl",
+           "pred_Cd",
+           "pred_Cl");
     printf("  %-8s %-8s %-6s | %-8s %-8s | %-8s %-8s\n",
-           "------", "------", "----", "------", "------",
-           "------", "------");
+           "------",
+           "------",
+           "----",
+           "------",
+           "------",
+           "------",
+           "------");
 
     int show = std::min(10, static_cast<int>(val_idx.size()));
     auto x_show = pack_inputs(dataset.samples, val_idx, norm);
     auto pred_show = model.forward(x_show);
     for (int i = 0; i < show; ++i) {
-        auto& s = dataset.samples[val_idx[i]];
+        auto &s = dataset.samples[val_idx[i]];
         printf("  %-8.2f %-8.0f %-6.0f | %-8.3f %-8.3f | %-8.3f %-8.3f\n",
-               s.wind_speed, s.reynolds, s.model_id,
-               s.cd, s.cl,
-               pred_show->val(0, i), pred_show->val(1, i));
+               s.wind_speed,
+               s.reynolds,
+               s.model_id,
+               s.cd,
+               s.cl,
+               pred_show->val(0, i),
+               pred_show->val(1, i));
     }
 
     // Save normalizer alongside weights so inference can use it
     {
-        FILE* f = fopen("model_norm.bin", "wb");
+        FILE *f = fopen("model_norm.bin", "wb");
         if (f) {
             fwrite(norm.mean, sizeof(float), 3, f);
             fwrite(norm.std_dev, sizeof(float), 3, f);

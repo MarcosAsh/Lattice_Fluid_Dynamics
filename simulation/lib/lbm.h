@@ -54,8 +54,8 @@ typedef struct {
     int forceAccumCount; // steps accumulated since last readback
 
     // Outlet sponge layer (acoustic damping zone)
-    int spongeCells;     // width in cells before the outlet (0 = off)
-    float spongeTauMax;  // relaxation time at the outlet end
+    int spongeCells;    // width in cells before the outlet (0 = off)
+    float spongeTauMax; // relaxation time at the outlet end
 
     GLint collide_useMRTLoc;
     GLint collide_useEntropicLoc;
@@ -77,9 +77,9 @@ typedef struct {
     GLint stream_slabZLoc;
     GLint force_zOffsetLoc;
 
-    int periodicX;       // 1 = periodic x, disables inlet and outlet
-    float bodyForce[3];  // uniform body force density, lattice units
-    GLuint diagBuffer;   // stability guard counters
+    int periodicX;      // 1 = periodic x, disables inlet and outlet
+    float bodyForce[3]; // uniform body force density, lattice units
+    GLuint diagBuffer;  // stability guard counters
 
     GLint collide_periodicXLoc;
     GLint collide_bodyForceLoc;
@@ -89,7 +89,7 @@ typedef struct {
 
     int forceWorkgroups; // force buffer holds 2 vec4 per workgroup
     GLint force_wgBaseLoc;
-    GLsync stepFence;    // bounds the depth of the queued step work
+    GLsync stepFence; // bounds the depth of the queued step work
 } LBMGrid;
 
 // Initialize LBM grid
@@ -158,7 +158,9 @@ void LBM_AddGroundPlane(LBMGrid *grid, float worldZ);
 float LBM_ComputeProjectedArea(LBMGrid *grid, int axis);
 
 // Exact y-z silhouette area of a world-space mesh, in lattice cells^2
-float LBM_MeshFrontalArea(LBMGrid *grid, const float *triangles, int numTriangles);
+float LBM_MeshFrontalArea(LBMGrid *grid,
+                          const float *triangles,
+                          int numTriangles);
 
 // Cells reset by the stability guard since the last call, then clears
 void LBM_ReadDiagnostics(LBMGrid *grid, int *resetCells, int *nanCells);

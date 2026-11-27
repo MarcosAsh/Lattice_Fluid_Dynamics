@@ -8,7 +8,9 @@ typedef struct SuperResUpscaler SuperResUpscaler;
 // Create the super-resolution upscaler.
 // Loads MLP weights from weightsPath and normalizer from normPath.
 // Allocates fine velocity buffer at 2x the coarse grid resolution.
-SuperResUpscaler *SR_Create(int coarseX, int coarseY, int coarseZ,
+SuperResUpscaler *SR_Create(int coarseX,
+                            int coarseY,
+                            int coarseZ,
                             const char *weightsPath,
                             const char *normPath);
 

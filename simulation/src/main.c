@@ -625,11 +625,11 @@ int main(int argc, char *argv[]) {
         // fixed-density outlet form a streamwise acoustic resonator
         // whose standing wave dominates Cd on coarse grids (#155
         // spectral analysis: Cd oscillates at exactly cs/2Lx).
-        lbmGrid->spongeCells =
-            (spongeCells < 0) ? gridX / 8 : spongeCells;
+        lbmGrid->spongeCells = (spongeCells < 0) ? gridX / 8 : spongeCells;
         if (lbmGrid->spongeCells > 0)
             printf("Outlet sponge enabled: %d cells (tau ramps to %.1f)\n",
-                   lbmGrid->spongeCells, lbmGrid->spongeTauMax);
+                   lbmGrid->spongeCells,
+                   lbmGrid->spongeTauMax);
 
         // Start at rest to match the inlet ramp
         if (!LBM_InitializeFlow(lbmGrid, 0.0f, 0.0f, 0.0f)) {
@@ -666,9 +666,8 @@ int main(int argc, char *argv[]) {
             // Mesh frontal area, the voxel staircase overestimates it
             float voxelArea = LBM_ComputeProjectedArea(lbmGrid, 0);
             refArea = (triangleData && numTriangles > 0)
-                          ? LBM_MeshFrontalArea(lbmGrid,
-                                                (float *)triangleData,
-                                                numTriangles)
+                          ? LBM_MeshFrontalArea(
+                                lbmGrid, (float *)triangleData, numTriangles)
                           : voxelArea;
             if (refArea < 1.0f)
                 refArea = bboxArea;
@@ -1040,10 +1039,9 @@ int main(int argc, char *argv[]) {
     int unstableSamples = 0;
 
     // Lift along the shorter cross axis, z for Ahmed and y for the car
-    int liftAxis = (carBounds.maxZ - carBounds.minZ <
-                    carBounds.maxY - carBounds.minY)
-                       ? 2
-                       : 1;
+    int liftAxis =
+        (carBounds.maxZ - carBounds.minZ < carBounds.maxY - carBounds.minY) ? 2
+                                                                            : 1;
 
     // Cl time series for Strouhal extraction (dynamically grown)
     int clCapacity = 256;

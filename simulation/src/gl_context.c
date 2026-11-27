@@ -38,24 +38,21 @@ GLContext *GLContext_CreateInteractive(int w, int h) {
         return NULL;
     }
 
-    SDL_GL_SetAttribute(
-        SDL_GL_CONTEXT_MAJOR_VERSION, 4);
-    SDL_GL_SetAttribute(
-        SDL_GL_CONTEXT_MINOR_VERSION, 3);
-    SDL_GL_SetAttribute(
-        SDL_GL_CONTEXT_PROFILE_MASK,
-        SDL_GL_CONTEXT_PROFILE_COMPATIBILITY);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,
+                        SDL_GL_CONTEXT_PROFILE_COMPATIBILITY);
     if (glDebugRequested())
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG);
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
 
-    SDL_Window *win = SDL_CreateWindow(
-        "Lattice - LBM Wind Tunnel",
-        SDL_WINDOWPOS_CENTERED,
-        SDL_WINDOWPOS_CENTERED,
-        w, h,
-        SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN);
+    SDL_Window *win = SDL_CreateWindow("Lattice - LBM Wind Tunnel",
+                                       SDL_WINDOWPOS_CENTERED,
+                                       SDL_WINDOWPOS_CENTERED,
+                                       w,
+                                       h,
+                                       SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN);
     if (!win) {
         printf("Window failed: %s\n", SDL_GetError());
         SDL_Quit();
@@ -65,8 +62,7 @@ GLContext *GLContext_CreateInteractive(int w, int h) {
 
     SDL_GLContext gl = SDL_GL_CreateContext(win);
     if (!gl) {
-        printf("GL context failed: %s\n",
-               SDL_GetError());
+        printf("GL context failed: %s\n", SDL_GetError());
         SDL_DestroyWindow(win);
         SDL_Quit();
         free(ctx);
@@ -75,8 +71,7 @@ GLContext *GLContext_CreateInteractive(int w, int h) {
     SDL_GL_MakeCurrent(win, gl);
     SDL_GL_SetSwapInterval(1);
 
-    int version = gladLoadGL(
-        (GLADloadfunc)SDL_GL_GetProcAddress);
+    int version = gladLoadGL((GLADloadfunc)SDL_GL_GetProcAddress);
     if (!version) {
         printf("glad failed to load GL\n");
         SDL_GL_DeleteContext(gl);
@@ -92,8 +87,7 @@ GLContext *GLContext_CreateInteractive(int w, int h) {
     enableGLDebugOutput();
     printf("GL context: SDL (interactive)\n");
     printf("  OpenGL: %s\n", glGetString(GL_VERSION));
-    printf("  Renderer: %s\n",
-           glGetString(GL_RENDERER));
+    printf("  Renderer: %s\n", glGetString(GL_RENDERER));
     return ctx;
 }
 
@@ -119,19 +113,15 @@ static GLContext *headless_sdl_fallback(int w, int h) {
         return NULL;
     }
 
-    SDL_GL_SetAttribute(
-        SDL_GL_CONTEXT_MAJOR_VERSION, 4);
-    SDL_GL_SetAttribute(
-        SDL_GL_CONTEXT_MINOR_VERSION, 3);
-    SDL_GL_SetAttribute(
-        SDL_GL_CONTEXT_PROFILE_MASK,
-        SDL_GL_CONTEXT_PROFILE_COMPATIBILITY);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,
+                        SDL_GL_CONTEXT_PROFILE_COMPATIBILITY);
     if (glDebugRequested())
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG);
 
     SDL_Window *win = SDL_CreateWindow(
-        "headless", 0, 0, w, h,
-        SDL_WINDOW_OPENGL | SDL_WINDOW_HIDDEN);
+        "headless", 0, 0, w, h, SDL_WINDOW_OPENGL | SDL_WINDOW_HIDDEN);
     if (!win) {
         printf("Window failed: %s\n", SDL_GetError());
         SDL_Quit();
@@ -141,8 +131,7 @@ static GLContext *headless_sdl_fallback(int w, int h) {
 
     SDL_GLContext gl = SDL_GL_CreateContext(win);
     if (!gl) {
-        printf("GL context failed: %s\n",
-               SDL_GetError());
+        printf("GL context failed: %s\n", SDL_GetError());
         SDL_DestroyWindow(win);
         SDL_Quit();
         free(ctx);
@@ -150,8 +139,7 @@ static GLContext *headless_sdl_fallback(int w, int h) {
     }
     SDL_GL_MakeCurrent(win, gl);
 
-    int version = gladLoadGL(
-        (GLADloadfunc)SDL_GL_GetProcAddress);
+    int version = gladLoadGL((GLADloadfunc)SDL_GL_GetProcAddress);
     if (!version) {
         printf("glad failed to load GL\n");
         SDL_GL_DeleteContext(gl);
@@ -167,8 +155,7 @@ static GLContext *headless_sdl_fallback(int w, int h) {
     enableGLDebugOutput();
     printf("GL context: SDL hidden (headless)\n");
     printf("  OpenGL: %s\n", glGetString(GL_VERSION));
-    printf("  Renderer: %s\n",
-           glGetString(GL_RENDERER));
+    printf("  Renderer: %s\n", glGetString(GL_RENDERER));
     warn_if_software_renderer();
     return ctx;
 }
@@ -186,22 +173,19 @@ static EGLDisplay get_egl_device_display(void) {
     /* Load EXT functions at runtime via eglGetProcAddress.
      * These aren't in the base libEGL. */
     PFNEGLQUERYDEVICESEXTPROC queryDevices =
-        (PFNEGLQUERYDEVICESEXTPROC)
-            eglGetProcAddress("eglQueryDevicesEXT");
+        (PFNEGLQUERYDEVICESEXTPROC)eglGetProcAddress("eglQueryDevicesEXT");
     PFNEGLGETPLATFORMDISPLAYEXTPROC getPlatformDisplay =
-        (PFNEGLGETPLATFORMDISPLAYEXTPROC)
-            eglGetProcAddress("eglGetPlatformDisplayEXT");
+        (PFNEGLGETPLATFORMDISPLAYEXTPROC)eglGetProcAddress(
+            "eglGetPlatformDisplayEXT");
     PFNEGLQUERYDEVICESTRINGEXTPROC queryDeviceString =
-        (PFNEGLQUERYDEVICESTRINGEXTPROC)
-            eglGetProcAddress("eglQueryDeviceStringEXT");
+        (PFNEGLQUERYDEVICESTRINGEXTPROC)eglGetProcAddress(
+            "eglQueryDeviceStringEXT");
 
     if (queryDevices && getPlatformDisplay) {
         EGLDeviceEXT devices[16];
         EGLint numDevices = 0;
-        if (queryDevices(16, devices, &numDevices) &&
-            numDevices > 0) {
-            printf("EGL: found %d device(s)\n",
-                   numDevices);
+        if (queryDevices(16, devices, &numDevices) && numDevices > 0) {
+            printf("EGL: found %d device(s)\n", numDevices);
 
             /* Pick a real GPU, not Mesa's software device.
              * Hardware devices advertise a DRM render node
@@ -212,13 +196,12 @@ static EGLDisplay get_egl_device_display(void) {
             for (EGLint i = 0; i < numDevices; i++) {
                 const char *exts =
                     queryDeviceString
-                        ? queryDeviceString(devices[i],
-                                            EGL_EXTENSIONS)
+                        ? queryDeviceString(devices[i], EGL_EXTENSIONS)
                         : NULL;
-                printf("  device %d: %s\n", i,
+                printf("  device %d: %s\n",
+                       i,
                        exts ? exts : "(no extension string)");
-                if (chosen < 0 && exts &&
-                    strstr(exts, "EGL_EXT_device_drm")) {
+                if (chosen < 0 && exts && strstr(exts, "EGL_EXT_device_drm")) {
                     chosen = i;
                 }
             }
@@ -227,13 +210,11 @@ static EGLDisplay get_egl_device_display(void) {
                        "using device 0 (may be software)\n");
                 chosen = 0;
             } else {
-                printf("EGL: selected hardware device %d\n",
-                       chosen);
+                printf("EGL: selected hardware device %d\n", chosen);
             }
 
             EGLDisplay d = getPlatformDisplay(
-                EGL_PLATFORM_DEVICE_EXT,
-                devices[chosen], NULL);
+                EGL_PLATFORM_DEVICE_EXT, devices[chosen], NULL);
             if (d != EGL_NO_DISPLAY)
                 return d;
             printf("EGL: platform display failed\n");
@@ -273,20 +254,24 @@ GLContext *GLContext_CreateHeadless(int w, int h) {
     eglBindAPI(EGL_OPENGL_API);
 
     EGLint configAttribs[] = {
-        EGL_SURFACE_TYPE, EGL_PBUFFER_BIT,
-        EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT,
-        EGL_RED_SIZE, 8,
-        EGL_GREEN_SIZE, 8,
-        EGL_BLUE_SIZE, 8,
-        EGL_DEPTH_SIZE, 24,
+        EGL_SURFACE_TYPE,
+        EGL_PBUFFER_BIT,
+        EGL_RENDERABLE_TYPE,
+        EGL_OPENGL_BIT,
+        EGL_RED_SIZE,
+        8,
+        EGL_GREEN_SIZE,
+        8,
+        EGL_BLUE_SIZE,
+        8,
+        EGL_DEPTH_SIZE,
+        24,
         EGL_NONE,
     };
 
     EGLConfig config;
     EGLint numConfigs;
-    if (!eglChooseConfig(
-            display, configAttribs, &config, 1,
-            &numConfigs) ||
+    if (!eglChooseConfig(display, configAttribs, &config, 1, &numConfigs) ||
         numConfigs == 0) {
         printf("EGL: no config, falling back\n");
         eglTerminate(display);
@@ -294,15 +279,17 @@ GLContext *GLContext_CreateHeadless(int w, int h) {
     }
 
     EGLint ctxAttribs[] = {
-        EGL_CONTEXT_MAJOR_VERSION, 4,
-        EGL_CONTEXT_MINOR_VERSION, 3,
+        EGL_CONTEXT_MAJOR_VERSION,
+        4,
+        EGL_CONTEXT_MINOR_VERSION,
+        3,
         EGL_CONTEXT_OPENGL_PROFILE_MASK,
         EGL_CONTEXT_OPENGL_COMPATIBILITY_PROFILE_BIT,
         EGL_NONE,
     };
 
-    EGLContext eglCtx = eglCreateContext(
-        display, config, EGL_NO_CONTEXT, ctxAttribs);
+    EGLContext eglCtx =
+        eglCreateContext(display, config, EGL_NO_CONTEXT, ctxAttribs);
     if (eglCtx == EGL_NO_CONTEXT) {
         printf("EGL: context failed (0x%x), "
                "falling back\n",
@@ -312,12 +299,13 @@ GLContext *GLContext_CreateHeadless(int w, int h) {
     }
 
     EGLint surfAttribs[] = {
-        EGL_WIDTH, w,
-        EGL_HEIGHT, h,
+        EGL_WIDTH,
+        w,
+        EGL_HEIGHT,
+        h,
         EGL_NONE,
     };
-    EGLSurface surface = eglCreatePbufferSurface(
-        display, config, surfAttribs);
+    EGLSurface surface = eglCreatePbufferSurface(display, config, surfAttribs);
     if (surface == EGL_NO_SURFACE) {
         printf("EGL: surface failed, falling back\n");
         eglDestroyContext(display, eglCtx);
@@ -325,8 +313,7 @@ GLContext *GLContext_CreateHeadless(int w, int h) {
         return headless_sdl_fallback(w, h);
     }
 
-    if (!eglMakeCurrent(
-            display, surface, surface, eglCtx)) {
+    if (!eglMakeCurrent(display, surface, surface, eglCtx)) {
         printf("EGL: make current failed\n");
         eglDestroySurface(display, surface);
         eglDestroyContext(display, eglCtx);
@@ -335,8 +322,7 @@ GLContext *GLContext_CreateHeadless(int w, int h) {
     }
 
     /* Load GL functions via EGL */
-    int glver = gladLoadGL(
-        (GLADloadfunc)eglGetProcAddress);
+    int glver = gladLoadGL((GLADloadfunc)eglGetProcAddress);
     if (!glver) {
         printf("EGL: glad GL load failed, "
                "falling back\n");
@@ -364,8 +350,7 @@ GLContext *GLContext_CreateHeadless(int w, int h) {
     enableGLDebugOutput();
     printf("GL context: EGL (headless GPU)\n");
     printf("  OpenGL: %s\n", glGetString(GL_VERSION));
-    printf("  Renderer: %s\n",
-           glGetString(GL_RENDERER));
+    printf("  Renderer: %s\n", glGetString(GL_RENDERER));
     warn_if_software_renderer();
     return ctx;
 }
@@ -402,11 +387,9 @@ void GLContext_Destroy(GLContext *ctx) {
 #endif
 
     if (ctx->sdlContext)
-        SDL_GL_DeleteContext(
-            (SDL_GLContext)ctx->sdlContext);
+        SDL_GL_DeleteContext((SDL_GLContext)ctx->sdlContext);
     if (ctx->sdlWindow)
-        SDL_DestroyWindow(
-            (SDL_Window *)ctx->sdlWindow);
+        SDL_DestroyWindow((SDL_Window *)ctx->sdlWindow);
     SDL_Quit();
     free(ctx);
 }

@@ -393,10 +393,12 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
             printf("  --collision-operator=OP\n"
                    "                        bgk, regularized, mrt or entropic "
                    "(default: mrt)\n");
-            printf("  -M, --mrt             Same as --collision-operator=mrt\n");
-            printf("  -E, --entropic        Same as --collision-operator=entropic,"
-                   "\n"
-                   "                        also turns Smagorinsky off\n");
+            printf(
+                "  -M, --mrt             Same as --collision-operator=mrt\n");
+            printf(
+                "  -E, --entropic        Same as --collision-operator=entropic,"
+                "\n"
+                "                        also turns Smagorinsky off\n");
             printf("  -t, --turbulence=TI   Inlet turbulence intensity "
                    "0-0.3 (default: 0,\n"
                    "                        wind tunnels are ~0.01-0.02)\n");
