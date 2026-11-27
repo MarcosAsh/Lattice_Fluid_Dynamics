@@ -38,7 +38,7 @@ function(lattice_warnings target)
         return()
     endif()
     target_compile_options(${target} PRIVATE
-        -Wall -Wextra -Wshadow -Wformat=2 -Wstrict-prototypes
+        -Wall -Wextra -Wpedantic -Wshadow -Wformat=2 -Wstrict-prototypes
         -Wmissing-prototypes -Wundef -Wvla)
     if(LATTICE_WERROR)
         target_compile_options(${target} PRIVATE -Werror)
