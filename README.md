@@ -106,6 +106,19 @@ is within 2% and writes the result,
 the parameters and the git commit to `run.json`. See
 [docs/BUILDING.md](docs/BUILDING.md) for tests, presets and every option.
 
+## Validation
+
+The solver is checked against cases with known answers. Full method, numbers and limits are in [docs/validation/REPORT.md](docs/validation/REPORT.md).
+
+| Case | Reference | Result |
+|---|---|---|
+| Taylor-Green vortex, viscosity | analytic | within 0.03% for all four collision operators |
+| Poiseuille channel, wall force | equals body force | within 0.005%, second-order convergence |
+| Sphere drag, Re 20 | 2.715 (Clift, Grace and Weber) | 2.810 at 16 cells per diameter (+3.5%), 2.793 extrapolated |
+| Sphere drag, Re 100 | 1.087 | 1.131 at 16 cells per diameter (+4.0%), 1.116 extrapolated |
+
+What it cannot do yet: the highest Reynolds number a grid supports is about 2.25 times its length in cells, so about 290 on the default 128-cell grid and 1150 on 512. The Ahmed body experiments are at 4.3 million. Drag for car-like bodies from this solver is a low Reynolds number result and is not comparable to wind tunnel data.
+
 ## Running the website
 
 ```bash
