@@ -538,11 +538,10 @@ void main() {
             2.0 * (Sxy * Sxy + Sxz * Sxz + Syz * Syz)
         );
 
-        // Effective tau from Smagorinsky:
-        // tau_eff = 0.5*(tau + sqrt(tau^2 + 18*Cs^2*|Pi|/rho))
+        // nu_t = Cs^2 sqrt(2 S:S), Hou et al. 1996
         float Cs2 = smagorinskyCs * smagorinskyCs;
         tau_eff = 0.5 * (
-            tau + sqrt(tau * tau + 18.0 * Cs2 * Pi_norm / (rho + 1e-10))
+            tau + sqrt(tau * tau + 25.455844 * Cs2 * Pi_norm / (rho + 1e-10))
         );
     }
 
