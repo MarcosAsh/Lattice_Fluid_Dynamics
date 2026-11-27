@@ -1,3 +1,59 @@
+[project]
+name = "lattice-ml"
+version = "0.1.0"
+description = "ML drag surrogates and data pipeline for the Lattice fluid dynamics wind tunnel"
+# numpy>=2.5 needs 3.12 and the training box runs 3.12
+requires-python = ">=3.12"
+dependencies = [
+    "numpy>=2.5.0",
+    "pyyaml>=6.0.3",
+    "requests>=2.34.2",
+]
+
+[project.optional-dependencies]
+# shapeopt and superres, default torch wheels (CUDA on Linux)
+torch = ["torch>=2.13.0"]
+# same stack on the CPU wheel index, for CI and laptops
+torch-cpu = ["torch>=2.13.0"]
+# any-OBJ surrogate: jax, mesh voxelization
+anyobj = [
+    "jax>=0.6.2",
+    "optax>=0.2.8",
+    "scipy>=1.17",
+    "trimesh>=5.0.0",
+    "rtree>=1.4.1",
+    "embreex; python_version < '3.14'",
+]
+plots = ["matplotlib>=3.11.0"]
+modal = ["modal>=1.0"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0",
+    "ruff>=0.17",
+]
+
+[tool.uv]
+# scripts import each other by directory, nothing to build
+package = false
+default-groups = ["dev"]
+conflicts = [
+    [{ extra = "torch" }, { extra = "torch-cpu" }],
+]
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", extra = "torch-cpu" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["ml", "ml/shapeopt", "ml/superres", "ml/anyobj", "simulation"]
+addopts = "-ra"
+
 [tool.ruff]
 line-length = 80
 exclude = ["ml/dataset"]
