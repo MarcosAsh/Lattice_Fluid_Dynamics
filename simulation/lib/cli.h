@@ -3,6 +3,11 @@
 
 #define CLI_NUM_VIZ_MODES 10
 
+enum { CLI_OP_BGK, CLI_OP_REGULARIZED, CLI_OP_MRT, CLI_OP_ENTROPIC };
+
+// "bgk", "regularized", "mrt" or "entropic"
+const char *cli_operator_name(int op);
+
 typedef struct {
     float windSpeed;
     int visualizationMode;
@@ -16,8 +21,7 @@ typedef struct {
     float modelScale;
     int gridX, gridY, gridZ;
     float smagorinskyCs;
-    int useMRT;
-    int useEntropic;
+    int collisionOperator; // CLI_OP_*
     float turbulenceIntensity;
     int spongeCells; // -1 = auto (sizeX/8), 0 = off
     char vtkOutputPath[256];

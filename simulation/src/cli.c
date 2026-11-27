@@ -17,6 +17,7 @@ enum {
     OPT_CONVERGE_WINDOW,
     OPT_MAX_DURATION,
     OPT_MANIFEST,
+    OPT_OPERATOR,
 };
 
 static int bad_value(const char *name, const char *arg) {
@@ -98,6 +99,11 @@ const BuildInfo *cli_build_info(void) {
     return &info;
 }
 
+const char *cli_operator_name(int op) {
+    static const char *names[] = {"bgk", "regularized", "mrt", "entropic"};
+    return (op >= CLI_OP_BGK && op <= CLI_OP_ENTROPIC) ? names[op] : "unknown";
+}
+
 int cli_parse(int argc, char *argv[], CliOptions *opts) {
     opts->windSpeed = 1.0f;
     opts->visualizationMode = 1;
@@ -116,8 +122,7 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
     opts->gridY = 64;
     opts->gridZ = 64;
     opts->smagorinskyCs = 0.1f;
-    opts->useMRT = 0;
-    opts->useEntropic = 0;
+    opts->collisionOperator = CLI_OP_MRT;
     opts->turbulenceIntensity = 0.0f;
     opts->spongeCells = -1;
     opts->vtkOutputPath[0] = '\0';
@@ -151,6 +156,7 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
         {"smagorinsky", required_argument, 0, 'S'},
         {"mrt", no_argument, 0, 'M'},
         {"entropic", no_argument, 0, 'E'},
+        {"collision-operator", required_argument, 0, OPT_OPERATOR},
         {"turbulence", required_argument, 0, 't'},
         {"sponge", required_argument, 0, 'P'},
         {"vtk-output", required_argument, 0, 'V'},
@@ -257,11 +263,28 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
                 return -1;
             break;
         case 'M':
-            opts->useMRT = 1;
+            opts->collisionOperator = CLI_OP_MRT;
             break;
         case 'E':
-            opts->useEntropic = 1;
+            opts->collisionOperator = CLI_OP_ENTROPIC;
             break;
+        case OPT_OPERATOR: {
+            int found = -1;
+            for (int op = CLI_OP_BGK; op <= CLI_OP_ENTROPIC; op++)
+                if (strcmp(optarg, cli_operator_name(op)) == 0)
+                    found = op;
+            if (strcmp(optarg, "reg") == 0)
+                found = CLI_OP_REGULARIZED;
+            if (found < 0) {
+                fprintf(stderr,
+                        "invalid value for --collision-operator: '%s' "
+                        "(bgk, regularized, mrt, entropic)\n",
+                        optarg);
+                return -1;
+            }
+            opts->collisionOperator = found;
+            break;
+        }
         case 't':
             if (!parse_float("turbulence", optarg, &opts->turbulenceIntensity))
                 return -1;
@@ -361,10 +384,13 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
             printf("  -g, --grid=XxYxZ      Grid size (default: 128x64x64)\n");
             printf("  -S, --smagorinsky=CS  Smagorinsky constant 0-0.5 "
                    "(default: 0.1)\n");
-            printf("  -M, --mrt             Enable MRT collision operator\n");
-            printf("  -E, --entropic        Entropic (ELBM) collision: "
-                   "H-theorem stability,\n"
-                   "                        replaces MRT and Smagorinsky\n");
+            printf("  --collision-operator=OP\n"
+                   "                        bgk, regularized, mrt or entropic "
+                   "(default: mrt)\n");
+            printf("  -M, --mrt             Same as --collision-operator=mrt\n");
+            printf("  -E, --entropic        Same as --collision-operator=entropic,"
+                   "\n"
+                   "                        also turns Smagorinsky off\n");
             printf("  -t, --turbulence=TI   Inlet turbulence intensity "
                    "0-0.3 (default: 0,\n"
                    "                        wind tunnels are ~0.01-0.02)\n");

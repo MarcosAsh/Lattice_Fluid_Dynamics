@@ -138,8 +138,7 @@ static void write_parameters(Json *j, const RunManifest *m) {
     num(j, "reynolds", o->reynoldsNumber);
     grid(j, "grid", o->gridX, o->gridY, o->gridZ);
     num(j, "smagorinsky", o->smagorinskyCs);
-    boolean(j, "mrt", o->useMRT);
-    boolean(j, "entropic", o->useEntropic);
+    str(j, "collision_operator", cli_operator_name(o->collisionOperator));
     num(j, "turbulence", o->turbulenceIntensity);
     integer(j, "sponge", m->spongeCells);
     opt_str(j, "vtk_output", o->vtkOutputPath);

@@ -50,6 +50,27 @@ static void test_defaults(void) {
     CHECK(o.scaleFromCLI == 0, "scale not set");
 }
 
+static void test_collision_operator(void) {
+    printf("test: collision operator\n");
+    CliOptions o;
+    CHECK(parse(&o, NULL, NULL) == 0 && o.collisionOperator == CLI_OP_MRT,
+          "default operator is mrt");
+    CHECK(parse(&o, "--collision-operator=bgk", NULL) == 0 &&
+              o.collisionOperator == CLI_OP_BGK,
+          "bgk");
+    CHECK(parse(&o, "--collision-operator=reg", NULL) == 0 &&
+              o.collisionOperator == CLI_OP_REGULARIZED,
+          "reg alias");
+    CHECK(parse(&o, "--entropic", NULL) == 0 &&
+              o.collisionOperator == CLI_OP_ENTROPIC,
+          "--entropic alias");
+    CHECK(parse(&o, "--collision-operator=bgk", "--mrt") == 0 &&
+              o.collisionOperator == CLI_OP_MRT,
+          "--mrt alias, last wins");
+    CHECK(parse(&o, "--collision-operator=trt", NULL) != 0,
+          "unknown operator rejected");
+}
+
 static void test_valid_values(void) {
     printf("test: valid values\n");
     CliOptions o;
@@ -162,6 +183,7 @@ static void test_help(void) {
 int main(void) {
     printf("=== CLI Tests ===\n\n");
     test_defaults();
+    test_collision_operator();
     test_valid_values();
     test_invalid_values();
     test_manifest_path();

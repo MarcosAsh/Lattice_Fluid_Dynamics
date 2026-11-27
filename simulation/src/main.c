@@ -163,7 +163,7 @@ int main(int argc, char *argv[]) {
         g_modelScale = opts.modelScale;
     int gridX = opts.gridX, gridY = opts.gridY, gridZ = opts.gridZ;
     float smagorinskyCs = opts.smagorinskyCs;
-    int useEntropic = opts.useEntropic;
+    int collisionOperator = opts.collisionOperator;
     float turbulenceIntensity = opts.turbulenceIntensity;
     int spongeCells = opts.spongeCells;
     char vtkOutputPath[256];
@@ -584,20 +584,16 @@ int main(int argc, char *argv[]) {
         printf("Smagorinsky SGS enabled (Cs=%.2f), periodic YZ\n",
                lbmGrid->smagorinskyCs);
 
-        // MRT is on by default -- much more stable than BGK at
-        // low tau, which is typical for external aero grids.
-        lbmGrid->useMRT = 1;
-        printf("MRT collision enabled\n");
-
-        // Entropic LBM replaces both MRT and Smagorinsky: the
-        // H-theorem constraint supplies the stabilizing dissipation
-        // locally, so no eddy-viscosity tuning is needed.
-        if (useEntropic) {
-            lbmGrid->useEntropic = 1;
-            lbmGrid->useMRT = 0;
+        // MRT by default, it is more stable than BGK at low tau
+        lbmGrid->useRegularized = collisionOperator == CLI_OP_REGULARIZED;
+        lbmGrid->useMRT = collisionOperator == CLI_OP_MRT;
+        lbmGrid->useEntropic = collisionOperator == CLI_OP_ENTROPIC;
+        // Entropic supplies its own dissipation
+        if (lbmGrid->useEntropic)
             lbmGrid->useSmagorinsky = 0;
-            printf("Entropic LBM enabled (replaces MRT + Smagorinsky)\n");
-        }
+        printf("Collision operator: %s%s\n",
+               cli_operator_name(collisionOperator),
+               lbmGrid->useSmagorinsky ? " + Smagorinsky" : "");
 
         if (turbulenceIntensity > 0.0f) {
             lbmGrid->turbulenceIntensity = turbulenceIntensity;
@@ -1645,9 +1641,7 @@ int main(int argc, char *argv[]) {
         man.refArea = refArea;
         man.blockageFactor = blockageFactor;
         if (lbmGrid) {
-            man.collisionOperator = lbmGrid->useEntropic ? "entropic"
-                                    : lbmGrid->useMRT    ? "mrt"
-                                                         : "bgk";
+            man.collisionOperator = cli_operator_name(collisionOperator);
             man.smagorinsky = lbmGrid->useSmagorinsky;
             man.periodicYZ = lbmGrid->periodicYZ;
             man.spongeCells = lbmGrid->spongeCells;
