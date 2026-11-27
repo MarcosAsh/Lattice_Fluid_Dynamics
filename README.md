@@ -98,10 +98,11 @@ No window, an Ahmed body, and a JSON record of the run:
 ```bash
 cd simulation
 ../build/3d_fluid_simulation_car --model=assets/3d-files/ahmed_25deg_m.obj \
-    --converge=0.01 --max-duration=60 --manifest=run.json
+    --converge=0.02 --max-duration=300 --manifest=run.json
 ```
 
-It stops when the drag coefficient has settled and writes the result,
+It stops when the 95% confidence interval on the mean drag coefficient
+is within 2% and writes the result,
 the parameters and the git commit to `run.json`. See
 [docs/BUILDING.md](docs/BUILDING.md) for tests, presets and every option.
 
