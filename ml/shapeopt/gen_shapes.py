@@ -1,13 +1,20 @@
 """
 Shape optimization data generation pipeline.
 
-Generates FFD-deformed meshes, submits them to the Modal render endpoint
-as custom OBJ models, collects Cd/Cl results, and saves the dataset as
-binary (.sobin) and CSV.
+Generates FFD-deformed meshes, runs them through the solver, collects
+Cd/Cl results, and saves the dataset as binary (.sobin) and CSV.
+
+The Modal path lets the solver autoscale every shape and does not check
+the Reynolds number. `--local` runs the study runner on this machine at
+the baseline's scale with Re fixed on the baseline length and
+--strict-reynolds, the same settings `verify` uses, and writes them to
+protocol.json next to the data.
 
 Usage:
     python gen_shapes.py --config shapeopt_config.yaml --endpoint https://...
     python gen_shapes.py --config shapeopt_config.yaml --endpoint https://... --resume
+    python gen_shapes.py --config laptop.yaml --local --binary build/3d_fluid_simulation_car \\
+        --out /tmp/shapes
     python gen_shapes.py --status
     python gen_shapes.py --export-only
 """
@@ -27,9 +34,12 @@ import numpy as np
 import requests
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import mesh_checks
+import protocol
 from ffd import FFDLattice
 from ffd import compute_bbox
 from ffd import load_obj
+from ffd import save_obj
 from pipeline_config import ConfigError
 from pipeline_config import load_shapeopt_config
 
@@ -423,6 +433,145 @@ def run_sweep(
         compute_stats()
 
 
+def sample_displacements(lattice: FFDLattice, config: dict, seed: int | None) -> np.ndarray:
+    """Baseline (zero displacements) followed by the LHS samples"""
+    lhs = lattice.sample_random(
+        config["num_samples"],
+        max_fraction=config["displacement_range"],
+        symmetric=config.get("enforce_symmetry", True),
+        rng=np.random.default_rng(seed),
+    )
+    return np.vstack([np.zeros((1, lattice.get_num_params())), lhs])
+
+
+def read_case(row: dict) -> dict:
+    """Cd, its interval, Cl and the frontal area of one study row"""
+    manifest = json.loads(Path(row["manifest"]).read_text())
+    return {
+        "cd": row["cd"],
+        "cd_ci95": row["cd_ci95"],
+        "cl": (manifest.get("results") or {}).get("cl_mean"),
+        "ref_area": (manifest.get("model") or {}).get("ref_area"),
+        "reynolds": row["reynolds"],
+        "tau": row["tau"],
+    }
+
+
+LOCAL_COLUMNS = [
+    "sample_id",
+    "model",
+    "sample_idx",
+    "status",
+    "cd_value",
+    "cl_value",
+    "cd_ci95",
+    "ref_area",
+    "reynolds",
+    "tau",
+    "frontal_area_ratio",
+    "volume_ratio",
+    "error",
+    "displacements",
+]
+
+
+def run_local(
+    config_path: str,
+    binary: Path,
+    out: Path,
+    workdir: Path = PROJECT_ROOT / "simulation",
+    seed: int | None = None,
+    timeout: float | None = None,
+    backend=None,
+) -> int:
+    """Run every sample through the study runner, then export the dataset"""
+    import study
+
+    config = load_config(config_path)
+    if seed is None:
+        seed = config.get("seed")
+    if len(config["base_models"]) != 1:
+        raise ConfigError(
+            config_path, ["base_models: the surrogate has no model input, give one base model"]
+        )
+    if "grid" not in config:
+        raise ConfigError(config_path, ["grid: --local needs a grid"])
+    model = config["base_models"][0]
+    obj_path = MODEL_OBJ_PATHS[model]
+    vertices, faces = load_obj(str(obj_path))
+    lattice = FFDLattice(*compute_bbox(vertices), n_control=tuple(config["ffd_grid"]))
+    ref = protocol.reference(vertices, float(config["reynolds"]))
+    run = {"grid": config["grid"], **protocol.run_settings(duration=int(config["duration"]))}
+
+    samples = sample_displacements(lattice, config, seed)
+    mesh_dir = out / "meshes"
+    mesh_dir.mkdir(parents=True, exist_ok=True)
+    rows, cases = [], []
+    for idx, disp in enumerate(samples):
+        deformed = lattice.deform(vertices, disp)
+        geo = mesh_checks.check(vertices, deformed, faces, lattice, disp)
+        row = {
+            "sample_id": sample_id(model, idx),
+            "model": model,
+            "sample_idx": idx,
+            "frontal_area_ratio": geo["frontal_area_ratio"],
+            "volume_ratio": geo["volume_ratio"],
+            "displacements": json.dumps(disp.astype(np.float32).tolist()),
+        }
+        if not geo["ok"]:
+            row.update(status="rejected", error="; ".join(geo["problems"]))
+            rows.append(row)
+            continue
+        path = mesh_dir / f"{model}_{idx:04d}.obj"
+        save_obj(path, deformed, faces)
+        params = protocol.case_params(path, deformed, ref, **run)
+        rows.append(row | {"case": study.case_name(params)})
+        cases.append(params)
+
+    study_file = protocol.write_study(
+        out / "study.yaml", binary, workdir, out / "runs", cases, f"shapes_{model}", timeout
+    )
+    loaded = study.load_study(study_file)
+    result, _ = study.run_study(loaded, backend or study.LocalBackend())
+    by_name = {r["name"]: r for r in result["rows"]}
+    for row in rows:
+        case = by_name.get(row.pop("case", None))
+        if case is None:
+            continue
+        if case["status"] != "ok" or case["cd"] is None:
+            row.update(status="error", error=case["error"] or "no Cd")
+            continue
+        got = read_case(case)
+        row.update(status="complete", cd_value=got.pop("cd"), cl_value=got.pop("cl"), **got)
+
+    results = out / "results.csv"
+    with results.open("w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=LOCAL_COLUMNS, extrasaction="ignore")
+        writer.writeheader()
+        writer.writerows(
+            {k: ("" if row.get(k) is None else row.get(k)) for k in LOCAL_COLUMNS} for row in rows
+        )
+    meta = {
+        "base_model": model,
+        "base_obj": str(obj_path),
+        "grid": config["grid"],
+        "run": {k: v for k, v in run.items() if k != "grid"},
+        "reference": ref.to_dict(),
+        "ffd_grid": list(config["ffd_grid"]),
+        "displacement_range": config["displacement_range"],
+        "enforce_symmetry": config.get("enforce_symmetry", True),
+        "seed": seed,
+        "wind_speed": config["wind_speed"],
+        "args": ["--strict-reynolds"],
+    }
+    (out / "protocol.json").write_text(json.dumps(meta, indent=2) + "\n")
+    done = sum(r.get("status") == "complete" for r in rows)
+    print(f"{done} of {len(rows)} samples complete, see {results}")
+    for warning in result["warnings"]:
+        print(f"WARNING: {warning}")
+    return export_sobin(results, out / "shapeopt_data.sobin")
+
+
 def compute_stats() -> dict | None:
     """Generate summary statistics."""
     if not MANIFEST_FILE.exists():
@@ -526,6 +675,18 @@ def main() -> None:
         action="store_true",
         help="Re-export .sobin from existing CSV results",
     )
+    parser.add_argument(
+        "--local", action="store_true", help="run the solver here through the study runner"
+    )
+    parser.add_argument("--binary", type=Path, help="--local: solver binary")
+    parser.add_argument("--out", type=Path, help="--local: output directory")
+    parser.add_argument(
+        "--workdir",
+        type=Path,
+        default=PROJECT_ROOT / "simulation",
+        help="--local: directory the solver runs from (default: simulation/)",
+    )
+    parser.add_argument("--timeout", type=float, help="--local: seconds per case")
     args = parser.parse_args()
 
     if args.status:
@@ -536,6 +697,17 @@ def main() -> None:
         export_sobin(RESULTS_FILE, SOBIN_FILE)
         compute_stats()
         return
+
+    if args.local:
+        if not args.binary or not args.out:
+            sys.exit("Error: --local needs --binary and --out")
+        if not args.binary.is_file():
+            sys.exit(f"Error: no solver binary at {args.binary}")
+        config_path = SHAPEOPT_DIR / args.config
+        n = run_local(
+            str(config_path), args.binary, args.out, args.workdir, args.seed, args.timeout
+        )
+        sys.exit(0 if n else 1)
 
     endpoint = args.endpoint
     if not endpoint:

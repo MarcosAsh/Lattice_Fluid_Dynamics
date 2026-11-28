@@ -180,6 +180,7 @@ SHAPEOPT_SCHEMA = (
     Field("reynolds", "number", min=0),
     Field("duration", "number", min=0, exclusive_min=True),
     Field("collision_mode", "int", required=False, min=0),
+    Field("grid", "grid", required=False),
     Field("max_concurrent", "int", required=False, min=1),
     Field("retry_limit", "int", required=False, min=0),
     Field("seed", "int", required=False, min=0),
