@@ -1,0 +1,78 @@
+#version 430 core
+layout(local_size_x = 64) in;
+
+// Per-cell link sum of lbm_force.comp and density, summed over steps.
+// The constant 2 w_i e_i part is added on the CPU
+
+layout(std430, binding = 2) buffer LBMBuffer {
+    float f[];
+};
+
+layout(std430, binding = 3) buffer LBMBufferNew {
+    float f_new[];
+};
+
+layout(std430, binding = 4) buffer VelocityBuffer {
+    vec4 velocity[];
+};
+
+layout(std430, binding = 7) buffer BouzidiQ {
+    float q_val[];
+};
+
+// Global cell indices, sorted
+layout(std430, binding = 12) buffer SurfaceCells {
+    int cells[];
+};
+
+// Per listed cell: force (xyz) and density (w), summed over steps
+layout(std430, binding = 13) buffer SurfaceSums {
+    vec4 sums[];
+};
+
+uniform int listStart;  // first list entry in this slab
+uniform int listCount;  // entries in this slab
+uniform int sliceStart; // global index of the slab's first cell
+
+const ivec3 e[19] = ivec3[19](ivec3(0, 0, 0),
+                              ivec3(1, 0, 0),
+                              ivec3(-1, 0, 0),
+                              ivec3(0, 1, 0),
+                              ivec3(0, -1, 0),
+                              ivec3(0, 0, 1),
+                              ivec3(0, 0, -1),
+                              ivec3(1, 1, 0),
+                              ivec3(-1, 1, 0),
+                              ivec3(1, -1, 0),
+                              ivec3(-1, -1, 0),
+                              ivec3(1, 0, 1),
+                              ivec3(-1, 0, 1),
+                              ivec3(1, 0, -1),
+                              ivec3(-1, 0, -1),
+                              ivec3(0, 1, 1),
+                              ivec3(0, -1, 1),
+                              ivec3(0, 1, -1),
+                              ivec3(0, -1, -1));
+
+const int opposite[19] = int[19](
+    0, 2, 1, 4, 3, 6, 5, 10, 9, 8, 7, 14, 13, 12, 11, 18, 17, 16, 15);
+
+void main() {
+    int k = int(gl_GlobalInvocationID.x);
+    if (k >= listCount)
+        return;
+    int entry = listStart + k;
+    int g = cells[entry];
+    int local = g - sliceStart;
+
+    vec3 force = vec3(0.0);
+    for (int i = 1; i < 19; i++) {
+        if (q_val[i + 19 * local] >= 0.0) {
+            float ftotal = f_new[i + 19 * local] + f[opposite[i] + 19 * local];
+            force.x += ftotal * float(e[i].x);
+            force.y += ftotal * float(e[i].y);
+            force.z += ftotal * float(e[i].z);
+        }
+    }
+    sums[entry] += vec4(force, velocity[g].w);
+}

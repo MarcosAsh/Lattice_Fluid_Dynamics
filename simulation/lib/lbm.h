@@ -5,6 +5,7 @@
 #include <stddef.h>
 
 #include "checkpoint.h"
+#include "surface.h"
 
 // Floats per force workgroup: force, pressure, weight terms (vec4 each)
 #define LBM_FORCE_FLOATS 12
@@ -102,6 +103,18 @@ typedef struct {
     int geomHashed; // solidHash and qHash are current
     uint64_t solidHash;
     uint64_t qHash;
+
+    // Surface output, see lbm_surface.c
+    GLuint surfaceShader;
+    GLuint surfaceListBuffer;
+    GLuint surfaceSumBuffer;
+    GLint surface_listStartLoc;
+    GLint surface_listCountLoc;
+    GLint surface_sliceStartLoc;
+    int *surfaceCells;
+    int surfaceCount;
+    int surfaceAccumulate;
+    int surfaceSteps; // steps in the open window
 } LBMGrid;
 
 // Initialize LBM grid
@@ -197,5 +210,18 @@ int LBM_CheckpointHeader(LBMGrid *grid, float u, CkptHeader *h);
 // Distributions, step counter, force window and guard counters
 int LBM_SaveState(LBMGrid *grid, CkptWriter *out);
 int LBM_LoadState(LBMGrid *grid, CkptReader *r, char *err, size_t errLen);
+
+// Boundary cells (those the force shader sums) and the cells of the plane
+// x = refPlaneX, read back one z plane at a time
+int LBM_SurfaceCells(LBMGrid *grid, int refPlaneX, Surface *out);
+
+// Starts summing per-cell force and density every step, from zero
+int LBM_SurfaceStart(LBMGrid *grid, const Surface *s);
+void LBM_SurfaceStep(LBMGrid *grid);
+
+// Copies the sums of the open window (4 floats per cell), clears them and
+// returns the window's steps
+int LBM_SurfaceReadWindow(LBMGrid *grid, float *sums);
+void LBM_SurfaceFree(LBMGrid *grid);
 
 #endif // LBM_H

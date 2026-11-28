@@ -192,6 +192,34 @@ else
     fail "bad checkpoint not refused (rc $RC, $RC_T)"
 fi
 
+# Test 9: surface output leaves the drag alone and integrates to it
+echo "test: --surface-output"
+$BINARY $CK_ARGS --duration=7 --surface-output="$OUTDIR/surf.vtk" \
+    --manifest="$OUTDIR/s.json" >"$OUTDIR/s.log" 2>&1 || true
+if [ -s "$OUTDIR/surf.vtk" ] && [ -s "$OUTDIR/surf_cells.vtk" ] &&
+    [ -s "$OUTDIR/surf_plane.csv" ]; then
+    pass "surface files written"
+else
+    fail "surface files missing"
+fi
+if command -v python3 >/dev/null 2>&1; then
+    if python3 - "$OUTDIR/a.json" "$OUTDIR/s.json" <<'PY'
+import json, sys
+a, s = (json.load(open(p)) for p in sys.argv[1:])
+assert a["results"] == s["results"], "drag changed with --surface-output"
+f = s["surface"]
+assert f["steps"] > 0 and f["unmapped_triangles"] == 0
+for c, m, d in zip(f["force_cells"], f["force_mesh"], f["force_drag"]):
+    assert abs(c - d) <= 1e-5 * abs(f["force_drag"][0]), (c, d)
+    assert abs(m - c) <= 1e-9 * abs(f["force_cells"][0]), (m, c)
+PY
+    then
+        pass "drag unchanged, surface force equals the drag"
+    else
+        fail "surface output check"
+    fi
+fi
+
 # Cleanup
 rm -rf "$OUTDIR"
 

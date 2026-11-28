@@ -163,6 +163,7 @@ used ones:
 --checkpoint=PATH    Write the solver state at the end of the run
 --checkpoint-interval=FRAMES  Also write it every FRAMES frames
 --restart=PATH       Continue the run saved in a checkpoint
+--surface-output=PATH  Time-averaged Cp and wall force on the body
 --version            Print version and exit
 ```
 
@@ -330,6 +331,73 @@ commit, step and frame) and the one written under `checkpoint`.
 
 A checkpoint only continues a run on the same grid. Interpolating one
 onto a finer grid is not supported.
+
+### Surface pressure and shear
+
+```bash
+./build/3d_fluid_simulation_car --model=assets/3d-files/ahmed_25deg_m.obj \
+    --duration=60 --surface-output=out/surface.vtk
+```
+
+`--surface-output=PATH` averages the momentum exchange and the density of
+every boundary cell over the steps that make up the Cd samples. It reads
+the same buffers as the drag shader and changes neither the flow nor the
+drag. Three files are written when the run ends:
+
+- PATH: the mesh triangles with `cp`, `cp_wall`, `traction`, `shear`,
+  `normal`, `cells` and `samples` per triangle, as legacy VTK PolyData.
+  ParaView reads it.
+- `STEM_cells.vtk`: one point per boundary cell with `cp`, `cp_wall`,
+  `cf`, `rho`, `area`, `links`, `samples`, `force`, `traction`, `shear`
+  and `normal`.
+- `STEM_plane.csv`: the boundary cells within half a cell of the body's
+  symmetry plane, with `theta_deg`, the angle from upstream, positive
+  toward the lift side.
+
+STEM is PATH without `.vtk`. Positions are in lattice cells from the grid
+corner, forces in lattice units, and `samples` counts the averaged steps.
+The manifest has a `surface` section with the cell force sum, the mesh
+integral and the mean drag readback over the same steps. A restart starts
+the surface averages again.
+
+How far each value can be trusted:
+
+- `force` is exact for the scheme. It is the time-averaged momentum
+  exchange of the Bouzidi links of one fluid cell, and the cells add up
+  to the reported drag to float round-off (5e-8 or better on the sphere
+  checks). How the force splits between neighbouring cells depends on
+  the staircase, so single cells scatter.
+- `cp` is (p - p_inf) / (0.5 rho U^2) with p = rho / 3 at the centre of
+  the boundary cell, which sits up to 1.7 cells off the wall. p_inf is
+  the mean density over the plane x = 1. Single cells scatter by a few
+  tenths of Cp next to the staircase. Averaged over 15 degree bins on a
+  12 cell sphere it is within 0.125 of the reference curve, so it is the
+  better pressure estimate.
+- `cp_wall` is the pressure from the normal force. At rest a cell's
+  links give a force of rho times their weight sum W, so a cell's wall
+  pressure is (F.n) / (3 W.n). This takes out the staircase, which on a
+  D = 8 sphere sees 13% more area than the mesh. On the mesh each
+  triangle takes the ratio of the sums over its nearby cells, which
+  scatters much less than the ratio per cell in `STEM_cells.vtk`. Cells
+  whose links see less than 0.25 cells^2 get no per-cell value.
+  `cp_wall` overshoots the wall pressure, by up to 0.22 on a 12 cell
+  sphere at Re 20. A likely cause, not checked, is the normal viscous
+  stress at the first fluid node, which is zero only at the wall itself.
+- `shear` is the tangential force over the same link area, and `cf` its
+  magnitude over 0.5 rho U^2. It needs a resolved boundary layer and is
+  the least reliable value.
+- `area` and `traction` (force / area) come from the mesh. Triangles are
+  split until no edge is longer than 0.75 cells. Each cell spreads its
+  force over the triangles within 2 cells, weighted by area times
+  (1 - d/2)^2. The triangle forces add up to the cell forces, so the
+  mesh integral of `traction` equals the drag. The areas add up to the
+  mesh area. `traction` keeps the staircase bias, so use `cp_wall` for
+  pressure.
+
+On the mesh, every value is smoothed over about two cells. Without a mesh
+(the AABB fallback) PATH holds the cells and the normals come from the
+links. A sphere needs about 12 cells across for a Cp curve of the right
+shape, see `docs/validation/REPORT.md`.
 
 ## Running a study
 

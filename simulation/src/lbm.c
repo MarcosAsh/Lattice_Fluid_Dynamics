@@ -393,6 +393,7 @@ void LBM_Free(LBMGrid *grid) {
         glDeleteProgram(grid->streamShader);
     if (grid->forceShader)
         glDeleteProgram(grid->forceShader);
+    LBM_SurfaceFree(grid);
 
     free(grid);
 }
@@ -936,6 +937,8 @@ void LBM_Step(LBMGrid *grid,
         glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
         grid->forceAccumCount++;
     }
+    if (grid->surfaceAccumulate)
+        LBM_SurfaceStep(grid);
 
     // Bound the queue, i915 expires fences on long ones and drops the work
     if (grid->stepCount % 32 == 0) {

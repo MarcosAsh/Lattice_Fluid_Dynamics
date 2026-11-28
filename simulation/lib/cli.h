@@ -45,6 +45,7 @@ typedef struct {
     char checkpointPath[512];
     int checkpointInterval; // frames, 0 = only at the end
     char restartPath[512];
+    char surfacePath[512];
 } CliOptions;
 
 // Parse command-line options. Returns 0 on success, 1 if --help was

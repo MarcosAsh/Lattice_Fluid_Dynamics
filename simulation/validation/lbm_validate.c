@@ -69,6 +69,7 @@ typedef struct {
     double turb;
     char model[512];
     char op[16];
+    char surface[512]; // surface output path, mesh sphere only
 } Opts;
 
 static double now_s(void) {
@@ -135,6 +136,8 @@ static void parse(int argc, char **argv, Opts *o) {
             o->mesh = atoi(v);
         else if (argval(argv[i], "--ramp", &v))
             o->ramp = atoi(v);
+        else if (argval(argv[i], "--surface", &v))
+            snprintf(o->surface, sizeof(o->surface), "%s", v);
         else if (argval(argv[i], "--turb", &v))
             o->turb = atof(v);
         else if (argval(argv[i], "--model", &v))
@@ -786,6 +789,132 @@ static int case_qcheck(Opts *o) {
     return 0;
 }
 
+/* Surface Cp of a sphere against the angle from the front stagnation
+ * point, and the surface force against the drag readback */
+static void sphere_surface_report(Surface *sf,
+                                  const char *path,
+                                  double U,
+                                  const double c[3]) {
+    double rhoRef = surface_reference_rho(sf);
+    enum { NB = 12 };
+    double sum[NB] = {0}, sumW[NB] = {0};
+    int cnt[NB] = {0};
+    double phiMin = 1e9, phiMax = -1;
+    for (int k = 0; k < sf->n; k++) {
+        if (!(sf->role[k] & SURF_BOUNDARY))
+            continue;
+        int g = sf->cell[k], pl = sf->nx * sf->ny;
+        double d[3] = {g % sf->nx + 0.5 - c[0],
+                       (g % pl) / sf->nx + 0.5 - c[1],
+                       g / pl + 0.5 - c[2]};
+        double r = sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
+        double phi = acos(fmax(-1.0, fmin(1.0, -d[0] / r))) * 180.0 / M_PI;
+        phiMin = fmin(phiMin, phi);
+        phiMax = fmax(phiMax, phi);
+        SurfacePoint p;
+        surface_point(sf, k, U, rhoRef, &p);
+        int b = (int)(phi / (180.0 / NB));
+        if (b >= NB)
+            b = NB - 1;
+        sum[b] += p.cp;
+        sumW[b] += p.cpWall;
+        cnt[b]++;
+    }
+    // Cells closest to the axis, upstream and downstream
+    double front = 0, rear = 0;
+    int nf = 0, nr = 0;
+    for (int k = 0; k < sf->n; k++) {
+        if (!(sf->role[k] & SURF_BOUNDARY))
+            continue;
+        int g = sf->cell[k], pl = sf->nx * sf->ny;
+        double d[3] = {g % sf->nx + 0.5 - c[0],
+                       (g % pl) / sf->nx + 0.5 - c[1],
+                       g / pl + 0.5 - c[2]};
+        double r = sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
+        double phi = acos(fmax(-1.0, fmin(1.0, -d[0] / r))) * 180.0 / M_PI;
+        SurfacePoint p;
+        surface_point(sf, k, U, rhoRef, &p);
+        if (phi < phiMin + 1e-6) {
+            front += p.cp;
+            nf++;
+        }
+        if (phi > phiMax - 1e-6) {
+            rear += p.cp;
+            nr++;
+        }
+    }
+    // cp_wall binned over the mesh, area weighted
+    double tw[NB] = {0}, ta[NB] = {0}, capW = 0, capA = 0, rearW = 0, rearA = 0;
+    for (int t = 0; t < sf->ntri; t++) {
+        double cp, cpw, tr[3];
+        if (!surface_triangle(sf, t, U, rhoRef, &cp, &cpw, tr))
+            continue;
+        const float *v = &sf->tri[9 * t];
+        double d[3];
+        for (int k = 0; k < 3; k++)
+            d[k] = (v[k] + v[3 + k] + v[6 + k]) / 3.0 - c[k];
+        double r = sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
+        double phi = acos(fmax(-1.0, fmin(1.0, -d[0] / r))) * 180.0 / M_PI;
+        int b = (int)(phi / (180.0 / NB));
+        if (b >= NB)
+            b = NB - 1;
+        tw[b] += cpw * sf->triArea[t];
+        ta[b] += sf->triArea[t];
+        if (phi < 10.0) {
+            capW += cpw * sf->triArea[t];
+            capA += sf->triArea[t];
+        }
+        if (phi > 170.0) {
+            rearW += cpw * sf->triArea[t];
+            rearA += sf->triArea[t];
+        }
+    }
+    for (int b = 0; b < NB; b++)
+        sumW[b] = ta[b] > 0 ? tw[b] / ta[b] : 0;
+    double cpMin = 1e9, thMin = 0;
+    for (int b = 0; b < NB; b++) {
+        if (!cnt[b])
+            continue;
+        double th = (b + 0.5) * 180.0 / NB;
+        printf("CPBIN theta=%.1f cp=%.5f cp_wall=%.5f cells=%d\n",
+               th,
+               sum[b] / cnt[b],
+               sumW[b],
+               cnt[b]);
+        if (ta[b] > 0 && sumW[b] < cpMin) {
+            cpMin = sumW[b];
+            thMin = th;
+        }
+    }
+    double cells[3], mesh[3], drag[3], un[3];
+    surface_totals(sf, cells, mesh, drag, un);
+    double sx = c[1];
+    double centre[3] = {c[0], sx, c[2]};
+    int wrc = surface_write(sf, path, U, 1, centre);
+    printf("SURFACE cp_front=%.5f cp_front_wall=%.5f front_angle=%.2f "
+           "cp_rear=%.5f cp_rear_wall=%.5f cp_wall_min=%.5f theta_min=%.1f "
+           "fx_cells=%.9e "
+           "fx_mesh=%.9e fx_drag=%.9e cells_err=%.3e mesh_err=%.3e "
+           "unmapped_fx=%.3e unowned=%d steps=%ld rho_ref=%.8f write=%d\n",
+           front / nf,
+           capA > 0 ? capW / capA : 0.0,
+           phiMin,
+           rear / nr,
+           rearA > 0 ? rearW / rearA : 0.0,
+           cpMin,
+           thMin,
+           cells[0],
+           mesh[0],
+           drag[0],
+           (cells[0] - drag[0]) / drag[0],
+           (mesh[0] - cells[0]) / cells[0],
+           un[0],
+           sf->unowned,
+           sf->steps,
+           rhoRef,
+           wrc);
+}
+
 /* Sphere in the production tunnel BCs with analytic Bouzidi q */
 static int case_sphere(Opts *o) {
     double D = o->d > 0 ? o->d : 16;
@@ -815,12 +944,22 @@ static int case_sphere(Opts *o) {
 
     // Centre sits on a cell corner
     double cx = up * D / scale - 4.0;
+    Surface sf;
+    int surf = o->surface[0] && o->mesh;
+    float *sbuf = NULL;
     if (o->mesh) {
         int ntri;
         float r = (float)(0.5 * D / scale);
         float *tris = icosphere(cx, r, 5, &ntri);
         LBM_SetSolidMesh(
             g, tris, ntri, (float)cx - r, -r, -r, (float)cx + r, r, r);
+        if (surf && (LBM_SurfaceCells(g, 1, &sf) ||
+                     surface_map_mesh(&sf, tris, ntri))) {
+            fprintf(stderr, "sphere: surface setup failed\n");
+            return 1;
+        }
+        if (surf)
+            sbuf = malloc((size_t)sf.n * 4 * sizeof(float));
         free(tris);
     } else {
         LBM_SetSolidSphere(g, (float)cx, 0.0f, 0.0f, (float)(0.5 * D / scale));
@@ -851,10 +990,21 @@ static int case_sphere(Opts *o) {
     int s = 0;
     float fx, fy, fz;
     LBM_ComputeDragForce(g, &fx, &fy, &fz);
+    // Surface averages start at t* = 15, after a drag readback
+    int surfStart = (int)lround(15 * D / U);
     while (s < maxSteps) {
+        if (surf && !g->surfaceAccumulate && s >= surfStart)
+            LBM_SurfaceStart(g, &sf);
         for (int i = 0; i < window; i++, s++)
             LBM_Step(g, (float)U, 0, 0);
+        int fsteps = g->forceAccumCount;
         LBM_ComputeDragForce(g, &fx, &fy, &fz);
+        if (surf && g->surfaceAccumulate) {
+            int ss = LBM_SurfaceReadWindow(g, sbuf);
+            float drag[3] = {fx, fy, fz};
+            if (ss == fsteps)
+                surface_add_window(&sf, sbuf, ss, drag);
+        }
         resets += check_diag(g, "sphere");
         double cd = fx / dynA;
         if (nw < 4096)
@@ -920,6 +1070,12 @@ static int case_sphere(Opts *o) {
            resets,
            dt,
            (double)g->totalCells * s / dt * 1e-6);
+    if (surf) {
+        double c[3] = {up * D, ny / 2.0, nz / 2.0};
+        sphere_surface_report(&sf, o->surface, U, c);
+        surface_free(&sf);
+        free(sbuf);
+    }
     LBM_Free(g);
     return resets > 0;
 }

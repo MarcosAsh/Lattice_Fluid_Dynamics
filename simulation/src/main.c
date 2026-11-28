@@ -1138,6 +1138,25 @@ int main(int argc, char *argv[]) {
                    "mean/RMS/TKE export\n");
     }
 
+    Surface surf;
+    int surfOn = 0;
+    float *surfBuf = NULL;
+    if (opts.surfacePath[0] && lbmGrid && useLBM) {
+        if (LBM_SurfaceCells(lbmGrid, 1, &surf) != 0 ||
+            (triangleData && numTriangles > 0 &&
+             surface_map_mesh(&surf, (float *)triangleData, numTriangles)) ||
+            !(surfBuf = (float *)malloc((size_t)(surf.n > 0 ? surf.n : 1) * 4 *
+                                        sizeof(float)))) {
+            fprintf(stderr, "ERROR: --surface-output: setup failed\n");
+            return 1;
+        }
+        surfOn = 1;
+        printf("Surface output: %d cells, %d triangles, %d out of reach\n",
+               surf.n,
+               surf.ntri,
+               surf.unowned);
+    }
+
     // Cd start frame of a restarted run that is already sampling
     int pinnedCdStart = -1;
     int lastCheckpointFrame = -1;
@@ -1624,6 +1643,10 @@ int main(int argc, char *argv[]) {
             frameCount >= 0 && lbmGrid && useLBM) {
             float dx, dy, dz;
             LBM_ComputeDragForce(lbmGrid, &dx, &dy, &dz);
+            if (surfOn && LBM_SurfaceStart(lbmGrid, &surf) != 0) {
+                fprintf(stderr, "Error: surface shader not loaded\n");
+                surfOn = 0;
+            }
         }
 
         // Compute and display drag coefficient every 20 frames
@@ -1632,8 +1655,19 @@ int main(int argc, char *argv[]) {
             frameCount % CD_SAMPLE_INTERVAL == 0 && lbmGrid && useLBM) {
             // Compute force with pressure/friction decomposition
             float fx, fy, fz, px, py, pz;
+            int forceSteps = lbmGrid->forceAccumCount;
             LBM_ComputeDragForceDecomposed(
                 lbmGrid, &fx, &fy, &fz, &px, &py, &pz);
+            // Same window as the drag, a restarted run starts here
+            if (surfOn && lbmGrid->surfaceAccumulate) {
+                int steps = LBM_SurfaceReadWindow(lbmGrid, surfBuf);
+                float drag[3] = {fx, fy, fz};
+                if (steps == forceSteps)
+                    surface_add_window(&surf, surfBuf, steps, drag);
+            } else if (surfOn && LBM_SurfaceStart(lbmGrid, &surf) != 0) {
+                fprintf(stderr, "Error: surface shader not loaded\n");
+                surfOn = 0;
+            }
 
             // refArea, bboxArea, epsilon, blockageFactor computed at
             // init (see LBM initialization block above)
@@ -1907,6 +1941,47 @@ int main(int argc, char *argv[]) {
     }
 
     int exitCode = checkpointFailed ? 1 : 0;
+    if (surfOn && surf.steps > 0) {
+        float sY = lbmGrid->sizeY / 4.0f, sZ = lbmGrid->sizeZ / 4.0f;
+        double centre[3] = {(carBounds.centerX + 4.0f) * scaleX,
+                            (carBounds.centerY + 2.0f) * sY,
+                            (carBounds.centerZ + 2.0f) * sZ};
+        // Symmetry plane normal to the side axis
+        int sideAxis = liftAxis == 2 ? 1 : 2;
+        double cells[3], mesh[3], drag[3], unmapped[3];
+        surface_totals(&surf, cells, mesh, drag, unmapped);
+        if (surface_write(
+                &surf, opts.surfacePath, latticeVelocity, sideAxis, centre) ==
+            0) {
+            printf("Surface written to %s: %ld steps, Fx cells %.6e mesh "
+                   "%.6e drag %.6e\n",
+                   opts.surfacePath,
+                   surf.steps,
+                   cells[0],
+                   mesh[0],
+                   drag[0]);
+        } else {
+            fprintf(stderr, "Error: could not write %s\n", opts.surfacePath);
+            exitCode = 1;
+        }
+        man.surfaceSteps = surf.steps;
+        man.surfaceWindows = surf.windows;
+        man.surfaceTriangles = surf.ntri;
+        man.surfaceUnmapped = surf.unowned;
+        man.surfaceRhoRef = surface_reference_rho(&surf);
+        for (int i = 0; i < surf.n; i++)
+            man.surfaceCells += (surf.role[i] & SURF_BOUNDARY) != 0;
+        memcpy(man.surfaceForceCells, cells, sizeof(cells));
+        memcpy(man.surfaceForceMesh, mesh, sizeof(mesh));
+        memcpy(man.surfaceForceDrag, drag, sizeof(drag));
+    } else if (surfOn) {
+        fprintf(stderr, "Error: no Cd samples, surface not written\n");
+        exitCode = 1;
+    }
+    if (surfOn) {
+        surface_free(&surf);
+        free(surfBuf);
+    }
     if (wantManifest) {
         man.wallSeconds = monotonicSeconds() - startClock;
         man.modelScale = g_modelScale;

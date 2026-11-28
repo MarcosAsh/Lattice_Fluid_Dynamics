@@ -23,6 +23,7 @@ enum {
     OPT_CHECKPOINT,
     OPT_CHECKPOINT_INTERVAL,
     OPT_RESTART,
+    OPT_SURFACE,
 };
 
 static int bad_value(const char *name, const char *arg) {
@@ -152,6 +153,7 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
     opts->checkpointPath[0] = '\0';
     opts->checkpointInterval = 0;
     opts->restartPath[0] = '\0';
+    opts->surfacePath[0] = '\0';
 
     static struct option long_options[] = {
         {"wind", required_argument, 0, 'w'},
@@ -184,6 +186,7 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
         {"checkpoint", required_argument, 0, OPT_CHECKPOINT},
         {"checkpoint-interval", required_argument, 0, OPT_CHECKPOINT_INTERVAL},
         {"restart", required_argument, 0, OPT_RESTART},
+        {"surface-output", required_argument, 0, OPT_SURFACE},
         {"version", no_argument, 0, 'X'},
         {"help", no_argument, 0, 'h'},
         {0, 0, 0, 0}
@@ -408,6 +411,13 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
                            sizeof(opts->restartPath)))
                 return -1;
             break;
+        case OPT_SURFACE:
+            if (!copy_path("surface-output",
+                           optarg,
+                           opts->surfacePath,
+                           sizeof(opts->surfacePath)))
+                return -1;
+            break;
         case 'X':
             printf("3d_fluid_simulation_car %s\n", cli_version());
             return 1;
@@ -488,6 +498,9 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
                    "                        Also write it every FRAMES "
                    "frames\n");
             printf("  --restart=PATH        Continue the run saved in PATH\n");
+            printf("  --surface-output=PATH Time-averaged Cp and wall force on "
+                   "the body, VTK\n"
+                   "                        and CSV\n");
             printf("  --version             Print version and exit\n");
             printf("  -h, --help            Show this help\n");
             return 1;

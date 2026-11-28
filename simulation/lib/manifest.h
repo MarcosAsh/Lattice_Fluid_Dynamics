@@ -72,6 +72,17 @@ typedef struct {
     int restartFrame;
     int checkpointsWritten;
     long checkpointStep;
+
+    // Surface output, surfaceSteps 0 when not written
+    long surfaceSteps;
+    int surfaceWindows;
+    int surfaceCells;
+    int surfaceTriangles;
+    int surfaceUnmapped;
+    double surfaceRhoRef;
+    double surfaceForceCells[3];
+    double surfaceForceMesh[3];
+    double surfaceForceDrag[3];
 } RunManifest;
 
 // Fills build info and defaults, NAN for results not yet known

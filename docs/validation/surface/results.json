@@ -1,0 +1,368 @@
+{
+ "checks": [
+  {
+   "case": "surface sphere Re=20 D=12",
+   "quantity": "cell force sum / drag readback - 1",
+   "measured": "-2.3e-08",
+   "reference": "0",
+   "tolerance": "1e-5",
+   "pass": true
+  },
+  {
+   "case": "surface sphere Re=20 D=12",
+   "quantity": "mesh integral / cell force sum - 1",
+   "measured": "-4.0e-14, 0 triangles out of reach",
+   "reference": "0",
+   "tolerance": "1e-9",
+   "pass": true
+  },
+  {
+   "case": "surface sphere Re=20 D=12",
+   "quantity": "front stagnation cp, cells nearest the axis",
+   "measured": "1.506 at 6.2 deg",
+   "reference": "1.461",
+   "tolerance": "0.1",
+   "pass": true
+  },
+  {
+   "case": "surface sphere Re=20 D=12",
+   "quantity": "front stagnation cp_wall, cap of 10 deg",
+   "measured": "1.679",
+   "reference": "1.461",
+   "tolerance": "0.3",
+   "pass": true
+  },
+  {
+   "case": "surface sphere Re=20 D=12",
+   "quantity": "cp in 15 deg bins, max deviation and minimum",
+   "measured": "0.105, min -0.692 at 112.5 deg",
+   "reference": "min -0.664 at 106 deg",
+   "tolerance": "0.15, 15 deg",
+   "pass": true
+  },
+  {
+   "case": "surface sphere Re=20 D=12",
+   "quantity": "cp_wall in 15 deg bins, max deviation and minimum",
+   "measured": "0.229, min -0.769 at 112.5 deg",
+   "reference": "min -0.664 at 106 deg",
+   "tolerance": "0.3, 15 deg",
+   "pass": true
+  },
+  {
+   "case": "surface sphere Re=100 D=12",
+   "quantity": "cell force sum / drag readback - 1",
+   "measured": "1.4e-08",
+   "reference": "0",
+   "tolerance": "1e-5",
+   "pass": true
+  },
+  {
+   "case": "surface sphere Re=100 D=12",
+   "quantity": "mesh integral / cell force sum - 1",
+   "measured": "4.5e-13, 0 triangles out of reach",
+   "reference": "0",
+   "tolerance": "1e-9",
+   "pass": true
+  },
+  {
+   "case": "surface sphere Re=100 D=12",
+   "quantity": "front stagnation cp, cells nearest the axis",
+   "measured": "1.098 at 6.2 deg",
+   "reference": "1.104",
+   "tolerance": "0.1",
+   "pass": true
+  },
+  {
+   "case": "surface sphere Re=100 D=12",
+   "quantity": "front stagnation cp_wall, cap of 10 deg",
+   "measured": "1.170",
+   "reference": "1.104",
+   "tolerance": "0.3",
+   "pass": true
+  },
+  {
+   "case": "surface sphere Re=100 D=12",
+   "quantity": "cp in 15 deg bins, max deviation and minimum",
+   "measured": "0.125, min -0.608 at 82.5 deg",
+   "reference": "min -0.584 at 88 deg",
+   "tolerance": "0.15, 15 deg",
+   "pass": true
+  },
+  {
+   "case": "surface sphere Re=100 D=12",
+   "quantity": "cp_wall in 15 deg bins, max deviation and minimum",
+   "measured": "0.253, min -0.656 at 97.5 deg",
+   "reference": "min -0.584 at 88 deg",
+   "tolerance": "0.3, 15 deg",
+   "pass": true
+  },
+  {
+   "case": "surface sphere Re=100 D=16",
+   "quantity": "cell force sum / drag readback - 1",
+   "measured": "-4.9e-08",
+   "reference": "0",
+   "tolerance": "1e-5",
+   "pass": true
+  },
+  {
+   "case": "surface sphere Re=100 D=16",
+   "quantity": "mesh integral / cell force sum - 1",
+   "measured": "-8.5e-14, 0 triangles out of reach",
+   "reference": "0",
+   "tolerance": "1e-9",
+   "pass": true
+  },
+  {
+   "case": "surface sphere Re=100 D=16",
+   "quantity": "front stagnation cp, cells nearest the axis",
+   "measured": "1.066 at 4.8 deg",
+   "reference": "1.104",
+   "tolerance": "0.08",
+   "pass": true
+  },
+  {
+   "case": "surface sphere Re=100 D=16",
+   "quantity": "front stagnation cp_wall, cap of 10 deg",
+   "measured": "1.147",
+   "reference": "1.104",
+   "tolerance": "0.3",
+   "pass": true
+  },
+  {
+   "case": "surface sphere Re=100 D=16",
+   "quantity": "cp in 15 deg bins, max deviation and minimum",
+   "measured": "0.071, min -0.600 at 82.5 deg",
+   "reference": "min -0.584 at 88 deg",
+   "tolerance": "0.12, 15 deg",
+   "pass": true
+  },
+  {
+   "case": "surface sphere Re=100 D=16",
+   "quantity": "cp_wall in 15 deg bins, max deviation and minimum",
+   "measured": "0.201, min -0.636 at 97.5 deg",
+   "reference": "min -0.584 at 88 deg",
+   "tolerance": "0.3, 15 deg",
+   "pass": true
+  }
+ ],
+ "results": {
+  "surface_re20_d12": [
+   {
+    "case": "sphere",
+    "path": "mesh",
+    "op": "mrt",
+    "smag": 0.0,
+    "D": 12.0,
+    "re": 20.0,
+    "U": 0.05,
+    "tau": 0.59,
+    "grid": "192x96x96",
+    "sponge": 24.0,
+    "periodic_yz": 1.0,
+    "blockage": 0.0123,
+    "steps": 14400.0,
+    "tstar": 60.0,
+    "cd": 2.83173,
+    "cd_sd": 0.00285,
+    "cd_voxel_area": 2.85948,
+    "proj_area": 112.0,
+    "resets": 0.0,
+    "seconds": 528.7,
+    "mlups": 48.2,
+    "command": "./build/validation/lbm_validate sphere --re=20 --d=12 --mesh=1 --surface=../docs/validation/surface/surface_re20_d12.vtk"
+   }
+  ],
+  "surface_re100_d12": [
+   {
+    "case": "sphere",
+    "path": "mesh",
+    "op": "mrt",
+    "smag": 0.0,
+    "D": 12.0,
+    "re": 100.0,
+    "U": 0.05,
+    "tau": 0.518,
+    "grid": "192x96x96",
+    "sponge": 24.0,
+    "periodic_yz": 1.0,
+    "blockage": 0.0123,
+    "steps": 14400.0,
+    "tstar": 60.0,
+    "cd": 1.15361,
+    "cd_sd": 0.00121,
+    "cd_voxel_area": 1.16491,
+    "proj_area": 112.0,
+    "resets": 0.0,
+    "seconds": 558.9,
+    "mlups": 45.6,
+    "command": "./build/validation/lbm_validate sphere --re=100 --d=12 --mesh=1 --surface=../docs/validation/surface/surface_re100_d12.vtk"
+   }
+  ],
+  "surface_re100_d16": [
+   {
+    "case": "sphere",
+    "path": "mesh",
+    "op": "mrt",
+    "smag": 0.0,
+    "D": 16.0,
+    "re": 100.0,
+    "U": 0.05,
+    "tau": 0.524,
+    "grid": "256x128x128",
+    "sponge": 32.0,
+    "periodic_yz": 1.0,
+    "blockage": 0.0123,
+    "steps": 19200.0,
+    "tstar": 60.0,
+    "cd": 1.13052,
+    "cd_sd": 0.00107,
+    "cd_voxel_area": 1.09281,
+    "proj_area": 208.0,
+    "resets": 0.0,
+    "seconds": 2118.6,
+    "mlups": 38.0,
+    "command": "./build/validation/lbm_validate sphere --re=100 --d=16 --mesh=1 --surface=../docs/validation/surface/surface_re100_d16.vtk"
+   }
+  ],
+  "surface_cp": [
+   {
+    "re": 20,
+    "D": 12,
+    "theta": [
+     7.5,
+     22.5,
+     37.5,
+     52.5,
+     67.5,
+     82.5,
+     97.5,
+     112.5,
+     127.5,
+     142.5,
+     157.5,
+     172.5
+    ],
+    "cp_wall": [
+     1.60467,
+     1.3624,
+     0.94422,
+     0.28711,
+     -0.19929,
+     -0.55463,
+     -0.74816,
+     -0.76879,
+     -0.67241,
+     -0.57403,
+     -0.47078,
+     -0.38359
+    ],
+    "cp_cell": [
+     1.35423,
+     1.09626,
+     0.62921,
+     0.2074,
+     -0.20342,
+     -0.51292,
+     -0.64298,
+     -0.69222,
+     -0.5882,
+     -0.46277,
+     -0.42605,
+     -0.36752
+    ]
+   },
+   {
+    "re": 100,
+    "D": 12,
+    "theta": [
+     7.5,
+     22.5,
+     37.5,
+     52.5,
+     67.5,
+     82.5,
+     97.5,
+     112.5,
+     127.5,
+     142.5,
+     157.5,
+     172.5
+    ],
+    "cp_wall": [
+     1.15687,
+     1.03965,
+     0.59323,
+     0.03111,
+     -0.41482,
+     -0.63823,
+     -0.65612,
+     -0.53139,
+     -0.38484,
+     -0.28435,
+     -0.21323,
+     -0.16246
+    ],
+    "cp_cell": [
+     1.05315,
+     0.91205,
+     0.37725,
+     -0.01968,
+     -0.39711,
+     -0.60794,
+     -0.57514,
+     -0.49242,
+     -0.33738,
+     -0.25024,
+     -0.21553,
+     -0.17863
+    ]
+   },
+   {
+    "re": 100,
+    "D": 16,
+    "theta": [
+     7.5,
+     22.5,
+     37.5,
+     52.5,
+     67.5,
+     82.5,
+     97.5,
+     112.5,
+     127.5,
+     142.5,
+     157.5,
+     172.5
+    ],
+    "cp_wall": [
+     1.12645,
+     0.9877,
+     0.5567,
+     -0.00373,
+     -0.42256,
+     -0.61776,
+     -0.63589,
+     -0.51224,
+     -0.38731,
+     -0.28093,
+     -0.20772,
+     -0.16422
+    ],
+    "cp_cell": [
+     1.04327,
+     0.85823,
+     0.42823,
+     -0.05074,
+     -0.43221,
+     -0.59999,
+     -0.58536,
+     -0.47316,
+     -0.34279,
+     -0.26381,
+     -0.21334,
+     -0.17537
+    ]
+   }
+  ]
+ }
+}

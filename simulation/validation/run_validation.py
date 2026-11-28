@@ -571,6 +571,174 @@ def ahmed(s, quick):
         plt.close(fig)
 
 
+# Steady axisymmetric Navier-Stokes for a sphere, stream function and
+# vorticity on (ln r, theta), Newton solve, Richardson extrapolated from
+# 144, 288 and 576 cells over pi with the outer boundary at 100 and 200
+# radii. Its Cd is 2.719 at Re 20 and 1.088 at Re 100 (CGW 2.715, 1.087).
+# Cp at theta = 0, 15, ..., 180 degrees from the front stagnation point
+SPHERE_CP_THETA = list(range(0, 181, 15))
+SPHERE_CP = {
+    20: [
+        1.4614,
+        1.3341,
+        0.9865,
+        0.5108,
+        0.0259,
+        -0.3615,
+        -0.5916,
+        -0.6641,
+        -0.6234,
+        -0.5276,
+        -0.4248,
+        -0.3480,
+        -0.3194,
+    ],
+    100: [
+        1.1041,
+        0.9770,
+        0.6346,
+        0.1826,
+        -0.2401,
+        -0.5116,
+        -0.5830,
+        -0.5049,
+        -0.3813,
+        -0.2835,
+        -0.2204,
+        -0.1711,
+        -0.1474,
+    ],
+}
+SPHERE_CP_MIN = {20: (-0.6643, 105.8), 100: (-0.5841, 88.2)}
+
+
+def parse_cpbins(text):
+    bins = []
+    for line in text.splitlines():
+        if line.startswith("CPBIN "):
+            row = dict(tok.split("=") for tok in line.split()[1:])
+            bins.append((float(row["theta"]), float(row["cp"]), float(row["cp_wall"])))
+    return bins
+
+
+def parse_surface(text):
+    for line in text.splitlines():
+        if line.startswith("SURFACE "):
+            return {k: float(v) for k, v in (tok.split("=") for tok in line.split()[1:])}
+    return None
+
+
+def surface(s, quick):
+    """Surface Cp of a mesh sphere against the axisymmetric reference"""
+    cases = [(100, 8)] if quick else [(20, 12), (100, 12), (100, 16)]
+    # Tolerances by resolution, D = 8 is a smoke test. cp_wall overshoots
+    # at D = 12, so it only gets a bound
+    tol_front = {8: 0.4, 12: 0.1, 16: 0.08}
+    tol_curve = {8: 0.5, 12: 0.15, 16: 0.12}
+    tol_wall = {8: 0.5, 12: 0.3, 16: 0.3}
+    curves = []
+    for re_num, d in cases:
+        args = ["sphere", f"--re={re_num}", f"--d={d}", "--mesh=1"]
+        out = s.out / f"surface_re{re_num}_d{d}.vtk"
+        rows, text, _ = s.run(f"surface_re{re_num}_d{d}", [*args, f"--surface={out}"])
+        sf = parse_surface(text)
+        if not rows or not sf:
+            s.check(f"surface Re={re_num} D={d}", "run", "no result", "", "", False)
+            continue
+        name = f"surface sphere Re={re_num} D={d}"
+        s.check(
+            name,
+            "cell force sum / drag readback - 1",
+            f"{sf['cells_err']:.1e}",
+            "0",
+            "1e-5",
+            abs(sf["cells_err"]) < 1e-5 and sf["write"] == 0,
+        )
+        s.check(
+            name,
+            "mesh integral / cell force sum - 1",
+            f"{sf['mesh_err']:.1e}, {int(sf['unowned'])} triangles out of reach",
+            "0",
+            "1e-9",
+            abs(sf["mesh_err"]) < 1e-9 and sf["unowned"] == 0,
+        )
+        ref = SPHERE_CP[re_num][0]
+        s.check(
+            name,
+            "front stagnation cp, cells nearest the axis",
+            f"{sf['cp_front']:.3f} at {sf['front_angle']:.1f} deg",
+            f"{ref:.3f}",
+            f"{tol_front[d]}",
+            abs(sf["cp_front"] - ref) < tol_front[d],
+        )
+        s.check(
+            name,
+            "front stagnation cp_wall, cap of 10 deg",
+            f"{sf['cp_front_wall']:.3f}",
+            f"{ref:.3f}",
+            f"{tol_wall[d]}",
+            abs(sf["cp_front_wall"] - ref) < tol_wall[d],
+        )
+        bins = parse_cpbins(text)
+        th = np.array([b[0] for b in bins])
+        cpc = np.array([b[1] for b in bins])
+        cpw = np.array([b[2] for b in bins])
+        # Reference averaged over each 15 degree bin with the sin(theta) area
+        ref_bin = []
+        for t in th:
+            tt = np.linspace(t - 7.5, t + 7.5, 61)
+            wt = np.sin(np.radians(tt))
+            ref_bin.append(
+                np.sum(wt * np.interp(tt, SPHERE_CP_THETA, SPHERE_CP[re_num])) / wt.sum()
+            )
+        ref_bin = np.array(ref_bin)
+        cmin, tmin = SPHERE_CP_MIN[re_num]
+        for label, cp, tol in (("cp", cpc, tol_curve[d]), ("cp_wall", cpw, tol_wall[d])):
+            dev = float(np.max(np.abs(cp - ref_bin))) if len(cp) else math.inf
+            k = int(np.argmin(cp)) if len(cp) else 0
+            s.check(
+                name,
+                f"{label} in 15 deg bins, max deviation and minimum",
+                f"{dev:.3f}, min {cp[k]:.3f} at {th[k]:.1f} deg",
+                f"min {cmin:.3f} at {tmin:.0f} deg",
+                f"{tol}, 15 deg",
+                dev < tol and abs(th[k] - tmin) < 15,
+            )
+        curves.append((re_num, d, th, cpw, cpc))
+        # The drag must not move with the option on
+        if quick:
+            base, _, _ = s.run(f"surface_off_re{re_num}_d{d}", args)
+            if base:
+                s.check(
+                    name,
+                    "Cd with and without --surface",
+                    f"{rows[0]['cd']:.5f}",
+                    f"{base[0]['cd']:.5f}",
+                    "identical",
+                    rows[0]["cd"] == base[0]["cd"] and rows[0]["steps"] == base[0]["steps"],
+                )
+    s.results["surface_cp"] = [
+        {"re": r, "D": d, "theta": t.tolist(), "cp_wall": w.tolist(), "cp_cell": c.tolist()}
+        for r, d, t, w, c in curves
+    ]
+    if curves:
+        fig, ax = plt.subplots(figsize=(6, 4))
+        for re_num in sorted({c[0] for c in curves}):
+            line = ax.plot(SPHERE_CP_THETA, SPHERE_CP[re_num], "k-" if re_num == 100 else "k--")
+            line[0].set_label(f"axisymmetric NS Re={re_num}")
+        for re_num, d, th, cpw, cpc in curves:
+            ax.plot(th, cpw, marker="o", ls="", label=f"LBM cp_wall Re={re_num} D={d}")
+            ax.plot(th, cpc, marker="x", ls="", label=f"LBM cp Re={re_num} D={d}")
+        ax.set_xlabel("theta from front stagnation (deg)")
+        ax.set_ylabel("Cp")
+        ax.set_title("Sphere surface pressure")
+        ax.legend(fontsize=7)
+        ax.grid(True, alpha=0.3)
+        fig.tight_layout()
+        fig.savefig(s.out / "surface_cp.png", dpi=120)
+        plt.close(fig)
+
+
 def restart(s):
     """Checkpoint after N steps and continue, against 2N steps straight"""
     variants = [
@@ -627,13 +795,15 @@ def main():
     ap.add_argument("--out", default="../docs/validation")
     ap.add_argument("--logs", default=None, help="raw run logs (default: <out>/logs)")
     ap.add_argument("--quick", action="store_true", help="small grids only")
-    ap.add_argument("--cases", default="uniform,tgv,tgv3d,poiseuille,qcheck,sphere,ahmed,restart")
+    ap.add_argument(
+        "--cases", default="uniform,tgv,tgv3d,poiseuille,qcheck,sphere,ahmed,restart,surface"
+    )
     a = ap.parse_args()
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     s = Suite(a.build, out, a.logs or out / "logs")
     for case in a.cases.split(","):
-        if case in ("sphere", "ahmed"):
+        if case in ("sphere", "ahmed", "surface"):
             globals()[case](s, a.quick)
         else:
             globals()[case](s)

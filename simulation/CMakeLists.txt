@@ -75,8 +75,9 @@ target_link_libraries(lattice_mesh PUBLIC m)
 lattice_warnings(lattice_mesh)
 
 # Checkpoint files, no GL
-add_library(lattice_io STATIC src/checkpoint.c)
+add_library(lattice_io STATIC src/checkpoint.c src/surface.c)
 target_include_directories(lattice_io PUBLIC lib)
+target_link_libraries(lattice_io PUBLIC m)
 lattice_warnings(lattice_io)
 
 # CLI parsing and drag post-processing, no GL
@@ -98,6 +99,7 @@ add_library(lattice_gl STATIC
     src/gl_context.c
     src/gl_helpers.c
     src/lbm.c
+    src/lbm_surface.c
     src/model_bounds.c
     src/opengl_utils.c
     src/superres.c
@@ -147,6 +149,10 @@ if(BUILD_TESTING)
     target_link_libraries(test_checkpoint PRIVATE lattice_io)
     lattice_warnings(test_checkpoint)
 
+    add_executable(test_surface test/test_surface.c)
+    target_link_libraries(test_surface PRIVATE lattice_io)
+    lattice_warnings(test_surface)
+
     add_executable(test_manifest test/test_manifest.c)
     target_link_libraries(test_manifest PRIVATE lattice_util)
     lattice_warnings(test_manifest)
@@ -160,6 +166,7 @@ if(BUILD_TESTING)
     add_test(NAME cli_unit_tests COMMAND test_cli)
     add_test(NAME convergence_unit_tests COMMAND test_convergence)
     add_test(NAME checkpoint_unit_tests COMMAND test_checkpoint)
+    add_test(NAME surface_unit_tests COMMAND test_surface)
     add_test(NAME manifest_unit_tests COMMAND test_manifest)
     set_tests_properties(manifest_unit_tests PROPERTIES
         LABELS cpu FIXTURES_SETUP manifest_file)
@@ -175,7 +182,8 @@ if(BUILD_TESTING)
     add_test(NAME cli_help COMMAND 3d_fluid_simulation_car --help)
     add_test(NAME cli_version COMMAND 3d_fluid_simulation_car --version)
     set_tests_properties(voxelize_unit_tests cli_unit_tests
-        convergence_unit_tests checkpoint_unit_tests cli_help cli_version
+        convergence_unit_tests checkpoint_unit_tests surface_unit_tests
+        cli_help cli_version
         PROPERTIES LABELS cpu)
     set_tests_properties(cli_help PROPERTIES
         PASS_REGULAR_EXPRESSION "Usage:")

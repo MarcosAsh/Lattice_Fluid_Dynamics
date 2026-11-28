@@ -31,6 +31,8 @@ versions. See [docs/validation/REPORT.md](docs/validation/REPORT.md).
 - `--checkpoint`, `--checkpoint-interval` and `--restart` save a run and
   continue it. On the same GPU and driver a restarted run matches an
   uninterrupted one bit for bit.
+- `--surface-output` writes time-averaged Cp, wall pressure and shear on
+  the body as VTK, plus a CSV along the symmetry plane.
 - `--version`.
 - Entropic collision and inlet turbulence (`--turbulence`).
 - Outlet sponge layer, on by default, width set with `--sponge=CELLS`.

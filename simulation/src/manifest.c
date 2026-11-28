@@ -108,6 +108,20 @@ static void grid(Json *j, const char *name, int x, int y, int z) {
     fprintf(j->f, "[%d, %d, %d]", x, y, z);
 }
 
+static void vec3(Json *j, const char *name, const double *v) {
+    key(j, name);
+    fputc('[', j->f);
+    for (int i = 0; i < 3; i++) {
+        if (i)
+            fputs(", ", j->f);
+        if (isfinite(v[i]))
+            fprintf(j->f, "%.17g", v[i]);
+        else
+            fputs("null", j->f);
+    }
+    fputc(']', j->f);
+}
+
 void manifest_init(RunManifest *m, const CliOptions *opts) {
     *m = (RunManifest){0};
     m->opts = opts;
@@ -156,6 +170,7 @@ static void write_parameters(Json *j, const RunManifest *m) {
     opt_str(j, "checkpoint", o->checkpointPath);
     integer(j, "checkpoint_interval", o->checkpointInterval);
     opt_str(j, "restart", o->restartPath);
+    opt_str(j, "surface_output", o->surfacePath);
     close_obj(j);
 }
 
@@ -245,6 +260,26 @@ static void write_body(Json *j, const RunManifest *m) {
         close_obj(j);
     } else {
         key(j, "checkpoint");
+        fputs("null", j->f);
+    }
+
+    if (m->surfaceSteps > 0) {
+        open_obj(j, "surface");
+        str(j, "path", o->surfacePath);
+        integer(j, "steps", m->surfaceSteps);
+        integer(j, "windows", m->surfaceWindows);
+        integer(j, "boundary_cells", m->surfaceCells);
+        integer(j, "triangles", m->surfaceTriangles);
+        integer(j, "unmapped_triangles", m->surfaceUnmapped);
+        integer(j, "reference_plane_x", 1);
+        num(j, "rho_ref", m->surfaceRhoRef);
+        // Sum over cells, integral over the mesh and the drag readback
+        vec3(j, "force_cells", m->surfaceForceCells);
+        vec3(j, "force_mesh", m->surfaceForceMesh);
+        vec3(j, "force_drag", m->surfaceForceDrag);
+        close_obj(j);
+    } else {
+        key(j, "surface");
         fputs("null", j->f);
     }
 
