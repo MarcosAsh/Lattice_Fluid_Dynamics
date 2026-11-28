@@ -10,6 +10,7 @@ Usage:
 """
 
 import argparse
+import json
 import struct
 import sys
 from pathlib import Path
@@ -132,6 +133,12 @@ def load_checkpoint(path: str | Path) -> dict:
         return torch.load(path, map_location="cpu", weights_only=True)
 
 
+def load_protocol(data: str | Path) -> dict | None:
+    """Solver settings that gen_shapes --local wrote next to the data"""
+    path = Path(data).parent / "protocol.json"
+    return json.loads(path.read_text()) if path.exists() else None
+
+
 # LTWS export (matches ml/superres/export_weights.py)
 
 
@@ -197,8 +204,12 @@ def train(args: argparse.Namespace) -> None:
     # For now, wind_speed and reynolds are constant across the dataset
     # (set from config). They're appended as features so the model
     # generalizes when we later sweep those parameters.
-    wind_speed = args.wind_speed
+    protocol = load_protocol(args.data)
+    flow = protocol or {}
+    wind_speed = args.wind_speed if args.wind_speed is not None else flow.get("wind_speed", 1.0)
     reynolds = args.reynolds
+    if reynolds is None:
+        reynolds = (flow.get("reference") or {}).get("reynolds", 10000)
     print(f"  Wind speed: {wind_speed}")
     print(f"  Reynolds: {reynolds}")
 
@@ -254,12 +265,31 @@ def train(args: argparse.Namespace) -> None:
     )
     criterion = nn.MSELoss()
 
-    out_dir = Path(args.data).parent
+    out_dir = Path(getattr(args, "out", None) or Path(args.data).parent)
+    out_dir.mkdir(parents=True, exist_ok=True)
     best_path = out_dir / "shapeopt_model_best.pt"
     final_path = out_dir / "shapeopt_model.pt"
 
     best_val_cd_mae = float("inf")
     patience_counter = 0
+
+    def checkpoint(epoch: int) -> dict:
+        # samples and settings for the optimiser's guard rails
+        return {
+            "model_state_dict": model.state_dict(),
+            "input_dim": input_dim,
+            "num_ffd_params": num_ffd_params,
+            "feat_mean": feat_mean,
+            "feat_std": feat_std,
+            "best_val_cd_mae": best_val_cd_mae,
+            "epoch": epoch,
+            "seed": getattr(args, "seed", None),
+            "train_x": displacements[train_idx],
+            "train_y": outputs[train_idx],
+            "val_x": displacements[val_idx],
+            "val_y": outputs[val_idx],
+            "protocol": protocol,
+        }
 
     for epoch in range(args.epochs):
         # Train
@@ -312,18 +342,7 @@ def train(args: argparse.Namespace) -> None:
         if val_cd_mae < best_val_cd_mae:
             best_val_cd_mae = val_cd_mae
             patience_counter = 0
-            torch.save(
-                {
-                    "model_state_dict": model.state_dict(),
-                    "input_dim": input_dim,
-                    "num_ffd_params": num_ffd_params,
-                    "feat_mean": feat_mean,
-                    "feat_std": feat_std,
-                    "best_val_cd_mae": best_val_cd_mae,
-                    "epoch": epoch + 1,
-                },
-                best_path,
-            )
+            torch.save(checkpoint(epoch + 1), best_path)
         else:
             patience_counter += 1
             if patience_counter >= args.patience:
@@ -331,18 +350,7 @@ def train(args: argparse.Namespace) -> None:
                 break
 
     # Save final checkpoint
-    torch.save(
-        {
-            "model_state_dict": model.state_dict(),
-            "input_dim": input_dim,
-            "num_ffd_params": num_ffd_params,
-            "feat_mean": feat_mean,
-            "feat_std": feat_std,
-            "best_val_cd_mae": best_val_cd_mae,
-            "epoch": epoch + 1,
-        },
-        final_path,
-    )
+    torch.save(checkpoint(epoch + 1), final_path)
 
     print("\nTraining complete.")
     print(f"  Best val Cd MAE: {best_val_cd_mae:.6f}")
@@ -375,16 +383,19 @@ def main() -> None:
     parser.add_argument("--patience", type=int, default=100)
     parser.add_argument("--seed", type=int, default=None, help="seed torch and numpy")
     parser.add_argument(
+        "--out", type=Path, default=None, help="output directory (default: next to the data)"
+    )
+    parser.add_argument(
         "--wind-speed",
         type=float,
-        default=1.0,
-        help="Wind speed used during data generation (default: 1.0)",
+        default=None,
+        help="Wind speed used during data generation (default: protocol.json, else 1.0)",
     )
     parser.add_argument(
         "--reynolds",
         type=float,
-        default=10000,
-        help="Reynolds number used during data generation (default: 10000)",
+        default=None,
+        help="Reynolds number used during data generation (default: protocol.json, else 10000)",
     )
     args = parser.parse_args()
 
