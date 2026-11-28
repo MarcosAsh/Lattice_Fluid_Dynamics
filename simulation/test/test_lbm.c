@@ -12,6 +12,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 static int tests_run = 0;
 static int tests_passed = 0;
@@ -904,6 +905,112 @@ static void test_ground_plane(void) {
     LBM_Free(grid);
 }
 
+/* n steps, checkpoint, n more against 2n straight, with a cut force
+ * window, inlet ramp, turbulence and two slabs */
+static LBMGrid *restart_grid(int op) {
+    LBMGrid *g = LBM_Create(32, 16, 16, 0.02f);
+    if (!g)
+        return NULL;
+    g->useMRT = op == 1;
+    g->useRecursive = op == 2;
+    g->useSmagorinsky = op == 1;
+    g->periodicYZ = 1;
+    g->spongeCells = 4;
+    g->turbulenceIntensity = 0.05f;
+    g->slabZ = 8;
+    g->numChunks = 2;
+    LBM_SetForceAveraging(g, 1);
+    LBM_SetSolidAABB(g, -2.4f, -0.4f, -0.5f, -1.6f, 0.5f, 0.3f);
+    LBM_InitializeFlow(g, 0.0f, 0.0f, 0.0f);
+    return g;
+}
+
+static void restart_steps(LBMGrid *g, int from, int to, float *fx) {
+    for (int s = from; s < to; s++) {
+        float u = 0.05f * (s < 60 ? (float)s / 60.0f : 1.0f);
+        LBM_Step(g, u, 0.0f, 0.0f);
+        if ((s + 1) % 20 == 0) {
+            float y, z;
+            LBM_ComputeDragForce(g, &fx[(s + 1) / 20 - 1], &y, &z);
+        }
+    }
+}
+
+static float *read_f(LBMGrid *g) {
+    size_t bytes = (size_t)19 * g->totalCells * sizeof(float);
+    float *f = (float *)malloc(bytes);
+    glMemoryBarrier(GL_ALL_BARRIER_BITS);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, g->fBuffer);
+    glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, bytes, f);
+    return f;
+}
+
+static void test_restart_bit_identical(void) {
+    const char *names[] = {"bgk", "mrt + Smagorinsky", "recursive"};
+    const int n = 105;
+    char path[512];
+    const char *tmp = getenv("TMPDIR");
+    snprintf(
+        path, sizeof(path), "%s/test_lbm_restart.ckpt", tmp ? tmp : "/tmp");
+    for (int op = 0; op < 3; op++) {
+        printf("test: restart is bitwise equal to a straight run (%s)\n",
+               names[op]);
+        float fxA[12] = {0}, fxB[12] = {0};
+        char err[CKPT_ERR_LEN] = "";
+
+        LBMGrid *a = restart_grid(op);
+        if (!a) {
+            printf("  SKIP: could not create grid\n");
+            return;
+        }
+        restart_steps(a, 0, n, fxA);
+        CkptHeader h, have;
+        LBM_CheckpointHeader(a, 0.05f, &h);
+        CkptWriter *ck = ckpt_create(path, &h, err, sizeof(err));
+        int ok = ck && LBM_SaveState(a, ck) == 0 &&
+                 ckpt_commit(ck, err, sizeof(err)) == 0;
+        ASSERT(ok, "checkpoint written");
+        restart_steps(a, n, 2 * n, fxA);
+        float *fa = read_f(a);
+        LBM_Free(a);
+
+        LBMGrid *b = restart_grid(op);
+        CkptReader *r = ckpt_open(path, &have, err, sizeof(err));
+        LBM_CheckpointHeader(b, 0.05f, &h);
+        ok = r && ckpt_check(&have, &h, err, sizeof(err)) == 0 &&
+             LBM_LoadState(b, r, err, sizeof(err)) == 0;
+        if (!ok)
+            printf("  %s\n", err);
+        ASSERT(ok, "checkpoint loaded");
+        ckpt_close(r);
+        ASSERT(b->stepCount == n, "step counter restored");
+        restart_steps(b, n, 2 * n, fxB);
+        float *fb = read_f(b);
+        size_t bytes = (size_t)19 * b->totalCells * sizeof(float);
+        ASSERT(memcmp(fa, fb, bytes) == 0, "f bitwise equal after 2n steps");
+        ASSERT(memcmp(fxA + n / 20,
+                      fxB + n / 20,
+                      (2 * n / 20 - n / 20) * sizeof(float)) == 0,
+               "drag readbacks after the restart bitwise equal");
+        ASSERT(fxA[2 * n / 20 - 1] != 0.0f, "drag readback nonzero");
+
+        // The same file on another grid size is refused
+        LBMGrid *c = LBM_Create(32, 16, 8, 0.02f);
+        if (c) {
+            c->slabZ = 8;
+            LBM_CheckpointHeader(c, 0.05f, &h);
+            ASSERT(ckpt_check(&have, &h, err, sizeof(err)) != 0 &&
+                       strstr(err, "grid"),
+                   "other grid refused");
+            LBM_Free(c);
+        }
+        free(fa);
+        free(fb);
+        LBM_Free(b);
+    }
+    remove(path);
+}
+
 /* GL context setup */
 
 static int init_gl(void) {
@@ -967,6 +1074,7 @@ int main(void) {
         test_periodic_mass_shifted();
         test_force_at_rest();
         test_sphere_cd_re100();
+        test_restart_bit_identical();
     } else {
         printf("\nSkipping GPU tests (no GL context)\n");
     }

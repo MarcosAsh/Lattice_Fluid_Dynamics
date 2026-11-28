@@ -120,6 +120,8 @@ void manifest_init(RunManifest *m, const CliOptions *opts) {
     m->cdPressure = m->cdFriction = m->cl = m->clMean = NAN;
     m->tStar = m->flowThroughs = m->strouhal = m->sheddingFreq = NAN;
     m->stopFrame = -1;
+    m->restartStep = -1;
+    m->checkpointStep = -1;
     conv_series_stats(NULL, 0, &m->conv);
 }
 
@@ -151,6 +153,9 @@ static void write_parameters(Json *j, const RunManifest *m) {
     num(j, "converge", o->convergeTol > 0.0f ? o->convergeTol : NAN);
     integer(j, "converge_window", o->convergeWindow);
     integer(j, "max_duration", o->maxDuration);
+    opt_str(j, "checkpoint", o->checkpointPath);
+    integer(j, "checkpoint_interval", o->checkpointInterval);
+    opt_str(j, "restart", o->restartPath);
     close_obj(j);
 }
 
@@ -211,6 +216,37 @@ static void write_body(Json *j, const RunManifest *m) {
     integer(j, "substeps_per_frame", m->substeps);
     integer(j, "lbm_steps", m->lbmSteps);
     close_obj(j);
+
+    if (m->restartStep >= 0) {
+        open_obj(j, "restarted_from");
+        str(j, "path", o->restartPath);
+        str(j, "commit", m->restartCommit);
+        boolean(j, "dirty", m->restartDirty);
+        integer(j, "step", m->restartStep);
+        integer(j, "frame", m->restartFrame);
+        // Cd samples and their statistics carry over, --vtk-stats does not
+        str(j, "drag_statistics", "continued");
+        str(j, "vtk_statistics", "restarted");
+        close_obj(j);
+    } else {
+        key(j, "restarted_from");
+        fputs("null", j->f);
+    }
+    if (o->checkpointPath[0]) {
+        open_obj(j, "checkpoint");
+        str(j, "path", o->checkpointPath);
+        integer(j, "interval_frames", o->checkpointInterval);
+        integer(j, "written", m->checkpointsWritten);
+        key(j, "last_step");
+        if (m->checkpointStep >= 0)
+            fprintf(j->f, "%ld", m->checkpointStep);
+        else
+            fputs("null", j->f);
+        close_obj(j);
+    } else {
+        key(j, "checkpoint");
+        fputs("null", j->f);
+    }
 
     open_obj(j, "results");
     integer(j, "cd_samples", m->cdSamples);

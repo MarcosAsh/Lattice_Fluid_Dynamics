@@ -571,6 +571,35 @@ def ahmed(s, quick):
         plt.close(fig)
 
 
+def restart(s):
+    """Checkpoint after N steps and continue, against 2N steps straight"""
+    variants = [
+        ("bgk", []),
+        ("mrt", ["--smag=0.1", "--turb=0.05", "--max-slab-z=8"]),
+        ("rr", ["--max-slab-z=8"]),
+        ("ent", []),
+    ]
+    for op, extra in variants:
+        name = f"restart_{op}" + ("_slabs" if any("slab" in a for a in extra) else "")
+        rows, _, _ = s.run(name, ["restart", f"--op={op}", *extra])
+        if not rows:
+            s.check(f"restart {op}", "run", "no result", "", "", False)
+            continue
+        r = rows[0]
+        s.check(
+            f"restart {op} {r['grid']} chunks={int(r['chunks'])}",
+            "f and drag after restart vs straight run",
+            f"f {'identical' if r['identical_f'] == 1 else 'differs'}, "
+            f"drag {'identical' if r['identical_force'] == 1 else 'differs'}",
+            "identical",
+            "bitwise",
+            r["identical_f"] == 1
+            and r["identical_force"] == 1
+            and r["resets"] == 0
+            and r["rc"] == 0,
+        )
+
+
 def write_table(s):
     lines = [
         "| Case | Quantity | Measured | Reference | Tolerance | Result |",
@@ -598,7 +627,7 @@ def main():
     ap.add_argument("--out", default="../docs/validation")
     ap.add_argument("--logs", default=None, help="raw run logs (default: <out>/logs)")
     ap.add_argument("--quick", action="store_true", help="small grids only")
-    ap.add_argument("--cases", default="uniform,tgv,tgv3d,poiseuille,qcheck,sphere,ahmed")
+    ap.add_argument("--cases", default="uniform,tgv,tgv3d,poiseuille,qcheck,sphere,ahmed,restart")
     a = ap.parse_args()
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)

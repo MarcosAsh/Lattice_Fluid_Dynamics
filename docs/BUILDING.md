@@ -160,6 +160,9 @@ used ones:
 --converge=TOL       Stop once the 95% CI of mean Cd is within TOL
 --converge-window=N  Cd samples between checks (default: 20)
 --max-duration=SECS  Frame cap for --converge
+--checkpoint=PATH    Write the solver state at the end of the run
+--checkpoint-interval=FRAMES  Also write it every FRAMES frames
+--restart=PATH       Continue the run saved in a checkpoint
 --version            Print version and exit
 ```
 
@@ -257,6 +260,76 @@ References:
 - L. Scandurra, P. Alexias and E. de Villiers, "A framework for initial
   transient detection and statistical assessment of convergence in CFD
   simulations", arXiv:2511.22618, 2025.
+
+### Checkpoint and restart
+
+```bash
+./build/3d_fluid_simulation_car --model=assets/3d-files/ahmed_25deg_m.obj \
+    --duration=60 --checkpoint=run.ckpt --checkpoint-interval=1000
+./build/3d_fluid_simulation_car --model=assets/3d-files/ahmed_25deg_m.obj \
+    --duration=120 --restart=run.ckpt --checkpoint=run.ckpt
+```
+
+`--checkpoint=PATH` writes the solver state when the run ends.
+`--checkpoint-interval=FRAMES` also writes it every FRAMES frames, over
+the same file. The file goes to `PATH.tmp` first and is then renamed, so
+a crash never leaves half a checkpoint at PATH.
+
+`--restart=PATH` continues the saved run. Give it the same model, grid
+and physics options as the first run. `--duration` counts from the start
+of the first run, so the second command above runs for 60 more seconds.
+On the same GPU and driver, a restarted run ends with the same
+distributions, drag samples and statistics as a run that never stopped.
+The integration test checks this byte for byte.
+
+A checkpoint holds:
+
+- f - w for every cell
+- the step and frame counters, which also fix the inlet ramp and the
+  phase of the inlet turbulence
+- the open force averaging window and the stability guard counters
+- every Cd and Cl sample, the running sums and the convergence state,
+  so the drag statistics carry on
+- the frame where Cd sampling starts
+
+Particles are reseeded. `--vtk-stats` averages start again from zero.
+The post-collision buffer and the velocity buffer are not saved, because
+the first step after a restart rewrites both before anything reads them.
+
+The header stores the grid, lattice, storage convention (f - w), float
+size, collision operator, tau, inlet velocity, Smagorinsky constant,
+sponge, periodic flags, inlet turbulence and body force. It also stores
+FNV-1a hashes of the solid mask and of the Bouzidi wall distances, the
+model path, the git commit and the step. A restart is refused with exit
+status 2 when any of these differ, and the message names the field. Only
+a different model path with matching hashes is let through, with a
+warning. The hashes are exact, so a build that computes the wall
+distances with other rounding cannot restart the file.
+
+The file ends with a CRC-32 of everything before it. A truncated file or
+a bad checksum is refused before any state is loaded. A checkpoint needs
+about 76 bytes per cell, 2.5 GB for 512x256x256. It is read and written
+in chunks of at most 64 MB.
+
+Layout, in the byte order of the writing machine, which a marker in the
+header records:
+
+| Part | Content |
+|---|---|
+| Header | 1024 bytes: magic `LATCKPT`, format version, byte order marker, the fields above |
+| Section | 4-byte tag, 4 zero bytes, 8-byte length, data |
+| `LBMS` | step counter, force window state, guard counters |
+| `FBUF` | f - w, 19 floats per cell, x fastest |
+| `FRCE` | force sums of the open window, one per workgroup |
+| `RUNS` | frame counters and drag statistics of the wind tunnel loop |
+| `CDSR`, `CLSR` | Cd and Cl samples |
+| End | tag `END!`, CRC-32 of all bytes before the CRC |
+
+The manifest records the checkpoint read under `restarted_from` (path,
+commit, step and frame) and the one written under `checkpoint`.
+
+A checkpoint only continues a run on the same grid. Interpolating one
+onto a finer grid is not supported.
 
 ## Running a study
 

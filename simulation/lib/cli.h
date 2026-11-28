@@ -42,6 +42,9 @@ typedef struct {
     int maxDuration;
     int strictReynolds; // fail instead of capping Re
     float tauFloor;     // developer override of the 0.52 floor
+    char checkpointPath[512];
+    int checkpointInterval; // frames, 0 = only at the end
+    char restartPath[512];
 } CliOptions;
 
 // Parse command-line options. Returns 0 on success, 1 if --help was

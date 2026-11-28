@@ -64,6 +64,14 @@ typedef struct {
     int converged;
     int stopFrame;
     ConvStats conv;
+
+    // Restart source and checkpoints written, restartStep -1 when unused
+    char restartCommit[48];
+    int restartDirty;
+    long restartStep;
+    int restartFrame;
+    int checkpointsWritten;
+    long checkpointStep;
 } RunManifest;
 
 // Fills build info and defaults, NAN for results not yet known

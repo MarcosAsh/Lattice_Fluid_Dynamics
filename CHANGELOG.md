@@ -28,6 +28,9 @@ versions. See [docs/validation/REPORT.md](docs/validation/REPORT.md).
 - A 95% confidence interval on mean Cd for every run, with transient
   cut, batch means, stationarity test and drift.
 - `--converge-window` and `--max-duration`.
+- `--checkpoint`, `--checkpoint-interval` and `--restart` save a run and
+  continue it. On the same GPU and driver a restarted run matches an
+  uninterrupted one bit for bit.
 - `--version`.
 - Entropic collision and inlet turbulence (`--turbulence`).
 - Outlet sponge layer, on by default, width set with `--sponge=CELLS`.

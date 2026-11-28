@@ -144,6 +144,54 @@ else
     fail "no drag statistics, or they contain Cd="
 fi
 
+# Test 8: a restarted run ends exactly where a straight run ends
+echo "test: --restart continues a run bitwise"
+CK_ARGS="--wind=1.0 --grid=32x16x16 --model=$MODEL"
+$BINARY $CK_ARGS --duration=7 --checkpoint="$OUTDIR/a.ckpt" \
+    --manifest="$OUTDIR/a.json" >"$OUTDIR/a.log" 2>&1 || true
+$BINARY $CK_ARGS --duration=9 --restart="$OUTDIR/a.ckpt" \
+    --checkpoint="$OUTDIR/b.ckpt" --manifest="$OUTDIR/b.json" \
+    >"$OUTDIR/b.log" 2>&1 || true
+$BINARY $CK_ARGS --duration=9 --checkpoint="$OUTDIR/c.ckpt" \
+    --checkpoint-interval=500 --manifest="$OUTDIR/c.json" \
+    >"$OUTDIR/c.log" 2>&1 || true
+if [ -s "$OUTDIR/b.ckpt" ] && cmp -s "$OUTDIR/b.ckpt" "$OUTDIR/c.ckpt"; then
+    pass "final checkpoints of restarted and straight runs are identical"
+else
+    fail "restarted run differs from the straight run"
+fi
+if command -v python3 >/dev/null 2>&1; then
+    if python3 - "$OUTDIR/a.json" "$OUTDIR/b.json" "$OUTDIR/c.json" <<'PY'
+import json, sys
+a, b, c = (json.load(open(p)) for p in sys.argv[1:])
+assert b["restarted_from"]["step"] == a["checkpoint"]["last_step"] > 0
+assert b["restarted_from"]["drag_statistics"] == "continued"
+assert c["restarted_from"] is None and c["checkpoint"]["written"] == 2
+assert b["results"]["cd_samples"] > a["results"]["cd_samples"] > 0
+for k in ("results", "convergence", "run"):
+    assert b[k] == c[k], (k, b[k], c[k])
+PY
+    then
+        pass "restarted manifest matches the straight run"
+    else
+        fail "restarted manifest differs"
+    fi
+fi
+set +e
+$BINARY $CK_ARGS --grid=32x16x8 --duration=9 --restart="$OUTDIR/a.ckpt" \
+    >"$OUTDIR/d.log" 2>&1
+RC=$?
+head -c 3000 "$OUTDIR/a.ckpt" >"$OUTDIR/t.ckpt"
+$BINARY $CK_ARGS --duration=9 --restart="$OUTDIR/t.ckpt" >"$OUTDIR/t.log" 2>&1
+RC_T=$?
+set -e
+if [ $RC -eq 2 ] && grep -q "grid 32x16x16 does not match 32x16x8" "$OUTDIR/d.log" &&
+    [ $RC_T -eq 2 ] && grep -q "truncated" "$OUTDIR/t.log"; then
+    pass "other grid and truncated file refused"
+else
+    fail "bad checkpoint not refused (rc $RC, $RC_T)"
+fi
+
 # Cleanup
 rm -rf "$OUTDIR"
 

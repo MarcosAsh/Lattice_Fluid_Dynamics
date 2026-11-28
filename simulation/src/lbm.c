@@ -404,6 +404,7 @@ void LBM_SetSolidAABB(LBMGrid *grid,
                       float maxX,
                       float maxY,
                       float maxZ) {
+    grid->geomHashed = 0;
     float scaleX = grid->sizeX / 8.0f;
     float scaleY = grid->sizeY / 4.0f;
     float scaleZ = grid->sizeZ / 4.0f;
@@ -493,6 +494,7 @@ void LBM_SetSolidAABB(LBMGrid *grid,
 
 void LBM_SetSolidSphere(
     LBMGrid *grid, float cx, float cy, float cz, float radius) {
+    grid->geomHashed = 0;
     float scaleX = grid->sizeX / 8.0f;
     float scaleY = grid->sizeY / 4.0f;
     float scaleZ = grid->sizeZ / 4.0f;
@@ -598,6 +600,7 @@ void LBM_SetSolidSphere(
 }
 
 void LBM_AddGroundPlane(LBMGrid *grid, float worldZ) {
+    grid->geomHashed = 0;
     float scaleZ = grid->sizeZ / 4.0f;
     int gzGround = (int)((worldZ + 2.0f) * scaleZ);
     if (gzGround < 0)
@@ -1163,6 +1166,7 @@ void LBM_SetSolidMesh(LBMGrid *grid,
                       float maxX,
                       float maxY,
                       float maxZ) {
+    grid->geomHashed = 0;
 
     int *solidData = (int *)calloc(grid->totalCells, sizeof(int));
     size_t qCount = (size_t)19 * grid->totalCells;
@@ -1494,4 +1498,209 @@ float LBM_MeshFrontalArea(LBMGrid *grid,
         count += mask[i];
     free(mask);
     return (float)count / (float)(sub * sub);
+}
+
+const char *LBM_OperatorName(const LBMGrid *grid) {
+    // Same precedence as the branches in lbm_collide.comp
+    if (grid->useRegularized)
+        return "regularized";
+    if (grid->useMRT)
+        return "mrt";
+    if (grid->useEntropic)
+        return "entropic";
+    if (grid->useRecursive)
+        return "recursive";
+    return "bgk";
+}
+
+#define STATE_CHUNK_BYTES ((size_t)64 << 20)
+#define TAG_LBM_SCALARS   CKPT_TAG('L', 'B', 'M', 'S')
+#define TAG_F             CKPT_TAG('F', 'B', 'U', 'F')
+#define TAG_FORCE         CKPT_TAG('F', 'R', 'C', 'E')
+
+// z-planes of 19 floats per cell that fit one transfer chunk
+static int planesPerChunk(const LBMGrid *grid) {
+    size_t plane = (size_t)19 * grid->sizeX * grid->sizeY * sizeof(float);
+    size_t n = STATE_CHUNK_BYTES / plane;
+    if (n > (size_t)grid->sizeZ)
+        n = grid->sizeZ;
+    return n < 1 ? 1 : (int)n;
+}
+
+// FNV-1a of a buffer of bytesPerCell per cell, read back in z chunks
+static int
+hashBuffer(LBMGrid *grid, GLuint buf, size_t bytesPerCell, uint64_t *out) {
+    size_t plane = bytesPerCell * grid->sizeX * grid->sizeY;
+    int step = planesPerChunk(grid);
+    void *tmp = malloc(plane * step);
+    if (!tmp)
+        return -1;
+    glMemoryBarrier(GL_BUFFER_UPDATE_BARRIER_BIT);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, buf);
+    uint64_t h = CKPT_FNV_OFFSET;
+    for (int z = 0; z < grid->sizeZ; z += step) {
+        int nz = grid->sizeZ - z < step ? grid->sizeZ - z : step;
+        glGetBufferSubData(
+            GL_SHADER_STORAGE_BUFFER, (GLintptr)(plane * z), plane * nz, tmp);
+        h = ckpt_fnv1a(h, tmp, plane * nz);
+    }
+    free(tmp);
+    *out = h;
+    return 0;
+}
+
+int LBM_CheckpointHeader(LBMGrid *grid, float u, CkptHeader *h) {
+    if (!grid->geomHashed) {
+        if (hashBuffer(
+                grid, grid->solidBuffer, sizeof(int), &grid->solidHash) ||
+            hashBuffer(grid, grid->qBuffer, 19 * sizeof(float), &grid->qHash))
+            return -1;
+        grid->geomHashed = 1;
+    }
+    ckpt_header_init(h);
+    h->nx = grid->sizeX;
+    h->ny = grid->sizeY;
+    h->nz = grid->sizeZ;
+    snprintf(h->op, sizeof(h->op), "%s", LBM_OperatorName(grid));
+    h->smagorinsky = grid->useSmagorinsky;
+    h->smagorinskyCs = grid->smagorinskyCs;
+    h->tau = grid->tau;
+    h->u = u;
+    h->spongeCells = grid->spongeCells;
+    h->spongeTauMax = grid->spongeTauMax;
+    h->periodicX = grid->periodicX;
+    h->periodicYZ = grid->periodicYZ;
+    h->turbulence = grid->turbulenceIntensity;
+    memcpy(h->bodyForce, grid->bodyForce, sizeof(h->bodyForce));
+    h->solidHash = grid->solidHash;
+    h->qHash = grid->qHash;
+    h->step = grid->stepCount;
+    return 0;
+}
+
+typedef struct {
+    int64_t stepCount;
+    int32_t forceAveraging;
+    int32_t forceAccumCount;
+    int32_t resetCells;
+    int32_t nanCells;
+    int32_t forceWorkgroups;
+    int32_t pad;
+} LBMScalars;
+
+int LBM_SaveState(LBMGrid *grid, CkptWriter *out) {
+    glMemoryBarrier(GL_ALL_BARRIER_BITS);
+
+    // Guard counters stay on the GPU for the next readback
+    int diag[2] = {0, 0};
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->diagBuffer);
+    glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(diag), diag);
+    LBMScalars sc = {grid->stepCount,
+                     grid->forceAveraging,
+                     grid->forceAccumCount,
+                     diag[0],
+                     diag[1],
+                     grid->forceWorkgroups,
+                     0};
+    if (ckpt_begin_section(out, TAG_LBM_SCALARS, sizeof(sc)) ||
+        ckpt_write(out, &sc, sizeof(sc)))
+        return -1;
+
+    size_t plane = (size_t)19 * grid->sizeX * grid->sizeY * sizeof(float);
+    int step = planesPerChunk(grid);
+    float *tmp = (float *)malloc(plane * step);
+    if (!tmp)
+        return -1;
+    int rc = ckpt_begin_section(out, TAG_F, (uint64_t)plane * grid->sizeZ);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->fBuffer);
+    for (int z = 0; z < grid->sizeZ && rc == 0; z += step) {
+        int nz = grid->sizeZ - z < step ? grid->sizeZ - z : step;
+        glGetBufferSubData(
+            GL_SHADER_STORAGE_BUFFER, (GLintptr)(plane * z), plane * nz, tmp);
+        rc = ckpt_write(out, tmp, plane * nz);
+    }
+    free(tmp);
+    if (rc)
+        return -1;
+
+    size_t fb =
+        (size_t)grid->forceWorkgroups * LBM_FORCE_FLOATS * sizeof(float);
+    float *force = (float *)malloc(fb);
+    if (!force)
+        return -1;
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->forceBuffer);
+    glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, fb, force);
+    rc = ckpt_begin_section(out, TAG_FORCE, fb) || ckpt_write(out, force, fb);
+    free(force);
+    return rc ? -1 : 0;
+}
+
+int LBM_LoadState(LBMGrid *grid, CkptReader *r, char *err, size_t errLen) {
+    LBMScalars sc;
+    uint64_t bytes = 0;
+    if (ckpt_find(r, TAG_LBM_SCALARS, &bytes) || bytes != sizeof(sc) ||
+        ckpt_read(r, &sc, sizeof(sc))) {
+        snprintf(err, errLen, "checkpoint has no solver state section");
+        return -1;
+    }
+    if (sc.forceWorkgroups != grid->forceWorkgroups) {
+        snprintf(err,
+                 errLen,
+                 "checkpoint force buffer has %d workgroups, expected %d",
+                 sc.forceWorkgroups,
+                 grid->forceWorkgroups);
+        return -1;
+    }
+    size_t plane = (size_t)19 * grid->sizeX * grid->sizeY * sizeof(float);
+    if (ckpt_find(r, TAG_F, &bytes) || bytes != (uint64_t)plane * grid->sizeZ) {
+        snprintf(err,
+                 errLen,
+                 "checkpoint distribution section has %llu bytes, expected "
+                 "%llu",
+                 (unsigned long long)bytes,
+                 (unsigned long long)plane * grid->sizeZ);
+        return -1;
+    }
+    int step = planesPerChunk(grid);
+    float *tmp = (float *)malloc(plane * step);
+    if (!tmp) {
+        snprintf(err, errLen, "out of memory");
+        return -1;
+    }
+    glFinish();
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->fBuffer);
+    for (int z = 0; z < grid->sizeZ; z += step) {
+        int nz = grid->sizeZ - z < step ? grid->sizeZ - z : step;
+        if (ckpt_read(r, tmp, plane * nz)) {
+            free(tmp);
+            snprintf(err, errLen, "cannot read the distributions");
+            return -1;
+        }
+        glBufferSubData(
+            GL_SHADER_STORAGE_BUFFER, (GLintptr)(plane * z), plane * nz, tmp);
+    }
+    free(tmp);
+
+    size_t fb =
+        (size_t)grid->forceWorkgroups * LBM_FORCE_FLOATS * sizeof(float);
+    float *force = (float *)malloc(fb);
+    if (!force || ckpt_find(r, TAG_FORCE, &bytes) || bytes != fb ||
+        ckpt_read(r, force, fb)) {
+        free(force);
+        snprintf(err, errLen, "checkpoint force section missing or wrong size");
+        return -1;
+    }
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->forceBuffer);
+    glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, fb, force);
+    free(force);
+
+    int diag[2] = {sc.resetCells, sc.nanCells};
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->diagBuffer);
+    glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(diag), diag);
+    glMemoryBarrier(GL_ALL_BARRIER_BITS);
+
+    grid->stepCount = (int)sc.stepCount;
+    grid->forceAveraging = sc.forceAveraging;
+    grid->forceAccumCount = sc.forceAccumCount;
+    return 0;
 }

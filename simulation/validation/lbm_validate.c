@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 
 static const int ex[19] = {
     0, 1, -1, 0, 0, 0, 0, 1, -1, 1, -1, 1, -1, 1, -1, 0, 0, 0, 0};
@@ -65,6 +66,7 @@ typedef struct {
     int plane; // 0 = xy, 1 = xz
     int mesh;  // 1 = sphere through the OBJ mesh path
     int ramp;  // inlet ramp steps, flow starts at rest when > 0
+    double turb;
     char model[512];
     char op[16];
 } Opts;
@@ -133,6 +135,8 @@ static void parse(int argc, char **argv, Opts *o) {
             o->mesh = atoi(v);
         else if (argval(argv[i], "--ramp", &v))
             o->ramp = atoi(v);
+        else if (argval(argv[i], "--turb", &v))
+            o->turb = atof(v);
         else if (argval(argv[i], "--model", &v))
             snprintf(o->model, sizeof(o->model), "%s", v);
         else if (argval(argv[i], "--op", &v))
@@ -1030,12 +1034,159 @@ static int case_obj(Opts *o) {
     return resets > 0;
 }
 
+/* Restart: N steps, checkpoint, N more against 2N straight, bitwise */
+typedef struct {
+    LBMGrid *g;
+    double U;
+    int ramp;
+    int window;
+    float *fx; // drag readback at the end of each window
+} RestartRun;
+
+static int restart_setup(RestartRun *r, const Opts *o, int nx, int ny, int nz) {
+    double D = nz / 4.0;
+    double tau = o->tau > 0 ? o->tau : 0.5 + 3.0 * 0.05 * D / 100.0;
+    r->g = make_grid(o, nx, ny, nz, tau);
+    if (!r->g)
+        return -1;
+    r->g->spongeCells = o->sponge < 0 ? nx / 8 : o->sponge;
+    r->g->turbulenceIntensity = (float)o->turb;
+    LBM_SetForceAveraging(r->g, 1);
+    double scale = nx / 8.0;
+    LBM_SetSolidSphere(
+        r->g, (float)(-2.0), 0.05f, -0.03f, (float)(0.5 * D / scale));
+    LBM_InitializeFlow(r->g, 0, 0, 0);
+    return 0;
+}
+
+static void restart_steps(RestartRun *r, int from, int to) {
+    for (int s = from; s < to; s++) {
+        double k = s < r->ramp ? (double)s / r->ramp : 1.0;
+        LBM_Step(r->g, (float)(r->U * k), 0, 0);
+        if ((s + 1) % r->window == 0) {
+            float fx, fy, fz;
+            LBM_ComputeDragForce(r->g, &fx, &fy, &fz);
+            r->fx[(s + 1) / r->window - 1] = fx;
+        }
+    }
+}
+
+static float *restart_f(LBMGrid *g) {
+    size_t n = (size_t)19 * g->totalCells;
+    float *f = malloc(n * sizeof(float));
+    read_buf(g->fBuffer, n * sizeof(float), f);
+    return f;
+}
+
+static int case_restart(Opts *o) {
+    int nx = o->nx ? o->nx : 64, ny = o->ny ? o->ny : 32,
+        nz = o->nz ? o->nz : 32;
+    // Not a multiple of the window, so the force window is cut
+    int n = o->steps ? o->steps : 310;
+    int window = o->window ? o->window : 20;
+    char path[600];
+    const char *tmp = getenv("TMPDIR");
+    snprintf(path,
+             sizeof(path),
+             "%s/lbm_validate_restart_%d.ckpt",
+             tmp ? tmp : "/tmp",
+             (int)getpid());
+
+    RestartRun a = {0}, b = {0}, c = {0};
+    int nw = 2 * n / window;
+    a.fx = calloc(nw + 1, sizeof(float));
+    b.fx = calloc(nw + 1, sizeof(float));
+    c.fx = calloc(nw + 1, sizeof(float));
+    RestartRun *runs[3] = {&a, &b, &c};
+    for (int i = 0; i < 3; i++) {
+        runs[i]->U = o->u > 0 ? o->u : 0.05;
+        runs[i]->ramp = o->ramp > 0 ? o->ramp : n / 2;
+        runs[i]->window = window;
+    }
+
+    char err[CKPT_ERR_LEN] = "";
+    CkptHeader h, have;
+    if (restart_setup(&a, o, nx, ny, nz))
+        return 1;
+    restart_steps(&a, 0, n);
+    LBM_CheckpointHeader(a.g, (float)a.U, &h);
+    CkptWriter *w = ckpt_create(path, &h, err, sizeof(err));
+    int rc = !w || LBM_SaveState(a.g, w) || ckpt_commit(w, err, sizeof(err));
+    restart_steps(&a, n, 2 * n);
+    float *fa = restart_f(a.g);
+    int chunks = a.g->numChunks;
+    LBM_Free(a.g);
+
+    if (restart_setup(&b, o, nx, ny, nz))
+        return 1;
+    CkptReader *r = rc ? NULL : ckpt_open(path, &have, err, sizeof(err));
+    LBM_CheckpointHeader(b.g, (float)b.U, &h);
+    if (!r || ckpt_check(&have, &h, err, sizeof(err)) ||
+        LBM_LoadState(b.g, r, err, sizeof(err))) {
+        printf("restart: %s\n", err);
+        rc = 1;
+    }
+    ckpt_close(r);
+    remove(path);
+    int stepAfterLoad = b.g->stepCount;
+    restart_steps(&b, n, 2 * n);
+    float *fb = restart_f(b.g);
+    LBM_Free(b.g);
+
+    if (restart_setup(&c, o, nx, ny, nz))
+        return 1;
+    restart_steps(&c, 0, 2 * n);
+    float *fc = restart_f(c.g);
+    int resets = check_diag(c.g, "restart");
+    size_t cnt = (size_t)19 * c.g->totalCells;
+    LBM_Free(c.g);
+
+    double maxdf = 0;
+    for (size_t i = 0; i < cnt; i++)
+        maxdf = fmax(maxdf, fabs((double)fb[i] - fc[i]));
+    int sameF = memcmp(fa, fc, cnt * sizeof(float)) == 0 &&
+                memcmp(fb, fc, cnt * sizeof(float)) == 0;
+    // Readbacks after the checkpoint, the first one closes the cut window
+    int first = n / window;
+    int sameForce = memcmp(b.fx + first,
+                           c.fx + first,
+                           (size_t)(nw - first) * sizeof(float)) == 0 &&
+                    memcmp(a.fx, c.fx, (size_t)nw * sizeof(float)) == 0;
+    printf("RESULT case=restart op=%s smag=%.3f turb=%.3f grid=%dx%dx%d "
+           "chunks=%d steps=%d checkpoint_step=%d windows=%d identical_f=%d "
+           "identical_force=%d max_df=%.3e fx_last=%.9e resets=%d rc=%d\n",
+           o->op,
+           o->smag,
+           o->turb,
+           nx,
+           ny,
+           nz,
+           chunks,
+           2 * n,
+           stepAfterLoad,
+           nw - first,
+           sameF,
+           sameForce,
+           maxdf,
+           (double)c.fx[nw - 1],
+           resets,
+           rc);
+    free(fa);
+    free(fb);
+    free(fc);
+    free(a.fx);
+    free(b.fx);
+    free(c.fx);
+    return rc || !sameF || !sameForce;
+}
+
 int main(int argc, char **argv) {
     if (argc < 2) {
-        fprintf(stderr,
-                "usage: %s uniform|tgv|tgv3d|poiseuille|sphere|qcheck|obj "
-                "[--key=value]\n",
-                argv[0]);
+        fprintf(
+            stderr,
+            "usage: %s uniform|tgv|tgv3d|poiseuille|sphere|qcheck|obj|restart "
+            "[--key=value]\n",
+            argv[0]);
         return 2;
     }
     setvbuf(stdout, NULL, _IOLBF, 0);
@@ -1069,6 +1220,8 @@ int main(int argc, char **argv) {
         rc = case_qcheck(&o);
     else if (strcmp(o.name, "obj") == 0)
         rc = case_obj(&o);
+    else if (strcmp(o.name, "restart") == 0)
+        rc = case_restart(&o);
     else {
         fprintf(stderr, "unknown case %s\n", o.name);
         rc = 2;

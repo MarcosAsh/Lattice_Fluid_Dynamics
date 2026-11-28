@@ -20,6 +20,9 @@ enum {
     OPT_OPERATOR,
     OPT_STRICT_RE,
     OPT_TAU_FLOOR,
+    OPT_CHECKPOINT,
+    OPT_CHECKPOINT_INTERVAL,
+    OPT_RESTART,
 };
 
 static int bad_value(const char *name, const char *arg) {
@@ -146,6 +149,9 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
     opts->maxDuration = 0;
     opts->strictReynolds = 0;
     opts->tauFloor = 0.52f;
+    opts->checkpointPath[0] = '\0';
+    opts->checkpointInterval = 0;
+    opts->restartPath[0] = '\0';
 
     static struct option long_options[] = {
         {"wind", required_argument, 0, 'w'},
@@ -175,6 +181,9 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
         {"max-duration", required_argument, 0, OPT_MAX_DURATION},
         {"strict-reynolds", no_argument, 0, OPT_STRICT_RE},
         {"tau-floor", required_argument, 0, OPT_TAU_FLOOR},
+        {"checkpoint", required_argument, 0, OPT_CHECKPOINT},
+        {"checkpoint-interval", required_argument, 0, OPT_CHECKPOINT_INTERVAL},
+        {"restart", required_argument, 0, OPT_RESTART},
         {"version", no_argument, 0, 'X'},
         {"help", no_argument, 0, 'h'},
         {0, 0, 0, 0}
@@ -376,6 +385,29 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
                 return -1;
             }
             break;
+        case OPT_CHECKPOINT:
+            if (!copy_path("checkpoint",
+                           optarg,
+                           opts->checkpointPath,
+                           sizeof(opts->checkpointPath)))
+                return -1;
+            break;
+        case OPT_CHECKPOINT_INTERVAL:
+            if (!parse_int(
+                    "checkpoint-interval", optarg, &opts->checkpointInterval))
+                return -1;
+            if (opts->checkpointInterval < 1) {
+                bad_value("checkpoint-interval", optarg);
+                return -1;
+            }
+            break;
+        case OPT_RESTART:
+            if (!copy_path("restart",
+                           optarg,
+                           opts->restartPath,
+                           sizeof(opts->restartPath)))
+                return -1;
+            break;
         case 'X':
             printf("3d_fluid_simulation_car %s\n", cli_version());
             return 1;
@@ -450,6 +482,12 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
             printf("  --tau-floor=TAU       Developer: lowest tau before Re "
                    "is capped (default:\n"
                    "                        0.52, must be in (0.5, 1])\n");
+            printf("  --checkpoint=PATH     Write the solver state to PATH at "
+                   "the end of the run\n");
+            printf("  --checkpoint-interval=FRAMES\n"
+                   "                        Also write it every FRAMES "
+                   "frames\n");
+            printf("  --restart=PATH        Continue the run saved in PATH\n");
             printf("  --version             Print version and exit\n");
             printf("  -h, --help            Show this help\n");
             return 1;
@@ -467,6 +505,11 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
             fprintf(stderr, "--output path too long for the manifest\n");
             return -1;
         }
+    }
+
+    if (opts->checkpointInterval > 0 && !opts->checkpointPath[0]) {
+        fprintf(stderr, "--checkpoint-interval needs --checkpoint\n");
+        return -1;
     }
 
     if (opts->maxDuration > 0) {

@@ -123,6 +123,81 @@ static long countSolidCells(LBMGrid *grid) {
     return n;
 }
 
+#define TAG_RUN           CKPT_TAG('R', 'U', 'N', 'S')
+#define TAG_CD            CKPT_TAG('C', 'D', 'S', 'R')
+#define TAG_CL            CKPT_TAG('C', 'L', 'S', 'R')
+#define RUN_STATE_VERSION 1
+
+// Main loop state a restart needs, no padding so the bytes are defined
+typedef struct {
+    double cdSum, cdCorrSum, clSum;
+    int32_t version;
+    int32_t frameCount, outputFrameCount, cdStartFrame;
+    int32_t cdSamples, cdHistoryCount, converged, unstableSamples;
+    int32_t clCount, convCount, convRejected, convConverged;
+    int32_t manConverged, manStopFrame;
+    float cdEma;
+    float cdHistory[CD_HISTORY_SIZE];
+    // cd, cdCorr, cdEma, cl, cdPressure, cdFriction, tStar, flowThroughs
+    float last[8];
+    float pad;
+} TunnelState;
+_Static_assert(sizeof(TunnelState) ==
+                   3 * sizeof(double) + 14 * 4 + (CD_HISTORY_SIZE + 10) * 4,
+               "TunnelState has padding");
+
+static int writeCheckpoint(const char *path,
+                           LBMGrid *grid,
+                           float u,
+                           const char *model,
+                           const TunnelState *ts,
+                           const ConvergenceDetector *conv,
+                           const float *clSeries,
+                           char *err,
+                           size_t errLen) {
+    CkptHeader h;
+    if (LBM_CheckpointHeader(grid, u, &h) != 0) {
+        snprintf(err, errLen, "cannot hash the geometry");
+        return -1;
+    }
+    const BuildInfo *b = cli_build_info();
+    snprintf(h.model, sizeof(h.model), "%s", model);
+    snprintf(h.commit, sizeof(h.commit), "%s", b->gitCommit);
+    h.dirty = b->gitDirty;
+    CkptWriter *w = ckpt_create(path, &h, err, errLen);
+    if (!w)
+        return -1;
+    size_t cdBytes = (size_t)conv->count * sizeof(float);
+    size_t clBytes = (size_t)ts->clCount * sizeof(float);
+    if (LBM_SaveState(grid, w) || ckpt_begin_section(w, TAG_RUN, sizeof(*ts)) ||
+        ckpt_write(w, ts, sizeof(*ts)) ||
+        ckpt_begin_section(w, TAG_CD, cdBytes) ||
+        ckpt_write(w, conv->samples, cdBytes) ||
+        ckpt_begin_section(w, TAG_CL, clBytes) ||
+        ckpt_write(w, clSeries, clBytes)) {
+        snprintf(err, errLen, "cannot write %s", path);
+        ckpt_abort(w);
+        return -1;
+    }
+    return ckpt_commit(w, err, errLen);
+}
+
+// Reads n floats of a section into *buf, growing it to at least n
+static int
+readSeries(CkptReader *r, uint32_t tag, int n, float **buf, int *capacity) {
+    uint64_t bytes;
+    if (ckpt_find(r, tag, &bytes) || bytes != (uint64_t)n * sizeof(float))
+        return -1;
+    if (n > *capacity) {
+        float *p = (float *)realloc(*buf, (size_t)n * sizeof(float));
+        if (!p)
+            return -1;
+        *buf = p;
+        *capacity = n;
+    }
+    return ckpt_read(r, *buf, (size_t)n * sizeof(float));
+}
+
 int main(int argc, char *argv[]) {
     CliOptions opts;
     int cliStatus = cli_parse(argc, argv, &opts);
@@ -1038,7 +1113,7 @@ int main(int argc, char *argv[]) {
 
     // Convergence detection for auto-stop. CD_HISTORY_SIZE and
     // CD_SAMPLE_INTERVAL live in drag_metrics.h.
-    float cdHistory[CD_HISTORY_SIZE];
+    float cdHistory[CD_HISTORY_SIZE] = {0};
     int cdHistoryCount = 0;
     int converged = 0;
     float cdEma = 0.0f;
@@ -1062,6 +1137,142 @@ int main(int argc, char *argv[]) {
             printf("VTK stats: time-averaging velocity for "
                    "mean/RMS/TKE export\n");
     }
+
+    // Cd start frame of a restarted run that is already sampling
+    int pinnedCdStart = -1;
+    int lastCheckpointFrame = -1;
+    if (opts.restartPath[0]) {
+        char err[CKPT_ERR_LEN];
+        CkptHeader have, want;
+        if (!lbmGrid || !useLBM) {
+            fprintf(stderr, "ERROR: --restart needs the LBM solver\n");
+            return 2;
+        }
+        CkptReader *r = ckpt_open(opts.restartPath, &have, err, sizeof(err));
+        if (!r) {
+            fprintf(stderr, "ERROR: --restart: %s\n", err);
+            return 2;
+        }
+        if (LBM_CheckpointHeader(lbmGrid, latticeVelocity, &want) != 0) {
+            fprintf(stderr, "ERROR: --restart: cannot hash the geometry\n");
+            return 2;
+        }
+        snprintf(want.model, sizeof(want.model), "%s", man.modelPath);
+        if (ckpt_check(&have, &want, err, sizeof(err)) != 0 ||
+            LBM_LoadState(lbmGrid, r, err, sizeof(err)) != 0) {
+            fprintf(stderr, "ERROR: --restart: %s\n", err);
+            return 2;
+        }
+        if (strcmp(have.model, want.model) != 0)
+            printf("WARNING: checkpoint model path %s differs, geometry "
+                   "matches\n",
+                   have.model);
+
+        TunnelState ts;
+        uint64_t bytes = 0;
+        if (ckpt_find(r, TAG_RUN, &bytes) || bytes != sizeof(ts) ||
+            ckpt_read(r, &ts, sizeof(ts)) || ts.version != RUN_STATE_VERSION) {
+            fprintf(stderr,
+                    "ERROR: --restart: run state section has %llu bytes, "
+                    "expected %zu version %d\n",
+                    (unsigned long long)bytes,
+                    sizeof(ts),
+                    RUN_STATE_VERSION);
+            return 2;
+        }
+        if (readSeries(
+                r, TAG_CD, ts.convCount, &conv.samples, &conv.capacity) ||
+            readSeries(r, TAG_CL, ts.clCount, &clSeries, &clCapacity)) {
+            fprintf(stderr, "ERROR: --restart: Cd or Cl series unreadable\n");
+            return 2;
+        }
+        ckpt_close(r);
+
+        conv.count = ts.convCount;
+        conv.rejected = ts.convRejected;
+        conv.converged = ts.convConverged;
+        clCount = ts.clCount;
+        frameCount = ts.frameCount;
+        outputFrameCount = ts.outputFrameCount;
+        cdSamples = ts.cdSamples;
+        cdSum = ts.cdSum;
+        cdCorrSum = ts.cdCorrSum;
+        clSum = ts.clSum;
+        cdEma = ts.cdEma;
+        memcpy(cdHistory, ts.cdHistory, sizeof(cdHistory));
+        cdHistoryCount = ts.cdHistoryCount;
+        converged = ts.converged;
+        unstableSamples = ts.unstableSamples;
+        man.cd = ts.last[0];
+        man.cdCorr = ts.last[1];
+        man.cdEma = ts.last[2];
+        man.cl = ts.last[3];
+        man.cdPressure = ts.last[4];
+        man.cdFriction = ts.last[5];
+        man.tStar = ts.last[6];
+        man.flowThroughs = ts.last[7];
+        man.converged = ts.manConverged;
+        man.stopFrame = ts.manStopFrame;
+        if (frameCount >= ts.cdStartFrame - CD_SAMPLE_INTERVAL)
+            pinnedCdStart = ts.cdStartFrame;
+        lastCheckpointFrame = frameCount;
+
+        snprintf(
+            man.restartCommit, sizeof(man.restartCommit), "%s", have.commit);
+        man.restartDirty = have.dirty;
+        man.restartStep = have.step;
+        man.restartFrame = frameCount;
+        printf("Restarted from %s: frame %d, step %ld, %d Cd samples\n",
+               opts.restartPath,
+               frameCount,
+               (long)have.step,
+               cdSamples);
+        if (maxFrames > 0 && outputFrameCount >= maxFrames) {
+            fprintf(stderr,
+                    "ERROR: --duration=%d is already reached by the "
+                    "checkpoint (%d output frames)\n",
+                    renderDuration,
+                    outputFrameCount);
+            return 2;
+        }
+    }
+
+    // Everything the loop carries from one frame to the next
+#define TUNNEL_STATE(ts, cdStart)                                              \
+    do {                                                                       \
+        memset(&(ts), 0, sizeof(ts));                                          \
+        (ts).version = RUN_STATE_VERSION;                                      \
+        (ts).frameCount = frameCount;                                          \
+        (ts).outputFrameCount = outputFrameCount;                              \
+        (ts).cdStartFrame = (cdStart);                                         \
+        (ts).cdSamples = cdSamples;                                            \
+        (ts).cdSum = cdSum;                                                    \
+        (ts).cdCorrSum = cdCorrSum;                                            \
+        (ts).clSum = clSum;                                                    \
+        (ts).cdEma = cdEma;                                                    \
+        memcpy((ts).cdHistory, cdHistory, sizeof(cdHistory));                  \
+        (ts).cdHistoryCount = cdHistoryCount;                                  \
+        (ts).converged = converged;                                            \
+        (ts).unstableSamples = unstableSamples;                                \
+        (ts).clCount = clCount;                                                \
+        (ts).convCount = conv.count;                                           \
+        (ts).convRejected = conv.rejected;                                     \
+        (ts).convConverged = conv.converged;                                   \
+        (ts).manConverged = man.converged;                                     \
+        (ts).manStopFrame = man.stopFrame;                                     \
+        float last_[8] = {man.cd,                                              \
+                          man.cdCorr,                                          \
+                          man.cdEma,                                           \
+                          man.cl,                                              \
+                          man.cdPressure,                                      \
+                          man.cdFriction,                                      \
+                          man.tStar,                                           \
+                          man.flowThroughs};                                   \
+        memcpy((ts).last, last_, sizeof(last_));                               \
+    } while (0)
+
+    int cdStartFrame = 0;
+    int checkpointFailed = 0;
 
     while (running) {
         if (!paused || stepOnce)
@@ -1137,7 +1348,7 @@ int main(int argc, char *argv[]) {
             lbmGrid
                 ? (int)(lbmGrid->sizeX / (latticeVelocity * lbmSubsteps * 2))
                 : 150;
-        int cdStartFrame = rampEnd + 3 * flowThroughFrames;
+        cdStartFrame = rampEnd + 3 * flowThroughFrames;
 
         // For short headless runs, cap the skip so we still produce
         // some frames and Cd output rather than exiting with nothing.
@@ -1146,6 +1357,8 @@ int main(int argc, char *argv[]) {
             if (cdStartFrame < rampEnd && maxFrames > rampEnd)
                 cdStartFrame = rampEnd;
         }
+        if (pinnedCdStart >= 0)
+            cdStartFrame = pinnedCdStart;
         int skipRendering = (renderDuration > 0 && frameCount < cdStartFrame);
 
         // When the skip phase ends, reinitialize particles at the
@@ -1620,9 +1833,58 @@ int main(int argc, char *argv[]) {
             outputFrameCount++;
         }
 
+        if (opts.checkpointInterval > 0 && lbmGrid && useLBM &&
+            frameCount % opts.checkpointInterval == 0 &&
+            frameCount != lastCheckpointFrame) {
+            TunnelState ts;
+            TUNNEL_STATE(ts, cdStartFrame);
+            char err[CKPT_ERR_LEN];
+            if (writeCheckpoint(opts.checkpointPath,
+                                lbmGrid,
+                                latticeVelocity,
+                                man.modelPath,
+                                &ts,
+                                &conv,
+                                clSeries,
+                                err,
+                                sizeof(err)) == 0) {
+                man.checkpointsWritten++;
+                man.checkpointStep = lbmGrid->stepCount;
+            } else {
+                fprintf(stderr, "Error: checkpoint: %s\n", err);
+                checkpointFailed = 1;
+            }
+            lastCheckpointFrame = frameCount;
+        }
+
         stepOnce = 0;
         if (!skipRendering)
             GLContext_SwapBuffers(glCtx);
+    }
+
+    if (opts.checkpointPath[0] && lbmGrid && useLBM &&
+        frameCount != lastCheckpointFrame) {
+        TunnelState ts;
+        TUNNEL_STATE(ts, cdStartFrame);
+        char err[CKPT_ERR_LEN];
+        if (writeCheckpoint(opts.checkpointPath,
+                            lbmGrid,
+                            latticeVelocity,
+                            man.modelPath,
+                            &ts,
+                            &conv,
+                            clSeries,
+                            err,
+                            sizeof(err)) == 0) {
+            man.checkpointsWritten++;
+            man.checkpointStep = lbmGrid->stepCount;
+            printf("Checkpoint written to %s (step %d)\n",
+                   opts.checkpointPath,
+                   lbmGrid->stepCount);
+        } else {
+            fprintf(stderr, "Error: checkpoint: %s\n", err);
+            checkpointFailed = 1;
+        }
     }
 
     ConvStats convStats;
@@ -1644,7 +1906,7 @@ int main(int argc, char *argv[]) {
                          &man.sheddingFreq);
     }
 
-    int exitCode = 0;
+    int exitCode = checkpointFailed ? 1 : 0;
     if (wantManifest) {
         man.wallSeconds = monotonicSeconds() - startClock;
         man.modelScale = g_modelScale;

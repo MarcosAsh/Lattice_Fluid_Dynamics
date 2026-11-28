@@ -2,6 +2,9 @@
 #define LBM_H
 
 #include <glad/gl.h>
+#include <stddef.h>
+
+#include "checkpoint.h"
 
 // Floats per force workgroup: force, pressure, weight terms (vec4 each)
 #define LBM_FORCE_FLOATS 12
@@ -95,6 +98,10 @@ typedef struct {
     int forceWorkgroups; // force buffer holds 3 vec4 per workgroup
     GLint force_wgBaseLoc;
     GLsync stepFence; // bounds the depth of the queued step work
+
+    int geomHashed; // solidHash and qHash are current
+    uint64_t solidHash;
+    uint64_t qHash;
 } LBMGrid;
 
 // Initialize LBM grid
@@ -180,4 +187,15 @@ void LBM_SetSolidMesh(LBMGrid *grid,
                       float maxX,
                       float maxY,
                       float maxZ);
+
+// Collision operator name as the collide shader picks it
+const char *LBM_OperatorName(const LBMGrid *grid);
+
+// Grid fields of a checkpoint header, inlet velocity u. 0 on success
+int LBM_CheckpointHeader(LBMGrid *grid, float u, CkptHeader *h);
+
+// Distributions, step counter, force window and guard counters
+int LBM_SaveState(LBMGrid *grid, CkptWriter *out);
+int LBM_LoadState(LBMGrid *grid, CkptReader *r, char *err, size_t errLen);
+
 #endif // LBM_H

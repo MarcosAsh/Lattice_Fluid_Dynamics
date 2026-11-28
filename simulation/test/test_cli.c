@@ -186,6 +186,27 @@ static void test_converge_options(void) {
     CHECK(parse(&o, "--converge-window=3", NULL) == -1, "window too small");
 }
 
+static void test_checkpoint_options(void) {
+    printf("test: checkpoint options\n");
+    CliOptions o;
+    CHECK(parse(&o, NULL, NULL) == 0 && !o.checkpointPath[0] &&
+              o.checkpointInterval == 0 && !o.restartPath[0],
+          "off by default");
+    CHECK(parse(&o, "--checkpoint=a.ckpt", "--checkpoint-interval=50") == 0 &&
+              strcmp(o.checkpointPath, "a.ckpt") == 0 &&
+              o.checkpointInterval == 50,
+          "path and interval");
+    CHECK(parse(&o, "--restart=b.ckpt", NULL) == 0 &&
+              strcmp(o.restartPath, "b.ckpt") == 0,
+          "restart path");
+    CHECK(parse(&o, "--checkpoint-interval=50", NULL) == -1,
+          "interval needs --checkpoint");
+    CHECK(parse(&o, "--checkpoint=a", "--checkpoint-interval=0") == -1,
+          "interval must be positive");
+    CHECK(parse(&o, "--checkpoint=a", "--checkpoint-interval=x") == -1,
+          "interval must be a number");
+}
+
 static void test_help(void) {
     printf("test: --help and --version ask for a clean exit\n");
     CliOptions o;
@@ -204,6 +225,7 @@ int main(void) {
     test_invalid_values();
     test_manifest_path();
     test_converge_options();
+    test_checkpoint_options();
     test_help();
     printf("\n%d/%d checks passed\n", tests_run - tests_failed, tests_run);
     return tests_failed == 0 ? 0 : 1;
