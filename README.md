@@ -8,6 +8,10 @@ GPU-accelerated wind tunnel that simulates fluid flow around 3D objects using La
 
 The simulation runs a D3Q19 LBM grid on the GPU, pushes 50,000 particles through the velocity field, and computes drag/lift coefficients in real time. You can run it locally with a desktop window or trigger headless renders on a cloud GPU through the website.
 
+## Who it is for
+
+People learning or teaching the lattice Boltzmann method who want a solver they can read and run on any GPU with OpenGL 4.3, and researchers who need cheap drag samples at low Reynolds numbers with an error bar and a record of how each one was produced.
+
 ## What's in here
 
 ```
