@@ -446,3 +446,80 @@ twice the standard error. `--plot` needs the `plots` extra.
 Meshes from the automotive datasets come as STL.
 `uv run python ml/cli.py convert body.stl` writes `body.obj` with
 duplicate vertices merged and degenerate triangles dropped.
+
+## Shape optimisation
+
+The shape optimiser deforms a base mesh with a free-form deformation
+(FFD) lattice and lowers the Cd that a small surrogate network predicts.
+Every shape it proposes then goes through the solver, since the
+surrogate can be badly wrong away from its training samples.
+
+`gen-shapes --local` runs the training samples through the study runner.
+Every shape runs at the baseline's scale, so the solver does not stretch
+a longer body back to the baseline length. Re is set on the baseline
+length, so all shapes see the same speed and viscosity, and the runs use
+`--strict-reynolds`. The settings go to `protocol.json` next to the data.
+Training copies them into the checkpoint, along with the training
+samples.
+
+```bash
+uv run python ml/cli.py gen-shapes --config $PWD/docs/validation/shapeopt/laptop_config.yaml \
+    --local --binary build/3d_fluid_simulation_car --out build/shapes
+uv run python ml/cli.py train-shapeopt --data build/shapes/shapeopt_data.sobin --seed 0
+uv run python ml/cli.py optimize --weights build/shapes/shapeopt_model_best.pt \
+    --base-model ahmed25 --output build/shapes/opt.obj --binary build/3d_fluid_simulation_car
+```
+
+`optimize` keeps every FFD parameter inside the range of the training
+samples. It reports the distance from the result to the nearest training
+sample in the surrogate's normalised inputs, next to the typical spacing
+of the training samples, and warns when free parameters sit on a bound.
+Several checkpoints trained with different `--seed` and `--out` form an
+ensemble (`--weights a.pt b.pt ...`). The optimiser then lowers the mean
+plus `--kappa` standard deviations (default 1), and prints how often two
+standard deviations covered the error on the held-out samples.
+
+`optimize` writes the OBJ and a candidate file with the same name and a
+`.json` extension, then runs `verify` on it. It prints a change in Cd only
+with the verification table, and stops if there is no solver binary.
+`--no-verify` skips the solver and labels the result "surrogate
+prediction, not verified".
+
+`verify` checks each mesh first. It must be watertight, with no
+degenerate triangles, no triangle turned over against the baseline and a
+positive Jacobian of the FFD map at every vertex. Then it runs the
+baseline and the candidates at the training grid, Re and run length,
+unless `--grid`, `--reynolds`, `--duration` or `--converge` say
+otherwise. A second `--grid` repeats the runs there, with durations
+scaled by Nx so both grids cover the same flow-throughs.
+
+```bash
+uv run python ml/cli.py verify build/shapes/opt.json --binary build/3d_fluid_simulation_car \
+    --out build/shapes/verify --grid 64x32x32 --grid 128x64x64
+```
+
+For each shape and grid the table gives the predicted and solver Cd with
+its 95% interval, the surrogate error (on the training grid only), the
+predicted and solver change from the baseline, and a verdict:
+
+- verified: the interval on the change excludes zero, on the side the
+  surrogate predicted
+- not distinguishable: the interval includes zero
+- wrong direction: the interval excludes zero, on the other side
+
+The interval on a change adds the two runs' half-widths in quadrature. It
+covers sampling noise and leaves out grid error, so a change that holds
+on one grid can vanish on another. With two grids the overall verdict is "grid
+dependent" when they disagree.
+
+Cd uses each shape's own frontal area, so a shape can lower Cd by growing
+its frontal area while its drag rises. The table also gives the frontal
+area over the baseline's (A/A0) and the change in CdA/A0, which compares
+drag forces, with its own verdict. `verify.md`, `verify.csv` and
+`verify.json` go to `--out`. The exit status is 1 when a shape has no
+verdict or the grids disagree.
+
+The Modal path of `gen-shapes` lets the solver scale every shape to the
+same length and does not check Re, so its data does not match these
+settings. The surrogate has no input for the base model, so a dataset
+should hold one base model.

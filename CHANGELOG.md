@@ -34,6 +34,10 @@ versions. See [docs/validation/REPORT.md](docs/validation/REPORT.md).
 - `--surface-output` writes time-averaged Cp, wall pressure and shear on
   the body as VTK, plus a CSV along the symmetry plane.
 - `--version`.
+- `verify` runs optimised shapes and the baseline in the solver and
+  reports the surrogate error and a verdict on each change. `optimize`
+  runs it by default and keeps the FFD parameters inside the training
+  range. `gen-shapes --local` makes training data with the same settings.
 - Entropic collision and inlet turbulence (`--turbulence`).
 - Outlet sponge layer, on by default, width set with `--sponge=CELLS`.
 - `--vtk-stats` for time-averaged turbulence statistics, and density in
