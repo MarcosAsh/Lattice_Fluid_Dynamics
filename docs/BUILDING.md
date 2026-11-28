@@ -2,8 +2,8 @@
 
 ## Requirements
 
-- C11 compiler (GCC, Clang, or MSVC)
-- CMake 3.16+
+- C17 compiler (GCC or Clang)
+- CMake 3.22+
 - OpenGL 4.3+ capable GPU and drivers
 - SDL2
 - EGL (optional, for headless GPU rendering)

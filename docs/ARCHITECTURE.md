@@ -25,7 +25,7 @@ lbm.c / lbm.h  LBM grid creation, solid voxelization, Cd/Cl computation
 ### Data flow per frame
 
 ```
-for each substep (5x per frame):
+for each substep (10x per frame):
     lbm_collide.comp   f -> f_new   (boundary conditions + collision)
     lbm_stream.comp    f_new -> f   (propagate distributions)
     lbm_force.comp     accumulate boundary force (when averaging is on)
@@ -45,9 +45,9 @@ in `LBM_SetSolidMesh()`. Each grid cell is marked solid or fluid.
 
 Computed via momentum exchange (Mei-Luo-Shyy method) in the force
 shader. For each fluid cell adjacent to a solid cell, the momentum
-transferred through bounce-back is accumulated with atomic adds.
-The CPU reads back the force buffer and normalizes by dynamic
-pressure and frontal area.
+transferred through bounce-back is summed per workgroup in float.
+The CPU adds the partial sums in double and normalizes by dynamic
+pressure and the frontal area of the mesh.
 
 ## Website (Next.js + React)
 
