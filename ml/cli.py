@@ -36,6 +36,10 @@ COMMANDS: dict[str, tuple[str, str]] = {
     "train-superres": ("superres/train_superres.py", "train the super-resolution net"),
     "evaluate-superres": ("superres/evaluate_superres.py", "evaluate the super-resolution net"),
     "export-superres": ("superres/export_weights.py", "export super-resolution weights"),
+    "superres-baselines": (
+        "superres/evaluate_baselines.py",
+        "compare the super-resolution net with interpolation",
+    ),
 }
 
 
