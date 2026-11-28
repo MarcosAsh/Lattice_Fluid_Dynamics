@@ -4,6 +4,8 @@ layout(local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
 // Stream distributions from neighbors to current cell.
 // Boundary links use Bouzidi interpolated bounce-back for
 // second-order wall accuracy on curved surfaces.
+// f holds f - w, the Bouzidi weights sum to 1 over equal w_i so the
+// shift passes through
 
 layout(std430, binding = 2) buffer LBMBuffer {
     float f[];

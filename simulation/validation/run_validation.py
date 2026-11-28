@@ -155,6 +155,15 @@ def tgv(s):
                 "1e-2",
                 abs(r["nu_err"]) < 1e-2 and r["resets"] == 0,
             )
+            # 26k steps, float32 round-off on stored f - w
+            s.check(
+                f"TGV {op} n=64 tau=0.503",
+                "relative mass drift",
+                f"{r['mass_rel_drift']:.2e}",
+                "0",
+                "1e-5",
+                abs(r["mass_rel_drift"]) < 1e-5,
+            )
     # Smagorinsky eddy viscosity against the analytic prediction
     base, _, _ = s.run(
         "tgv_smag0",
@@ -260,11 +269,13 @@ def poiseuille(s):
                     "1e-3",
                     abs(r["force_err"]) < 1e-3 and r["resets"] == 0,
                 )
-            if len(errs) >= 2:
-                order = math.log(errs[0][1] / errs[1][1]) / math.log(errs[1][0] / errs[0][0])
+            for a, b in [(0, 1), (1, 2)]:
+                if len(errs) <= b:
+                    continue
+                order = math.log(errs[a][1] / errs[b][1]) / math.log(errs[b][0] / errs[a][0])
                 s.check(
                     f"Poiseuille {op} q={q}",
-                    "L2 order, H 8 to 16",
+                    f"L2 order, H {errs[a][0]} to {errs[b][0]}",
                     f"{order:.2f}",
                     "2",
                     "> 1.7",

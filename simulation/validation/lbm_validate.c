@@ -75,10 +75,12 @@ static double now_s(void) {
     return ts.tv_sec + ts.tv_nsec * 1e-9;
 }
 
-static double feq(int i, double rho, double ux, double uy, double uz) {
+// feq - w, the solver stores f shifted by the weights
+static double feqShifted(int i, double drho, double ux, double uy, double uz) {
     double eu = ex[i] * ux + ey[i] * uy + ez[i] * uz;
     double u2 = ux * ux + uy * uy + uz * uz;
-    return wq[i] * rho * (1.0 + 3.0 * eu + 4.5 * eu * eu - 1.5 * u2);
+    return wq[i] * (1.0 + drho) * (4.5 * eu * eu - 1.5 * u2 + 3.0 * eu) +
+           wq[i] * drho;
 }
 
 static int argval(const char *a, const char *key, const char **val) {
@@ -176,19 +178,22 @@ static void read_buf(GLuint buf, size_t bytes, void *dst) {
     glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, bytes, dst);
 }
 
+// Sum of f = (f - w) + w, the weights add 1 per cell
 static double total_mass(LBMGrid *g, const int *solid) {
     size_t n = (size_t)19 * g->totalCells;
     float *f = malloc(n * sizeof(float));
     read_buf(g->fBuffer, n * sizeof(float), f);
-    double m = 0;
+    double dm = 0;
+    long cells = 0;
     for (int c = 0; c < g->totalCells; c++) {
         if (solid && solid[c])
             continue;
+        cells++;
         for (int i = 0; i < 19; i++)
-            m += f[(size_t)c * 19 + i];
+            dm += f[(size_t)c * 19 + i];
     }
     free(f);
-    return m;
+    return (double)cells + dm;
 }
 
 static int check_diag(LBMGrid *g, const char *where) {
@@ -299,11 +304,12 @@ static int case_tgv(Opts *o) {
                 double u = U0 * sin(a) * cos(b);
                 double v = -U0 * cos(a) * sin(b);
                 double p = 0.25 * U0 * U0 * (cos(2 * a) + cos(2 * b));
-                double rho = 1.0 + 3.0 * p;
+                double drho = 3.0 * p;
                 size_t c = x + (size_t)nx * (y + (size_t)ny * z);
                 for (int i = 0; i < 19; i++)
-                    f[c * 19 + i] = (float)(o->plane ? feq(i, rho, u, 0, v)
-                                                     : feq(i, rho, u, v, 0));
+                    f[c * 19 + i] =
+                        (float)(o->plane ? feqShifted(i, drho, u, 0, v)
+                                         : feqShifted(i, drho, u, v, 0));
             }
     upload_f(g, f);
     double m0 = total_mass(g, NULL);
@@ -311,7 +317,7 @@ static int case_tgv(Opts *o) {
     // Sample energy at ~40 points, fit log E over the second half
     int nsamp = 40;
     int every = steps / nsamp > 0 ? steps / nsamp : 1;
-    double ts[64], lnE[64];
+    double ts[64], lnE[64], lnEj[64];
     int ns = 0;
     float *vel = malloc(cells * 4 * sizeof(float));
     double t0 = now_s();
@@ -320,10 +326,16 @@ static int case_tgv(Opts *o) {
         LBM_Step(g, 0, 0, 0);
         if (s % every == 0 && ns < 64) {
             read_buf(g->velocityBuffer, cells * 4 * sizeof(float), vel);
-            double E = 0;
-            for (size_t c = 0; c < cells; c++)
-                E += vel[4 * c] * vel[4 * c] + vel[4 * c + 1] * vel[4 * c + 1] +
-                     vel[4 * c + 2] * vel[4 * c + 2];
+            double E = 0, Ej = 0;
+            for (size_t c = 0; c < cells; c++) {
+                double u2 = vel[4 * c] * vel[4 * c] +
+                            vel[4 * c + 1] * vel[4 * c + 1] +
+                            vel[4 * c + 2] * vel[4 * c + 2];
+                E += u2;
+                Ej += u2 * vel[4 * c + 3] * vel[4 * c + 3];
+            }
+            // Ej uses rho u, so a drift in mass does not bias it
+            lnEj[ns] = log(Ej);
             // velocity buffer holds the pre-collision state of step s-1
             ts[ns] = s - 1;
             lnE[ns] = log(E);
@@ -355,17 +367,21 @@ static int case_tgv(Opts *o) {
 
     // Least squares slope over the second half, past the initial layer
     int a0 = ns / 2;
-    double sx = 0, sy = 0, sxx = 0, sxy = 0;
+    double sx = 0, sy = 0, sxx = 0, sxy = 0, syj = 0, sxyj = 0;
     int m = 0;
     for (int i = a0; i < ns; i++) {
         sx += ts[i];
         sy += lnE[i];
         sxx += ts[i] * ts[i];
         sxy += ts[i] * lnE[i];
+        syj += lnEj[i];
+        sxyj += ts[i] * lnEj[i];
         m++;
     }
     double slope = (m * sxy - sx * sy) / (m * sxx - sx * sx);
     double nuEff = -slope / (4.0 * k * k);
+    double slopeJ = (m * sxyj - sx * syj) / (m * sxx - sx * sx);
+    double nuEffJ = -slopeJ / (4.0 * k * k);
 
     // Smagorinsky nu_t weighted by S:S is 1.441 Cs^2 k A for this field
     double meanA = 0;
@@ -374,8 +390,9 @@ static int case_tgv(Opts *o) {
     double nuT = 1.441 * o->smag * o->smag * k * meanA;
     double m1 = total_mass(g, NULL);
     printf("RESULT case=tgv op=%s smag=%.3f n=%d plane=%s tau=%.4f U0=%.4f "
-           "steps=%d nu=%.6e nu_eff=%.6e nu_err=%.4e nu_t_pred=%.4e l2=%.4e "
-           "mass_rel_drift=%.3e chunks=%d resets=%d mlups=%.1f\n",
+           "steps=%d nu=%.6e nu_eff=%.6e nu_err=%.4e nu_err_j=%.4e "
+           "nu_t_pred=%.4e l2=%.4e mass_rel_drift=%.3e chunks=%d resets=%d "
+           "mlups=%.1f\n",
            o->op,
            o->smag,
            n,
@@ -386,6 +403,7 @@ static int case_tgv(Opts *o) {
            nu,
            nuEff,
            (nuEff - nu) / nu,
+           (nuEffJ - nu) / nu,
            nuT,
            l2,
            (m1 - m0) / m0,

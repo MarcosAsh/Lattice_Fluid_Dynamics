@@ -3,6 +3,9 @@
 
 #include <glad/gl.h>
 
+// Floats per force workgroup: force, pressure, weight terms (vec4 each)
+#define LBM_FORCE_FLOATS 12
+
 typedef struct {
     int sizeX, sizeY, sizeZ;
     int totalCells;
@@ -87,7 +90,7 @@ typedef struct {
     GLint stream_fNewZCountLoc;
     GLint stream_wrapPlaneZLoc;
 
-    int forceWorkgroups; // force buffer holds 2 vec4 per workgroup
+    int forceWorkgroups; // force buffer holds 3 vec4 per workgroup
     GLint force_wgBaseLoc;
     GLsync stepFence; // bounds the depth of the queued step work
 } LBMGrid;

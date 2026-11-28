@@ -78,6 +78,14 @@ static float feq(int i, float rho, float ux, float uy, float uz) {
             u2 / (2.0f * cs2));
 }
 
+/* feq - w as the shaders store it, Lehmann 2022 eq 27 */
+static float feq_shifted(int i, float drho, float ux, float uy, float uz) {
+    float eu = ex[i] * ux + ey[i] * uy + ez[i] * uz;
+    float u2 = ux * ux + uy * uy + uz * uz;
+    return w[i] * (1.0f + drho) * (4.5f * eu * eu - 1.5f * u2 + 3.0f * eu) +
+           w[i] * drho;
+}
+
 /* MRT moment transforms (CPU mirrors of the GLSL functions) */
 
 static void cpu_forwardMRT(const float fi[19], float m[19]) {
@@ -230,6 +238,115 @@ static void test_equilibrium_at_rest(void) {
         float fi = feq(i, rho, 0, 0, 0);
         ASSERT_NEAR(fi, w[i], 1e-6, "feq at rest");
     }
+}
+
+static void test_shifted_equilibrium(void) {
+    printf("test: shifted equilibrium is feq - w\n");
+    float drho = 2e-3f, ux = 0.05f, uy = -0.02f, uz = 0.01f;
+    double sum = 0, mx = 0;
+    for (int i = 0; i < 19; i++) {
+        float g = feq_shifted(i, drho, ux, uy, uz);
+        ASSERT_NEAR(g, feq(i, 1.0f + drho, ux, uy, uz) - w[i], 1e-7, "feq-w");
+        sum += g;
+        mx += ex[i] * g;
+    }
+    ASSERT_NEAR(sum, drho, 1e-8, "shifted feq sums to rho - 1");
+    ASSERT_NEAR(mx, (1.0 + drho) * ux, 1e-8, "shifted feq momentum");
+}
+
+static void test_mrt_moments_of_weights(void) {
+    printf("test: MRT moments of w are (1, -11, 3, 0, ...)\n");
+    float m[19];
+    cpu_forwardMRT(w, m);
+    for (int k = 0; k < 19; k++) {
+        float want = k == 0 ? 1.0f : k == 1 ? -11.0f : k == 2 ? 3.0f : 0.0f;
+        ASSERT_NEAR(m[k], want, 1e-6, "moment of w");
+    }
+}
+
+/* Shear wave in a periodic box, mass must hold to float32 round-off */
+static void test_periodic_mass_shifted(void) {
+    printf("test: periodic box conserves mass with shifted f\n");
+    int n = 16;
+    LBMGrid *grid = LBM_Create(n, n, n, 0.001f);
+    if (!grid)
+        return;
+    grid->tau = 0.503f;
+    grid->periodicX = 1;
+    grid->periodicYZ = 1;
+    size_t cells = grid->totalCells;
+    float *f = malloc(cells * 19 * sizeof(float));
+    for (int z = 0; z < n; z++)
+        for (int y = 0; y < n; y++)
+            for (int x = 0; x < n; x++) {
+                float a = 6.2831853f * (x + 0.5f) / n;
+                float b = 6.2831853f * (y + 0.5f) / n;
+                float u = 0.05f * sinf(a) * cosf(b);
+                float v = -0.05f * cosf(a) * sinf(b);
+                size_t c = x + (size_t)n * (y + (size_t)n * z);
+                for (int i = 0; i < 19; i++)
+                    f[c * 19 + i] = feq_shifted(i, 0.0f, u, v, 0.0f);
+            }
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->fBuffer);
+    glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, cells * 19 * 4, f);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->fNewBuffer);
+    glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, cells * 19 * 4, f);
+    double m0 = 0;
+    for (size_t i = 0; i < cells * 19; i++)
+        m0 += f[i];
+    for (int s = 0; s < 1000; s++)
+        LBM_Step(grid, 0, 0, 0);
+    glMemoryBarrier(GL_ALL_BARRIER_BITS);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->fBuffer);
+    glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, cells * 19 * 4, f);
+    double m1 = 0;
+    for (size_t i = 0; i < cells * 19; i++)
+        m1 += f[i];
+    /* Stored values sum to mass - cells */
+    double drift = (m1 - m0) / (double)cells;
+    printf("  relative mass drift over 1000 steps: %.2e\n", drift);
+    ASSERT(fabs(drift) < 1e-6, "mass drift below 1e-6");
+    free(f);
+    LBM_Free(grid);
+}
+
+/* At rest f = w, so each link adds 2 w_i e_i, which the shift moves to CPU */
+static void test_force_at_rest(void) {
+    printf("test: force at rest equals sum of 2 w e over links\n");
+    LBMGrid *grid = LBM_Create(16, 8, 8, 0.1f);
+    if (!grid)
+        return;
+    LBM_SetSolidAABB(grid, -0.3f, -0.15f, -0.15f, 0.3f, 0.15f, 0.15f);
+    LBM_AddGroundPlane(grid, -1.5f);
+    LBM_InitializeFlow(grid, 0.0f, 0.0f, 0.0f);
+    size_t n = (size_t)19 * grid->totalCells;
+    float *q = malloc(n * sizeof(float));
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->qBuffer);
+    glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, n * sizeof(float), q);
+    double want[3] = {0, 0, 0};
+    for (size_t k = 0; k < n; k++) {
+        int i = (int)(k % 19);
+        if (q[k] >= 0.0f && i > 0) {
+            want[0] += 2.0 * w[i] * ex[i];
+            want[1] += 2.0 * w[i] * ey[i];
+            want[2] += 2.0 * w[i] * ez[i];
+        }
+    }
+    free(q);
+    float fx, fy, fz;
+    LBM_ComputeDragForce(grid, &fx, &fy, &fz);
+    printf("  force (%.6f, %.6f, %.6f), links give (%.6f, %.6f, %.6f)\n",
+           fx,
+           fy,
+           fz,
+           want[0],
+           want[1],
+           want[2]);
+    ASSERT(fabs(want[2]) > 1.0, "ground links give a net z term");
+    ASSERT_NEAR(fx, want[0], 1e-4, "rest force x");
+    ASSERT_NEAR(fy, want[1], 1e-4, "rest force y");
+    ASSERT_NEAR(fz, want[2], 1e-4, "rest force z");
+    LBM_Free(grid);
 }
 
 static void test_grid_create_and_free(void) {
@@ -716,6 +833,8 @@ int main(void) {
     test_mrt_moment_roundtrip();
     test_mrt_conserved_moments();
     test_mrt_equilibrium_fixedpoint();
+    test_shifted_equilibrium();
+    test_mrt_moments_of_weights();
 
     /* GPU tests (need GL context) */
     if (init_gl()) {
@@ -727,6 +846,8 @@ int main(void) {
         test_box_cd_convergence();
         test_force_averaging();
         test_ground_plane();
+        test_periodic_mass_shifted();
+        test_force_at_rest();
         test_sphere_cd_re100();
     } else {
         printf("\nSkipping GPU tests (no GL context)\n");

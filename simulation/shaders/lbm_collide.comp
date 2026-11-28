@@ -2,7 +2,7 @@
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
 
 // D3Q19 lattice - 19 velocity directions
-// Stored as 19 floats per cell: f0, f1, ..., f18
+// 19 floats per cell holding f_i - w_i, Lehmann 2022 sec 2.2
 
 layout(std430, binding = 2) buffer LBMBuffer {
     float f[]; // Distribution functions: size = 19 * gridX * gridY * gridZ
@@ -104,14 +104,16 @@ int idxF(int x, int y, int z, int i) {
     return i + 19 * idx3D(x, y, z);
 }
 
-// Equilibrium distribution
-float feq(int i, float rho, vec3 u) {
+// Velocity part of the shifted equilibrium, Lehmann 2022 eq 27
+float feqU(int i, float rho, vec3 u) {
     float eu = float(e[i].x) * u.x + float(e[i].y) * u.y + float(e[i].z) * u.z;
     float u2 = dot(u, u);
-    float cs2 = 1.0 / 3.0; // Speed of sound squared
+    return w[i] * rho * (4.5 * eu * eu - 1.5 * u2 + 3.0 * eu);
+}
 
-    return w[i] * rho *
-           (1.0 + eu / cs2 + (eu * eu) / (2.0 * cs2 * cs2) - u2 / (2.0 * cs2));
+// Shifted equilibrium feq - w, drho = rho - 1, Lehmann 2022 eq 27
+float feqS(int i, float rho, float drho, vec3 u) {
+    return feqU(i, rho, u) + w[i] * drho;
 }
 
 // Inlet turbulence: random Fourier modes (Kraichnan-style synthetic
@@ -431,10 +433,11 @@ void main() {
             uz += turbulenceIntensity * U * turbNoise(gy, gz, 2);
         }
 
-        // Compute density from Zou-He constraint
-        float rho_in = (knowns_0 + 2.0 * knowns_neg) / (1.0 - ux);
+        // Zou-He density, the known weights sum to 2/3 + 2 * 1/6 = 1
+        float rho_in = (knowns_0 + 2.0 * knowns_neg + 1.0) / (1.0 - ux);
 
-        // Non-equilibrium bounce-back for the 5 unknown distributions
+        // Non-equilibrium bounce-back for the 5 unknown distributions,
+        // opposite weights are equal so the shift cancels
         f[idxF(pos.x, pos.y, pos.z, 1)] = f2 + (1.0 / 3.0) * rho_in * ux;
         f[idxF(pos.x, pos.y, pos.z, 7)] =
             f10 + (1.0 / 6.0) * rho_in * (ux + uy);
@@ -466,8 +469,9 @@ void main() {
         float knowns_0 = f0 + f3 + f4 + f5 + f6 + f15 + f16 + f17 + f18;
         float knowns_pos = f1 + f7 + f9 + f11 + f13;
 
+        // Known weights sum to 1, so ux = -1 + (sum + 1) / rho_out
         float rho_out = 1.0;
-        float ux = -1.0 + (knowns_0 + 2.0 * knowns_pos) / rho_out;
+        float ux = (knowns_0 + 2.0 * knowns_pos + (1.0 - rho_out)) / rho_out;
 
         // Non-equilibrium bounce-back for the 5 unknown distributions
         // Assume uy=0, uz=0 at outlet (fully developed flow)
@@ -478,20 +482,27 @@ void main() {
         f[idxF(pos.x, pos.y, pos.z, 12)] = f13 - (1.0 / 6.0) * rho_out * ux;
     }
 
-    // Compute macroscopic quantities
-    float rho = 0.0;
-    vec3 u = vec3(0.0);
+    // Shifted distributions g = f - w
+    float g[19];
+    for (int i = 0; i < 19; i++)
+        g[i] = f[idxF(pos.x, pos.y, pos.z, i)];
 
-    for (int i = 0; i < 19; i++) {
-        float fi = f[idxF(pos.x, pos.y, pos.z, i)];
-        rho += fi;
-        u.x += float(e[i].x) * fi;
-        u.y += float(e[i].y) * fi;
-        u.z += float(e[i].z) * fi;
-    }
+    // drho = sum g, Lehmann 2022 eq 25, momentum in +/- pairs
+    float drho = 0.0;
+    for (int i = 0; i < 19; i++)
+        drho += g[i];
+    float rho = 1.0 + drho;
+    vec3 u;
+    u.x = (g[1] - g[2]) + (g[7] - g[10]) + (g[9] - g[8]) + (g[11] - g[14]) +
+          (g[13] - g[12]);
+    u.y = (g[3] - g[4]) + (g[7] - g[10]) + (g[8] - g[9]) + (g[15] - g[18]) +
+          (g[17] - g[16]);
+    u.z = (g[5] - g[6]) + (g[11] - g[14]) + (g[12] - g[13]) + (g[15] - g[18]) +
+          (g[16] - g[17]);
 
+    // j / rho, dividing only the O(drho) part keeps u to full float32
     if (rho > 0.0001) {
-        u /= rho;
+        u -= u * (drho / rho);
     }
 
     // Stability guard: if density or velocity has diverged, reset the
@@ -502,19 +513,22 @@ void main() {
         atomicAdd(resetCount, 1);
         if (isnan(rho) || isinf(rho) || isnan(u_mag) || isinf(u_mag))
             atomicAdd(nanCount, 1);
-        rho = 1.0;
-        u = vec3(0.0);  // zero velocity -- don't inject directional momentum
+        // feq(1, 0) - w = 0, and zero velocity injects no momentum
         for (int i = 0; i < 19; i++) {
-            float fi_eq = feq(i, rho, u);
-            f[idxF(pos.x, pos.y, pos.z, i)] = fi_eq;
-            f_new[idxF(pos.x, pos.y, pos.z, i)] = fi_eq;
+            f[idxF(pos.x, pos.y, pos.z, i)] = 0.0;
+            f_new[idxF(pos.x, pos.y, pos.z, i)] = 0.0;
         }
-        velocity[globalIdx] = vec4(u, rho);
+        velocity[globalIdx] = vec4(0.0, 0.0, 0.0, 1.0);
         return;
     }
 
     // Store velocity for particle advection (EDM: physical u = u + F/2rho)
     velocity[globalIdx] = vec4(u + 0.5 * bodyForce / rho, rho);
+
+    // Shifted equilibrium, used by every operator below
+    float geq[19];
+    for (int i = 0; i < 19; i++)
+        geq[i] = feqS(i, rho, drho, u);
 
     // Effective relaxation time (may be modified by Smagorinsky)
     float tau_eff = tau;
@@ -527,9 +541,7 @@ void main() {
         float Sxy = 0.0, Sxz = 0.0, Syz = 0.0;
 
         for (int i = 0; i < 19; i++) {
-            float fi = f[idxF(pos.x, pos.y, pos.z, i)];
-            float fi_eq = feq(i, rho, u);
-            float f_neq = fi - fi_eq;
+            float f_neq = g[i] - geq[i];
 
             float ex = float(e[i].x);
             float ey = float(e[i].y);
@@ -586,9 +598,7 @@ void main() {
         float Pxy = 0.0, Pxz = 0.0, Pyz = 0.0;
 
         for (int i = 0; i < 19; i++) {
-            float fi = f[idxF(pos.x, pos.y, pos.z, i)];
-            float fi_eq = feq(i, rho, u);
-            float f_neq = fi - fi_eq;
+            float f_neq = g[i] - geq[i];
 
             float ex = float(e[i].x);
             float ey = float(e[i].y);
@@ -610,8 +620,6 @@ void main() {
         float inv_2cs4 = 4.5; // 1 / (2 * (1/9)) = 9/2
 
         for (int i = 0; i < 19; i++) {
-            float fi_eq = feq(i, rho, u);
-
             float ex = float(e[i].x);
             float ey = float(e[i].y);
             float ez = float(e[i].z);
@@ -627,7 +635,7 @@ void main() {
 
             // Collide on the regularized distribution
             f_new[idxF(pos.x, pos.y, pos.z, i)] =
-                fi_eq + (1.0 - omega) * f_neq_reg;
+                geq[i] + (1.0 - omega) * f_neq_reg;
         }
     } else if (useMRT == 1) {
         // MRT collision in moment space (d'Humieres 2002).
@@ -635,21 +643,16 @@ void main() {
         // are preserved, stress modes set physical viscosity, and
         // ghost modes are aggressively damped for stability.
 
-        // 1. Load distributions
-        float fi[19];
-        for (int i = 0; i < 19; i++)
-            fi[i] = f[idxF(pos.x, pos.y, pos.z, i)];
-
-        // 2. Forward transform to moment space
+        // 1. Forward transform of g, M w = (1, -11, 3, 0, ..., 0)
         float m[19];
-        forwardMRT(fi, m);
+        forwardMRT(g, m);
 
-        // 3. Equilibrium moments (from rho, u)
+        // 2. Equilibrium moments minus those of w
         float u2 = dot(u, u);
         float meq[19];
-        meq[0]  = rho;
-        meq[1]  = -11.0*rho + 19.0*rho*u2;
-        meq[2]  = 3.0*rho - 5.5*rho*u2;
+        meq[0]  = drho;
+        meq[1]  = -11.0*drho + 19.0*rho*u2;
+        meq[2]  = 3.0*drho - 5.5*rho*u2;
         meq[3]  = rho*u.x;
         meq[4]  = -2.0/3.0 * rho*u.x;
         meq[5]  = rho*u.y;
@@ -716,14 +719,15 @@ void main() {
         // stays stable without Smagorinsky or per-cell resets.
 
         // Entropy relative to f, x = (feq - f)/f, Chikatamarla et al. 2006
+        // The entropy needs the unshifted f = g + w
         float fi[19];
         float dlt[19];
         float x[19];
         float maxX = 0.0;
         float alphaMax = 1e30;
         for (int i = 0; i < 19; i++) {
-            fi[i] = max(f[idxF(pos.x, pos.y, pos.z, i)], 1e-10);
-            dlt[i] = feq(i, rho, u) - fi[i];
+            fi[i] = max(g[i] + w[i], 1e-10);
+            dlt[i] = geq[i] - g[i];
             x[i] = dlt[i] / fi[i];
             maxX = max(maxX, abs(x[i]));
             if (x[i] < 0.0)
@@ -771,23 +775,22 @@ void main() {
         float beta = 0.5 * omega; // = 1/(2*tau_eff), nu = cs2*(tau-0.5)
         for (int i = 0; i < 19; i++) {
             f_new[idxF(pos.x, pos.y, pos.z, i)] =
-                fi[i] + alpha * beta * dlt[i];
+                g[i] + alpha * beta * dlt[i];
         }
     } else {
-        // Standard BGK (SRT) collision
+        // Standard BGK (SRT) collision, Lehmann 2022 eq 28
         for (int i = 0; i < 19; i++) {
-            float fi = f[idxF(pos.x, pos.y, pos.z, i)];
-            float fi_eq = feq(i, rho, u);
-            f_new[idxF(pos.x, pos.y, pos.z, i)] = fi - omega * (fi - fi_eq);
+            f_new[idxF(pos.x, pos.y, pos.z, i)] =
+                g[i] - omega * (g[i] - geq[i]);
         }
     }
 
-    // Kupershtokh exact difference method
+    // Kupershtokh exact difference method, the w drho terms cancel
     if (bodyForce != vec3(0.0)) {
         vec3 du = bodyForce / rho;
         for (int i = 0; i < 19; i++) {
             int fidx = idxF(pos.x, pos.y, pos.z, i);
-            f_new[fidx] += feq(i, rho, u + du) - feq(i, rho, u);
+            f_new[fidx] += feqU(i, rho, u + du) - feqU(i, rho, u);
         }
     }
 
@@ -806,7 +809,8 @@ void main() {
             float sigma = 0.3 * s * s;
             for (int i = 0; i < 19; i++) {
                 int fidx = idxF(pos.x, pos.y, pos.z, i);
-                float target = feq(i, 1.0, u);
+                // Shifted feq at rho = 1 is the velocity part alone
+                float target = feqU(i, 1.0, u);
                 f_new[fidx] = mix(f_new[fidx], target, sigma);
             }
         }

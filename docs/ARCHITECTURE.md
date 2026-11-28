@@ -30,6 +30,10 @@ for each substep (10x per frame):
     lbm_stream.comp    f_new -> f   (propagate distributions)
     lbm_force.comp     accumulate boundary force (when averaging is on)
 
+f and f_new hold f_i - w_i, not f_i (Lehmann et al. 2022). Values near
+zero keep more float32 bits. Anything that reads or writes them must add
+or subtract the D3Q19 weights.
+
 particle_lbm.comp      sample velocity field, move particles
 force readback         window-averaged drag/lift every 20 frames
 render particles       draw as GL_POINTS with color modes

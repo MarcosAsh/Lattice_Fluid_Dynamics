@@ -1,0 +1,51 @@
+== uniform: uniform --op=mrt --steps=4000
+RESULT case=uniform bc=open op=mrt grid=64x32x32 tau=0.5200 U=0.0500 steps=4000 mass_rel_drift=-3.981e-07 max_du=5.469e-07 max_dv=0.000e+00 max_drho=5.960e-07 fx=0.000e+00 resets=0 mlups=68.7
+RESULT case=uniform bc=periodic op=mrt grid=64x32x32 tau=0.5200 U=0.0500 steps=4000 mass_rel_drift=2.381e-07 max_du=3.278e-08 max_dv=0.000e+00 max_drho=2.384e-07 fx=0.000e+00 resets=0 mlups=69.5
+== pois_bgk_h32: poiseuille --op=bgk --n=32 --q=0.5 --tau=0.8
+RESULT case=poiseuille op=bgk h=32 q=0.500 tau=0.8000 steps=81919 umax=2.000000e-02 umax_meas=1.997006e-02 l2=7.0773e-04 wall_fx=7.999896e-03 body_fx=8.000000e-03 force_err=-1.2991e-05 resets=0 mlups=12.2
+== pois_bgk_h16: poiseuille --op=bgk --n=16 --q=0.5 --tau=0.8
+RESULT case=poiseuille op=bgk h=16 q=0.500 tau=0.8000 steps=20479 umax=2.000000e-02 umax_meas=1.988077e-02 l2=2.8019e-03 wall_fx=1.599978e-02 body_fx=1.600000e-02 force_err=-1.3573e-05 resets=0 mlups=6.5
+== pois_bgk_h8: poiseuille --op=bgk --n=8 --q=0.5 --tau=0.8
+RESULT case=poiseuille op=bgk h=8 q=0.500 tau=0.8000 steps=5119 umax=2.000000e-02 umax_meas=1.952499e-02 l2=1.1125e-02 wall_fx=3.199970e-02 body_fx=3.200000e-02 force_err=-9.3821e-06 resets=0 mlups=3.2
+== pois_mrt_h32: poiseuille --op=mrt --n=32 --q=0.5 --tau=0.8
+RESULT case=poiseuille op=mrt h=32 q=0.500 tau=0.8000 steps=81919 umax=2.000000e-02 umax_meas=1.996452e-02 l2=1.1157e-03 wall_fx=8.000279e-03 body_fx=8.000000e-03 force_err=3.4856e-05 resets=0 mlups=12.0
+== pois_mrt_h16: poiseuille --op=mrt --n=16 --q=0.5 --tau=0.8
+RESULT case=poiseuille op=mrt h=16 q=0.500 tau=0.8000 steps=20479 umax=2.000000e-02 umax_meas=1.985451e-02 l2=4.6083e-03 wall_fx=1.599984e-02 body_fx=1.600000e-02 force_err=-9.9642e-06 resets=0 mlups=6.2
+== pois_mrt_h8: poiseuille --op=mrt --n=8 --q=0.5 --tau=0.8
+RESULT case=poiseuille op=mrt h=8 q=0.500 tau=0.8000 steps=5119 umax=2.000000e-02 umax_meas=1.941861e-02 l2=1.8409e-02 wall_fx=3.199977e-02 body_fx=3.200000e-02 force_err=-7.2867e-06 resets=0 mlups=3.4
+== tgv_bgk_06: tgv --op=bgk --n=64 --tau=0.6
+RESULT case=tgv op=bgk smag=0.000 n=64 plane=xy tau=0.6000 U0=0.0200 steps=778 nu=3.333333e-02 nu_eff=3.332901e-02 nu_err=-1.2975e-04 nu_err_j=-1.2959e-04 nu_t_pred=0.0000e+00 l2=1.4599e-03 mass_rel_drift=-1.531e-09 chunks=1 resets=0 mlups=69.9
+== tgv_bgk_0503: tgv --op=bgk --n=64 --tau=0.503 --u=0.05
+RESULT case=tgv op=bgk smag=0.000 n=64 plane=xy tau=0.5030 U0=0.0500 steps=25938 nu=1.000000e-03 nu_eff=9.983686e-04 nu_err=-1.6314e-03 nu_err_j=-1.6330e-03 nu_t_pred=0.0000e+00 l2=9.5995e-04 mass_rel_drift=-4.567e-07 chunks=1 resets=0 mlups=70.2
+== tgv_reg_06: tgv --op=reg --n=64 --tau=0.6
+RESULT case=tgv op=reg smag=0.000 n=64 plane=xy tau=0.6000 U0=0.0200 steps=778 nu=3.333333e-02 nu_eff=3.332496e-02 nu_err=-2.5123e-04 nu_err_j=-2.5118e-04 nu_t_pred=0.0000e+00 l2=1.3997e-03 mass_rel_drift=-1.288e-09 chunks=1 resets=0 mlups=67.8
+== tgv_reg_0503: tgv --op=reg --n=64 --tau=0.503 --u=0.05
+RESULT case=tgv op=reg smag=0.000 n=64 plane=xy tau=0.5030 U0=0.0500 steps=25938 nu=1.000000e-03 nu_eff=9.989863e-04 nu_err=-1.0137e-03 nu_err_j=-1.0160e-03 nu_t_pred=0.0000e+00 l2=1.3302e-03 mass_rel_drift=-2.088e-07 chunks=1 resets=0 mlups=70.3
+== tgv_mrt_06: tgv --op=mrt --n=64 --tau=0.6
+RESULT case=tgv op=mrt smag=0.000 n=64 plane=xy tau=0.6000 U0=0.0200 steps=778 nu=3.333333e-02 nu_eff=3.332794e-02 nu_err=-1.6186e-04 nu_err_j=-1.6174e-04 nu_t_pred=0.0000e+00 l2=1.4447e-03 mass_rel_drift=-1.786e-09 chunks=1 resets=0 mlups=68.4
+== tgv_mrt_0503: tgv --op=mrt --n=64 --tau=0.503 --u=0.05
+RESULT case=tgv op=mrt smag=0.000 n=64 plane=xy tau=0.5030 U0=0.0500 steps=25938 nu=1.000000e-03 nu_eff=9.982839e-04 nu_err=-1.7161e-03 nu_err_j=-1.7164e-03 nu_t_pred=0.0000e+00 l2=9.6083e-04 mass_rel_drift=-3.118e-07 chunks=1 resets=0 mlups=70.3
+== tgv_ent_06: tgv --op=ent --n=64 --tau=0.6
+RESULT case=tgv op=ent smag=0.000 n=64 plane=xy tau=0.6000 U0=0.0200 steps=778 nu=3.333333e-02 nu_eff=3.332903e-02 nu_err=-1.2913e-04 nu_err_j=-1.2898e-04 nu_t_pred=0.0000e+00 l2=1.4604e-03 mass_rel_drift=-1.740e-09 chunks=1 resets=0 mlups=54.5
+== tgv_ent_0503: tgv --op=ent --n=64 --tau=0.503 --u=0.05
+RESULT case=tgv op=ent smag=0.000 n=64 plane=xy tau=0.5030 U0=0.0500 steps=25938 nu=1.000000e-03 nu_eff=9.983719e-04 nu_err=-1.6281e-03 nu_err_j=-1.6297e-03 nu_t_pred=0.0000e+00 l2=9.6261e-04 mass_rel_drift=-4.567e-07 chunks=1 resets=0 mlups=66.8
+== sphere_re20_d8: sphere --re=20 --d=8
+RESULT case=sphere path=analytic op=mrt smag=0.000 D=8.0 re=20.0 U=0.0500 tau=0.56000 grid=128x64x64 sponge=16 periodic_yz=1 blockage=0.0123 steps=9600 tstar=60.0 cd=2.91763 cd_sd=0.00344 cd_voxel_area=2.82031 proj_area=52.0 resets=0 seconds=94.0 mlups=53.5
+== sphere_re20_d12: sphere --re=20 --d=12
+RESULT case=sphere path=analytic op=mrt smag=0.000 D=12.0 re=20.0 U=0.0500 tau=0.59000 grid=192x96x96 sponge=24 periodic_yz=1 blockage=0.0123 steps=14400 tstar=60.0 cd=2.83238 cd_sd=0.00285 cd_voxel_area=2.86014 proj_area=112.0 resets=0 seconds=556.4 mlups=45.8
+== sphere_re100_d8: sphere --re=100 --d=8
+RESULT case=sphere path=analytic op=mrt smag=0.000 D=8.0 re=100.0 U=0.0500 tau=0.51200 grid=128x64x64 sponge=16 periodic_yz=1 blockage=0.0123 steps=9600 tstar=60.0 cd=1.25672 cd_sd=0.00161 cd_voxel_area=1.21480 proj_area=52.0 resets=0 seconds=100.6 mlups=50.0
+== sphere_re100_d12: sphere --re=100 --d=12
+RESULT case=sphere path=analytic op=mrt smag=0.000 D=12.0 re=100.0 U=0.0500 tau=0.51800 grid=192x96x96 sponge=24 periodic_yz=1 blockage=0.0123 steps=14400 tstar=60.0 cd=1.15391 cd_sd=0.00121 cd_voxel_area=1.16522 proj_area=112.0 resets=0 seconds=550.6 mlups=46.3
+== tgv_bgk_0503_n128: tgv --op=bgk --n=128 --tau=0.503 --u=0.05
+RESULT case=tgv op=bgk smag=0.000 n=128 plane=xy tau=0.5030 U0=0.0500 steps=103752 nu=1.000000e-03 nu_eff=9.960524e-04 nu_err=-3.9476e-03 nu_err_j=-3.9469e-03 nu_t_pred=0.0000e+00 l2=1.8799e-03 mass_rel_drift=-1.828e-06 chunks=1 resets=0 mlups=72.2
+== uniform_bgk: uniform --op=bgk --steps=4000
+RESULT case=uniform bc=open op=bgk grid=64x32x32 tau=0.5200 U=0.0500 steps=4000 mass_rel_drift=7.940e-09 max_du=3.174e-07 max_dv=3.159e-08 max_drho=1.192e-07 fx=0.000e+00 resets=0 mlups=62.8
+RESULT case=uniform bc=periodic op=bgk grid=64x32x32 tau=0.5200 U=0.0500 steps=4000 mass_rel_drift=-4.191e-09 max_du=2.980e-09 max_dv=7.130e-10 max_drho=0.000e+00 fx=0.000e+00 resets=0 mlups=62.9
+== uniform_reg: uniform --op=reg --steps=4000
+RESULT case=uniform bc=open op=reg grid=64x32x32 tau=0.5200 U=0.0500 steps=4000 mass_rel_drift=-1.083e-07 max_du=5.767e-07 max_dv=1.630e-08 max_drho=2.980e-07 fx=0.000e+00 resets=0 mlups=63.5
+RESULT case=uniform bc=periodic op=reg grid=64x32x32 tau=0.5200 U=0.0500 steps=4000 mass_rel_drift=-4.075e-09 max_du=2.980e-09 max_dv=0.000e+00 max_drho=0.000e+00 fx=0.000e+00 resets=0 mlups=64.5
+== uniform_ent: uniform --op=ent --steps=4000
+RESULT case=uniform bc=open op=ent grid=64x32x32 tau=0.5200 U=0.0500 steps=4000 mass_rel_drift=7.940e-09 max_du=3.174e-07 max_dv=3.159e-08 max_drho=1.192e-07 fx=0.000e+00 resets=0 mlups=60.2
+RESULT case=uniform bc=periodic op=ent grid=64x32x32 tau=0.5200 U=0.0500 steps=4000 mass_rel_drift=-4.191e-09 max_du=2.980e-09 max_dv=7.130e-10 max_drho=0.000e+00 fx=0.000e+00 resets=0 mlups=62.4
+DONE

@@ -36,13 +36,11 @@ static const int ey[19] = {
 static const int ez[19] = {
     0, 0, 0, 0, 0, 1, -1, 0, 0, 0, 0, 1, 1, -1, -1, 1, 1, -1, -1};
 
-static float feq(int i, float rho, float ux, float uy, float uz) {
+// f is stored as f - w, Lehmann 2022 eq 27 with rho = 1
+static float feqShifted(int i, float ux, float uy, float uz) {
     float eu = ex[i] * ux + ey[i] * uy + ez[i] * uz;
     float u2 = ux * ux + uy * uy + uz * uz;
-    float cs2 = 1.0f / 3.0f;
-    return w[i] * rho *
-           (1.0f + eu / cs2 + (eu * eu) / (2.0f * cs2 * cs2) -
-            u2 / (2.0f * cs2));
+    return w[i] * (4.5f * eu * eu - 1.5f * u2 + 3.0f * eu);
 }
 
 LBMGrid *LBM_Create(int sizeX, int sizeY, int sizeZ, float viscosity) {
@@ -89,7 +87,7 @@ LBMGrid *LBM_Create(int sizeX, int sizeY, int sizeZ, float viscosity) {
     // One extra z-group per slab covers any split of 8+ planes
     int forceWG = ((sizeX + 7) / 8) * ((sizeY + 7) / 8) *
                   ((sizeZ + 7) / 8 + sizeZ / 8 + 1);
-    size_t forceSize = (size_t)forceWG * 8 * sizeof(float);
+    size_t forceSize = (size_t)forceWG * LBM_FORCE_FLOATS * sizeof(float);
 
     size_t totalGPU = 2 * fSize + velSize + solidSize + forceSize;
     printf("GPU memory: f=%.1f MB x2, vel=%.1f MB, solid=%.1f MB, "
@@ -757,7 +755,7 @@ int LBM_InitializeFlow(LBMGrid *grid, float ux, float uy, float uz) {
 
     for (int idx = 0; idx < grid->totalCells; idx++) {
         for (int i = 0; i < 19; i++) {
-            fData[idx * 19 + i] = feq(i, rho, ux, uy, uz);
+            fData[idx * 19 + i] = feqShifted(i, ux, uy, uz);
         }
         velData[idx * 4 + 0] = ux;
         velData[idx * 4 + 1] = uy;
@@ -1021,7 +1019,8 @@ static void dispatchForceShader(LBMGrid *grid) {
 }
 
 static void clearForceBuffer(LBMGrid *grid) {
-    size_t bytes = (size_t)grid->forceWorkgroups * 8 * sizeof(float);
+    size_t bytes =
+        (size_t)grid->forceWorkgroups * LBM_FORCE_FLOATS * sizeof(float);
     float *zeros = (float *)calloc(1, bytes);
     if (!zeros)
         return;
@@ -1075,16 +1074,16 @@ void LBM_ComputeDragForceDecomposed(LBMGrid *grid,
                     GL_BUFFER_UPDATE_BARRIER_BIT);
 
     // Read back per-workgroup sums and reduce in double
-    size_t nFloats = (size_t)grid->forceWorkgroups * 8;
+    size_t nFloats = (size_t)grid->forceWorkgroups * LBM_FORCE_FLOATS;
     float *partial = (float *)malloc(nFloats * sizeof(float));
     if (!partial)
         return;
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, grid->forceBuffer);
     glGetBufferSubData(
         GL_SHADER_STORAGE_BUFFER, 0, nFloats * sizeof(float), partial);
-    double sum[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+    double sum[LBM_FORCE_FLOATS] = {0};
     for (size_t i = 0; i < nFloats; i++)
-        sum[i % 8] += partial[i];
+        sum[i % LBM_FORCE_FLOATS] += partial[i];
     free(partial);
 
     // Restart the accumulation window
@@ -1093,16 +1092,18 @@ void LBM_ComputeDragForceDecomposed(LBMGrid *grid,
         grid->forceAccumCount = 0;
     }
 
+    // Add back the 2 w_i e_i link terms the shift removed
     double inv = 1.0 / (double)samples;
-    *forceX = (float)(sum[0] * inv);
-    *forceY = (float)(sum[1] * inv);
-    *forceZ = (float)(sum[2] * inv);
+    double wx = sum[8] / 36.0, wy = sum[9] / 36.0, wz = sum[10] / 36.0;
+    *forceX = (float)((sum[0] + wx) * inv);
+    *forceY = (float)((sum[1] + wy) * inv);
+    *forceZ = (float)((sum[2] + wz) * inv);
     if (pressureX)
-        *pressureX = (float)(sum[4] * inv);
+        *pressureX = (float)((sum[4] + wx) * inv);
     if (pressureY)
-        *pressureY = (float)(sum[5] * inv);
+        *pressureY = (float)((sum[5] + wy) * inv);
     if (pressureZ)
-        *pressureZ = (float)(sum[6] * inv);
+        *pressureZ = (float)((sum[6] + wz) * inv);
 }
 
 float LBM_ComputeDragCoefficient(LBMGrid *grid,
