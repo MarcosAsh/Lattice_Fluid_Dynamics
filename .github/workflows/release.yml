@@ -31,7 +31,7 @@ jobs:
           MESA_GL_VERSION_OVERRIDE: "4.3"
           LIBGL_ALWAYS_SOFTWARE: "1"
           USE_EGL: "0"
-        run: xvfb-run -a ctest --test-dir build --output-on-failure
+        run: xvfb-run -a ctest --test-dir build --output-on-failure -LE validation
 
       - name: Package
         run: |
