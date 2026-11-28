@@ -121,7 +121,7 @@ def uniform(s):
 
 def tgv(s):
     table = []
-    for op in ["bgk", "reg", "mrt", "ent"]:
+    for op in ["bgk", "reg", "mrt", "ent", "rr"]:
         for n in [32, 64, 128]:
             rows, _, _ = s.run(f"tgv_{op}_{n}", ["tgv", f"--op={op}", f"--n={n}", "--tau=0.6"])
             if not rows:
@@ -139,7 +139,7 @@ def tgv(s):
                     abs(r["nu_err"]) < 1e-3 and r["resets"] == 0,
                 )
     # Low viscosity
-    for op in ["mrt", "ent"]:
+    for op in ["mrt", "ent", "rr"]:
         rows, _, _ = s.run(
             f"tgv_{op}_lowvisc",
             ["tgv", f"--op={op}", "--n=64", "--tau=0.503", "--u=0.05"],
@@ -221,7 +221,7 @@ def tgv(s):
     s.results["tgv_table"] = table
     if table:
         fig, ax = plt.subplots(figsize=(6, 4))
-        for op, mk in zip(["bgk", "reg", "mrt", "ent"], "osd^", strict=True):
+        for op, mk in zip(["bgk", "reg", "mrt", "ent", "rr"], "osd^v", strict=True):
             pts = [
                 (r["n"], abs(r["nu_err"]))
                 for r in table
@@ -242,7 +242,7 @@ def tgv(s):
 
 def poiseuille(s):
     table = []
-    for op in ["bgk", "mrt"]:
+    for op in ["bgk", "mrt", "rr"]:
         for q in [0.5, 0.25, 0.75]:
             errs = []
             for h in [8, 16, 32]:
@@ -284,7 +284,7 @@ def poiseuille(s):
     s.results["poiseuille_table"] = table
     if table:
         fig, ax = plt.subplots(figsize=(6, 4))
-        for op, ls in [("bgk", "-"), ("mrt", "--")]:
+        for op, ls in [("bgk", "-"), ("mrt", "--"), ("rr", ":")]:
             for q, mk in [(0.5, "o"), (0.25, "s"), (0.75, "^")]:
                 pts = sorted((r["h"], r["l2"]) for r in table if r["op"] == op and r["q"] == q)
                 if pts:
@@ -299,6 +299,35 @@ def poiseuille(s):
         fig.tight_layout()
         fig.savefig(s.out / "poiseuille_convergence.png", dpi=120)
         plt.close(fig)
+
+
+# HiOCFD C3.5 spectral DNS, Re 1600, -dE/dt over the same 1 tc window
+TGV3D_EPS_PEAK = 0.012475
+TGV3D_T_PEAK = 8.96
+
+
+def tgv3d(s):
+    table = []
+    for op, smag in [("mrt", 0), ("mrt", 0.1), ("ent", 0), ("rr", 0), ("rr", 0.1)]:
+        rows, _, _ = s.run(
+            f"tgv3d_{op}_s{smag}",
+            ["tgv3d", f"--op={op}", f"--smag={smag}", "--n=64", "--re=1600"],
+        )
+        if not rows:
+            s.check(f"TGV 3D {op} smag={smag}", "run", "no result", "", "", False)
+            continue
+        r = rows[0]
+        table.append(r)
+        err = r["eps_max"] / TGV3D_EPS_PEAK - 1
+        s.check(
+            f"TGV 3D Re 1600 N=64 {op} smag={smag}",
+            "peak -dE/dt / DNS - 1",
+            f"{err:+.3f} at t={r['t_eps_max']:.2f}",
+            f"{TGV3D_EPS_PEAK} at t={TGV3D_T_PEAK}",
+            "0.25, stable",
+            abs(err) < 0.25 and r["resets"] == 0,
+        )
+    s.results["tgv3d_table"] = table
 
 
 def qcheck(s):
@@ -393,6 +422,38 @@ def sphere(s, quick):
         if rows:
             rows[0]["cd_ref"] = cgw(100)
             table.append(rows[0])
+        for op in ["rr", "mrt"]:
+            for re_num, d in [
+                (20, 8),
+                (20, 12),
+                (100, 8),
+                (100, 12),
+                (300, 8),
+                (300, 12),
+                (1000, 8),
+                (1000, 12),
+            ]:
+                if op == "mrt" and re_num < 300:
+                    continue
+                # 80 D/U, the wake at Re >= 300 does not settle
+                args = ["sphere", f"--op={op}", f"--re={re_num}", f"--d={d}"]
+                rows, _, _ = s.run(f"sphere_{op}_re{re_num}_d{d}", [*args, f"--steps={1600 * d}"])
+                if not rows:
+                    s.check(f"sphere {op} Re={re_num} D={d}", "run", "no result", "", "", False)
+                    continue
+                r = rows[0]
+                r["cd_ref"] = cgw(re_num)
+                table.append(r)
+                err = r["cd"] / r["cd_ref"] - 1
+                strict = d >= 12 and re_num >= 300
+                s.check(
+                    f"sphere {op} Re={re_num} D={d}",
+                    "Cd / Cd_CGW - 1",
+                    f"{err:+.3f}",
+                    f"Cd={r['cd_ref']:.3f}",
+                    "0.2, stable" if strict else "stable",
+                    r["resets"] == 0 and (abs(err) < 0.2 or not strict),
+                )
     s.results["sphere_table"] = table
     write_gci_csv(s.out / "sphere_gci.csv", table)
     if table:
@@ -537,7 +598,7 @@ def main():
     ap.add_argument("--out", default="../docs/validation")
     ap.add_argument("--logs", default=None, help="raw run logs (default: <out>/logs)")
     ap.add_argument("--quick", action="store_true", help="small grids only")
-    ap.add_argument("--cases", default="uniform,tgv,poiseuille,qcheck,sphere,ahmed")
+    ap.add_argument("--cases", default="uniform,tgv,tgv3d,poiseuille,qcheck,sphere,ahmed")
     a = ap.parse_args()
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)

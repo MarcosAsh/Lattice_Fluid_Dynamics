@@ -40,6 +40,7 @@ typedef struct {
     int useRegularized;  // 0 = BGK, 1 = regularized
     int useMRT;          // 0 = off, 1 = MRT collision operator
     int useEntropic;     // 0 = off, 1 = entropic (ELBM) collision
+    int useRecursive;    // 1 = recursive regularized collision
     int useSmagorinsky;  // 0 = off, 1 = Smagorinsky SGS
     float smagorinskyCs; // Smagorinsky constant
     int periodicYZ;      // 0 = clamp, 1 = periodic y/z
@@ -62,6 +63,7 @@ typedef struct {
 
     GLint collide_useMRTLoc;
     GLint collide_useEntropicLoc;
+    GLint collide_useRecursiveLoc;
     GLint collide_turbIntensityLoc;
     GLint collide_timestepLoc;
     GLint collide_fullGridZLoc;

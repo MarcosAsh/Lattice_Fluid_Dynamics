@@ -289,6 +289,7 @@ LBMGrid *LBM_Create(int sizeX, int sizeY, int sizeZ, float viscosity) {
     grid->useRegularized = 0;
     grid->useMRT = 0;
     grid->useEntropic = 0;
+    grid->useRecursive = 0;
     grid->useSmagorinsky = 0;
     grid->smagorinskyCs = 0.1f;
     grid->periodicYZ = 0;
@@ -316,6 +317,8 @@ LBMGrid *LBM_Create(int sizeX, int sizeY, int sizeZ, float viscosity) {
         glGetUniformLocation(grid->collideShader, "useMRT");
     grid->collide_useEntropicLoc =
         glGetUniformLocation(grid->collideShader, "useEntropic");
+    grid->collide_useRecursiveLoc =
+        glGetUniformLocation(grid->collideShader, "useRecursive");
     grid->collide_turbIntensityLoc =
         glGetUniformLocation(grid->collideShader, "turbulenceIntensity");
     grid->collide_timestepLoc =
@@ -810,6 +813,7 @@ void LBM_Step(LBMGrid *grid,
     glUniform1f(grid->collide_smaCsLoc, grid->smagorinskyCs);
     glUniform1i(grid->collide_useMRTLoc, grid->useMRT);
     glUniform1i(grid->collide_useEntropicLoc, grid->useEntropic);
+    glUniform1i(grid->collide_useRecursiveLoc, grid->useRecursive);
     glUniform1f(grid->collide_turbIntensityLoc, grid->turbulenceIntensity);
     glUniform1i(grid->collide_timestepLoc, grid->stepCount);
     glUniform1i(grid->collide_fullGridZLoc, grid->sizeZ);

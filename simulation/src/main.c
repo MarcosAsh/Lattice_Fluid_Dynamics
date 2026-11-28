@@ -521,16 +521,18 @@ int main(int argc, char *argv[]) {
     float requestedRe = reynoldsNumber;
     float lbmViscosity = (latticeVelocity * charLength) / reynoldsNumber;
     float tau = 3.0f * lbmViscosity + 0.5f;
-    // tau below 0.52 is unstable here, so Re is capped per grid
-    if (tau < 0.52f) {
-        lbmViscosity = (0.52f - 0.5f) / 3.0f;
-        tau = 0.52f;
+    // tau below the floor (0.52 unless --tau-floor) caps Re per grid
+    float tauFloor = opts.tauFloor;
+    if (tau < tauFloor) {
+        lbmViscosity = (tauFloor - 0.5f) / 3.0f;
+        tau = tauFloor;
         float actualRe = (latticeVelocity * charLength) / lbmViscosity;
         fprintf(stderr,
-                "WARNING: requested Re %.0f needs tau %.4f < 0.52 on this "
+                "WARNING: requested Re %.0f needs tau %.4f < %.4f on this "
                 "grid, running at Re %.0f instead\n",
                 requestedRe,
                 3.0f * latticeVelocity * charLength / requestedRe + 0.5f,
+                tauFloor,
                 actualRe);
         printf("WARNING: Re capped at %.0f (requested %.0f)\n",
                actualRe,
@@ -555,6 +557,9 @@ int main(int argc, char *argv[]) {
 
     printf("Initializing LBM grid...\n");
     lbmGrid = LBM_Create(lbmSizeX, lbmSizeY, lbmSizeZ, lbmViscosity);
+    // LBM_Create clamps to 0.52, --tau-floor may allow less
+    if (lbmGrid && tau < lbmGrid->tau)
+        lbmGrid->tau = tau;
 
     if (lbmGrid) {
         if (triangleData && numTriangles > 0) {
@@ -600,6 +605,7 @@ int main(int argc, char *argv[]) {
         lbmGrid->useRegularized = collisionOperator == CLI_OP_REGULARIZED;
         lbmGrid->useMRT = collisionOperator == CLI_OP_MRT;
         lbmGrid->useEntropic = collisionOperator == CLI_OP_ENTROPIC;
+        lbmGrid->useRecursive = collisionOperator == CLI_OP_RECURSIVE;
         // Entropic supplies its own dissipation
         if (lbmGrid->useEntropic)
             lbmGrid->useSmagorinsky = 0;

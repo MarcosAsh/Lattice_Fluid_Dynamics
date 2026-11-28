@@ -117,7 +117,8 @@ grids can show low-Re trends. They cannot reproduce Cd 0.285 (25 deg) or
   queue removed it in every run made.
 - Pressure and friction split uses the local equilibrium and is approximate.
 - The sphere GCI assumes a sample standard error of sd/sqrt(windows/4).
-- Not run: sphere at Re 300, Strouhal checks, wake and Cp profiles.
+- Not run: Strouhal checks, wake and Cp profiles. The sphere at Re 300
+  and 1000 is in Higher Reynolds number below.
 
 ## Storing f - w (DDF shifting)
 
@@ -205,3 +206,185 @@ links. The integration test passes. `run_validation.py` now also checks
 the TGV mass drift at tau 0.503 (below 1e-5) and the Poiseuille order
 from H = 16 to 32 (above 1.7). Both fail on the old code, the order
 check at q = 0.5 where it was run.
+
+## Higher Reynolds number
+
+Results files are in `high_re/`, with the harness output of the quick set
+in `high_re/results.md`. 73 of 74 checks pass. The failure is the D = 8
+sphere at Re 100, which `sphere/results.md` already lists. Every number
+below is from the laptop.
+
+### What limits each operator now
+
+`lbm_validate` already sets tau directly, so the survey needed no flag.
+The wind tunnel binary now takes `--tau-floor=TAU` (default 0.52) to
+lower its floor. Two tests probe stability. The first is the 3D
+Taylor-Green vortex of HiOCFD case C3.5 on 64^3 cells, U0 = 0.05 (new
+case `lbm_validate tgv3d`). At Re 1600, 5000 and 50000, tau is 0.50095,
+0.50031 and 0.50003. The second is the sphere at D = 8, 40 D/U, at Re
+300 (tau 0.504) and Re 1000 (tau 0.5012). The TGV column gives the peak
+of -dE/dt against the 512^3 spectral DNS (0.012475 at t = 8.96 with the
+same 1 tc difference window), then the time of the peak. At Re 5000 and
+50000 only stability counts, since the DNS is for Re 1600. "unstable"
+means the stability guard reset cells.
+
+| Operator | Cs | TGV Re 1600 | TGV Re 5000 | TGV Re 50000 | Sphere Re 300 | Sphere Re 1000 |
+|---|---|---|---|---|---|---|
+| BGK | 0 | unstable | unstable | unstable | 0.837 (sd 0.003) | unstable (148 resets by t 16) |
+| regularized | 0 | -4.6%, t 9.1 | stable | unstable | 0.864 (sd 0.003) | 0.675 (sd 0.008) |
+| MRT | 0 | -14.3%, t 8.6 | stable | stable | 0.855 (sd 0.002) | unstable (210 resets by t 20) |
+| entropic | 0 | -6.0%, t 8.3 | stable | stable | 0.874 (sd 0.003) | unstable (2 resets by t 33) |
+| recursive (RR) | 0 | -6.0%, t 8.8 | stable | stable | 0.847 (sd 0.003) | 0.643 (sd 0.004) |
+| BGK | 0.1 | -3.9%, t 8.4 | stable | stable | 0.892 (sd 0.003) | 0.735 (sd 0.017) |
+| regularized | 0.1 | -8.7%, t 8.6 | stable | stable | 0.909 (sd 0.003) | 0.721 (sd 0.004) |
+| MRT | 0.1 | -5.6%, t 8.5 | stable | stable | 0.901 (sd 0.002) | 0.678 (sd 0.011) |
+| entropic | 0.1 | -6.3%, t 8.3 | stable | stable | 0.921 (sd 0.003) | 0.793 (sd 0.025) |
+| recursive (RR) | 0.1 | -9.6%, t 8.6 | stable | stable | 0.895 (sd 0.003) | 0.705 (sd 0.004) |
+
+The Clift, Grace and Weber values are 0.653 at Re 300 and 0.471 at Re
+1000. D = 8 is too coarse to match them (at Re 100 it is 16% high), so
+the sphere columns test stability, not accuracy.
+
+- Plain BGK fails all three TGV cases and the sphere at Re 1000.
+- MRT without Smagorinsky survives every TGV case but fails the sphere
+  at Re 1000. Its TGV dissipation peak is 14% low at Re 1600.
+- Entropic survives the TGV but resets 2 cells on the sphere at Re 1000.
+- Regularized fails the TGV at Re 50000.
+- With Smagorinsky Cs = 0.1, every operator passes every case. The
+  production default, MRT with Smagorinsky, runs at tau 0.50003 on the
+  TGV and 0.5012 on the sphere, so the 0.52 floor is conservative for it.
+
+Cost per step in a periodic 128x64x64 box, 2000 steps, in MLUPS: BGK
+25.4, regularized 24.9, MRT 25.8, entropic 25.0, RR 25.6, MRT with
+Smagorinsky 25.6, RR with Smagorinsky 25.7. The Arc iGPU is bandwidth
+bound here, so the extra arithmetic of MRT, entropic and RR does not
+show.
+
+### Choice of operator
+
+The cumulant operator needs D3Q27, 42% more memory and new versions of
+every shader. Recursive regularization (Malaspinas 2015) works on D3Q19.
+Coreixas et al. (2020) rank single relaxation time RR among the three
+most stable static operators, and Coreixas et al. (2019, App. G and H)
+give its D3Q19 form. It is local, so it fits the current collide shader.
+Hybrid RR (Jacob et al. 2018) would also need neighbour velocities and a
+blending weight from a paper the HAL server would not serve, so it was
+not attempted.
+
+RR is `--collision-operator=recursive` (`--op=rr` in `lbm_validate`).
+After the usual density, velocity and non-equilibrium stress, the third
+and fourth order non-equilibrium Hermite terms come from the stress by
+Malaspinas eq 31. Post-collision f is the Hermite series of his eq 37 cut
+to the six third order and three fourth order terms D3Q19 supports. Its
+equilibrium is Coreixas eq H22-H28.
+
+The first version used the other D3Q19 equilibrium in Coreixas, the
+pruned tensor product of eq H15-H21, rebuilt from 19 raw moments (eq
+G6). It passed the 2D TGV but blew up on the 3D TGV at Re 1600 by t = 2
+and on the sphere at Re 300 by t = 2 (`high_re/survey_rr_product_form.txt`).
+A single GPU step matched a numpy version of the same algebra to 2e-9,
+so this was not a coding error. Zeroing the third and fourth order
+non-equilibrium terms left it unstable (TGV Re 1600: 3356 resets), so
+that equilibrium is the cause on this lattice. Coreixas warns that the
+two D3Q19 equilibria differ at O(u^2) and should have different
+stability. With the Gauss-Hermite form, RR passes every survey case.
+
+On D3Q19 the fourth order Hermite terms leak into the diagonal of the
+stress tensor (the lattice has no corner velocities). Off-diagonal stress
+relaxes exactly by 1 - omega. The diagonal carries an extra term of order
+u^2 times the non-equilibrium stress, 3e-5 in the unit test.
+
+### RR against the existing operators
+
+Same cases as the survey and the DDF shifting section, logged in
+`high_re/evidence_runs.txt`.
+
+Taylor-Green, nu_eff / nu - 1. RR gives -5.5e-4, -2.7e-4 and -2.3e-4 at
+N = 32, 64 and 128 (tau 0.6). At N = 64 the others give -1.3e-4 (BGK,
+entropic), -2.5e-4 (regularized) and -1.6e-4 (MRT). At tau 0.503 RR gives
+-1.4e-3, between regularized (-1.0e-3) and BGK or MRT (-1.6e-3, -1.7e-3).
+
+Poiseuille, tau 0.8, L2 error at H = 8, 16, 32. At q = 0.5 RR has the
+lowest error of the three, and it converges at second order for every q.
+
+| q | BGK | MRT | RR | RR order 8-16, 16-32 |
+|---|---|---|---|---|
+| 0.5 | 1.11e-2, 2.80e-3, 7.08e-4 | 1.84e-2, 4.61e-3, 1.12e-3 | 4.28e-3, 1.09e-3, 2.88e-4 | 1.98, 1.92 |
+| 0.25 | | | 2.89e-2, 6.64e-3, 1.57e-3 | 2.13, 2.08 |
+| 0.75 | | | 1.56e-2, 4.22e-3, 1.18e-3 | 1.89, 1.84 |
+
+The wall force matches the body force within 6.7e-5 in all nine RR runs.
+
+Sphere at low Re, MRT from the DDF shifting section:
+
+| Re | D | MRT | RR | Difference | MRT change from D 8 to 12 |
+|---|---|---|---|---|---|
+| 20 | 8 | 2.91763 | 2.89951 | -0.62% | |
+| 20 | 12 | 2.83238 | 2.82307 | -0.33% | -2.9% |
+| 100 | 8 | 1.25672 | 1.25652 | -0.02% | |
+| 100 | 12 | 1.15391 | 1.15846 | +0.39% | -8.2% |
+
+The operators differ by far less than the grid error.
+
+Sphere at D = 12 (192x96x96), 60 D/U, mean and spread of the last
+quarter. Clift, Grace and Weber: 0.653 and 0.471. On this grid MRT is
+6.2% high at Re 100.
+
+| Operator | Re 300 (tau 0.506) | Re 1000 (tau 0.5018) |
+|---|---|---|
+| RR | 0.721 (+10.4%) | 0.531, sd 0.022 (+12.7%) |
+| MRT + Smagorinsky 0.1 (default) | 0.749 (+14.8%) | 0.579, sd 0.040 (+22.8%) |
+| regularized | 0.731 (+12.0%) | 0.589, sd 0.033 (+25.0%) |
+| entropic | 0.732 (+12.1%) | unstable, 8 resets by t = 21 |
+
+3D Taylor-Green at Re 1600, peak of -dE/dt against the DNS (0.012475)
+and E at t = 10 against the DNS (0.07448):
+
+| Operator | 64^3 peak | 64^3 E(10) | 128^3 peak | 128^3 E(10) |
+|---|---|---|---|---|
+| RR | -6.0% at t 8.8 | -5.1% | -6.6% at t 8.6 | +1.3% |
+| MRT | -14.3% at t 8.6 | +3.8% | -1.5% at t 9.0 | +0.9% |
+
+RR handles the coarse grid better, and MRT converges better. RR's peak
+stays 6% low at 128^3. The diagonal stress term above is a likely cause,
+not checked.
+
+### Reachable Reynolds number
+
+The lowest tau where each setup stayed clean (U = 0.05, Re = 0.15 L / (tau - 0.5) with L in cells):
+
+| Setup | 3D TGV, 64^3 | Sphere, D = 8 | Ahmed 25, 128x64x64 |
+|---|---|---|---|
+| MRT + Smagorinsky 0.1 (default) | 0.50003 (Re 50000) | 0.50012 (Re 10000) | 0.50115 (Re 5000) |
+| RR + Smagorinsky 0.1 | 0.50003 (Re 50000) | 0.50012 (Re 10000) | 0.50115 (Re 5000) |
+| RR | 0.5000031 (Re 500000) | 0.5004 (Re 3000), fails at 0.50012 | not run |
+| MRT | 0.5000031 (Re 500000) | fails at 0.5012 (Re 1000) | not run |
+
+The Ahmed runs used the wind tunnel binary with `--reynolds=5000
+--tau-floor=0.501`, 20 s, rc 0 (no reset or NaN exit). Cd over the last
+half was 0.976 (sd 0.235) with MRT and 0.940 (sd 0.266) with RR, from
+`high_re/ahmed_runs.txt`. Neither is a converged or validated value.
+
+With tau 0.50012 and the Ahmed body at 0.3 Nx, the stable limit is about
+Re 48000 at Nx 128, 96000 at 256 and 190000 at 512. Accuracy now
+depends on resolution. At Re 300 and 1000 a 12 cell sphere is
+10 to 25% high, against 6% at Re 100. These runs do not show what grid
+gives 5% at Re 1000. D = 16 at 60 D/U would take about 30 minutes per
+run on the laptop, scaled from the D = 12 timings, and was not run.
+
+### Recommendation
+
+- Tau floor: the default MRT with Smagorinsky stayed stable at tau
+  0.50012 on the sphere and 0.50115 on the Ahmed body. A floor of 0.501
+  for that setup is supported by these runs. The floor is not changed
+  in the code, and one Ahmed run at 256 cells is still worth doing before
+  changing it. MRT without Smagorinsky failed at 0.5012 on the sphere
+  and passed at 0.504.
+- Default operator: keep MRT with Smagorinsky for now. RR is the better
+  choice without a subgrid model. It is the only operator that passes
+  every survey case without one, and on the D = 12 sphere it is
+  closest to the correlation (Re 300 +10% against +15%, Re 1000 +13%
+  against +23%). But MRT converges better on the 128^3 TGV, plain RR
+  failed at Re 10000 on D = 8, and RR has not been compared on the Ahmed
+  body beyond one stability run. RR should become the default only if a
+  D = 16 sphere and an Ahmed grid study confirm it.

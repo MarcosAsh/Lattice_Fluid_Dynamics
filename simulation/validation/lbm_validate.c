@@ -153,6 +153,7 @@ static LBMGrid *make_grid(const Opts *o, int nx, int ny, int nz, double tau) {
     g->useMRT = strcmp(o->op, "mrt") == 0;
     g->useRegularized = strcmp(o->op, "reg") == 0;
     g->useEntropic = strcmp(o->op, "ent") == 0;
+    g->useRecursive = strcmp(o->op, "rr") == 0;
     g->useSmagorinsky = o->smag > 0;
     g->smagorinskyCs = (float)o->smag;
     g->periodicYZ = o->periodicYZ;
@@ -412,6 +413,121 @@ static int case_tgv(Opts *o) {
            (double)cells * steps / dt * 1e-6);
     free(vel);
     free(f);
+    LBM_Free(g);
+    return resets > 0;
+}
+
+/* 3D Taylor-Green vortex, HiOCFD case C3.5, eps = -dE/dt against DNS */
+static int case_tgv3d(Opts *o) {
+    int n = o->n ? o->n : 64;
+    double re = o->re > 0 ? o->re : 1600;
+    double V0 = o->u > 0 ? o->u : 0.05;
+    double L = n / (2.0 * M_PI);
+    double nu = V0 * L / re;
+    double tau = o->tau > 0 ? o->tau : 0.5 + 3.0 * nu;
+    if (o->tau > 0) {
+        nu = (tau - 0.5) / 3.0;
+        re = V0 * L / nu;
+    }
+    double tc = L / V0;
+    double tEnd = o->steps ? o->steps / tc : 20.0;
+    int steps = (int)lround(tEnd * tc);
+
+    LBMGrid *g = make_grid(o, n, n, n, tau);
+    if (!g)
+        return 1;
+    g->periodicX = 1;
+    g->periodicYZ = 1;
+    g->spongeCells = 0;
+
+    size_t cells = g->totalCells;
+    float *f = malloc(cells * 19 * sizeof(float));
+    for (int z = 0; z < n; z++)
+        for (int y = 0; y < n; y++)
+            for (int x = 0; x < n; x++) {
+                double a = (x + 0.5) / L - M_PI;
+                double b = (y + 0.5) / L - M_PI;
+                double c = (z + 0.5) / L - M_PI;
+                double u = V0 * sin(a) * cos(b) * cos(c);
+                double v = -V0 * cos(a) * sin(b) * cos(c);
+                double p = V0 * V0 / 16.0 * (cos(2 * a) + cos(2 * b)) *
+                           (cos(2 * c) + 2.0);
+                size_t k = x + (size_t)n * (y + (size_t)n * z);
+                for (int i = 0; i < 19; i++)
+                    f[k * 19 + i] = (float)feqShifted(i, 3.0 * p, u, v, 0);
+            }
+    upload_f(g, f);
+    free(f);
+
+    // E(t) every 0.05 tc
+    int every = (int)fmax(1.0, lround(0.05 * tc));
+    int ns = steps / every + 2;
+    double *ts = malloc(ns * sizeof(double)), *E = malloc(ns * sizeof(double));
+    float *vel = malloc(cells * 4 * sizeof(float));
+    int m = 0, resets = 0, s = 0;
+    double t0 = now_s();
+    for (s = 1; s <= steps; s++) {
+        LBM_Step(g, 0, 0, 0);
+        if (s % every == 0 && m < ns) {
+            read_buf(g->velocityBuffer, cells * 4 * sizeof(float), vel);
+            double e = 0;
+            for (size_t k = 0; k < cells; k++)
+                e += vel[4 * k] * vel[4 * k] + vel[4 * k + 1] * vel[4 * k + 1] +
+                     vel[4 * k + 2] * vel[4 * k + 2];
+            // velocity holds the state of step s-1
+            ts[m] = (s - 1) / tc;
+            E[m] = 0.5 * e / cells / (V0 * V0);
+            m++;
+            if (isnan(e)) {
+                resets = check_diag(g, "tgv3d");
+                break;
+            }
+            if (m % 20 == 0)
+                resets += check_diag(g, "tgv3d");
+            if (resets > 0)
+                break;
+        }
+    }
+    glFinish();
+    double dt = now_s() - t0;
+    resets += check_diag(g, "tgv3d");
+
+    // eps over a 1 tc window, which spans two acoustic periods of the box
+    int h = (int)lround(0.5 * tc / every);
+    double epsMax = 0, tMax = 0, E10 = 0;
+    for (int k = 0; k < m; k++)
+        if (ts[k] <= 10.0)
+            E10 = E[k];
+    for (int k = h; k + h < m; k++) {
+        double eps = -(E[k + h] - E[k - h]) / (ts[k + h] - ts[k - h]);
+        if (getenv("LBM_VALIDATE_PROFILE"))
+            printf("EPS t=%.3f E=%.6e eps=%.6e\n", ts[k], E[k], eps);
+        if (eps > epsMax) {
+            epsMax = eps;
+            tMax = ts[k];
+        }
+    }
+    printf("RESULT case=tgv3d op=%s smag=%.3f n=%d re=%.1f tau=%.6f U0=%.4f "
+           "steps=%d tstar=%.2f eps_max=%.6e t_eps_max=%.3f E_10=%.6e "
+           "E_end=%.6e resets=%d seconds=%.1f mlups=%.1f\n",
+           o->op,
+           o->smag,
+           n,
+           re,
+           tau,
+           V0,
+           s - 1,
+           m ? ts[m - 1] : 0.0,
+           epsMax,
+           tMax,
+           E10,
+           m ? E[m - 1] : 0.0,
+           resets,
+           dt,
+           (double)cells * (s - 1) / dt * 1e-6);
+    free(ts);
+    free(E);
+    free(vel);
     LBM_Free(g);
     return resets > 0;
 }
@@ -917,7 +1033,8 @@ static int case_obj(Opts *o) {
 int main(int argc, char **argv) {
     if (argc < 2) {
         fprintf(stderr,
-                "usage: %s uniform|tgv|poiseuille|sphere [--key=value]\n",
+                "usage: %s uniform|tgv|tgv3d|poiseuille|sphere|qcheck|obj "
+                "[--key=value]\n",
                 argv[0]);
         return 2;
     }
@@ -942,6 +1059,8 @@ int main(int argc, char **argv) {
         rc = case_uniform(&o);
     else if (strcmp(o.name, "tgv") == 0)
         rc = case_tgv(&o);
+    else if (strcmp(o.name, "tgv3d") == 0)
+        rc = case_tgv3d(&o);
     else if (strcmp(o.name, "poiseuille") == 0)
         rc = case_poiseuille(&o);
     else if (strcmp(o.name, "sphere") == 0)

@@ -152,8 +152,10 @@ used ones:
 --model=PATH         Path to OBJ model file
 --reynolds=RE        Target Reynolds number (0=derive from wind speed)
 --grid=XxYxZ         Grid size (default: 128x64x64)
---collision-operator=OP  bgk, regularized, mrt or entropic (default: mrt)
+--collision-operator=OP  bgk, regularized, mrt, entropic or recursive
+                     (default: mrt)
 --strict-reynolds    Fail if the grid cannot reach --reynolds
+--tau-floor=TAU      Developer: lowest tau before Re is capped (default 0.52)
 --manifest=PATH      Run manifest JSON
 --converge=TOL       Stop once the 95% CI of mean Cd is within TOL
 --converge-window=N  Cd samples between checks (default: 20)
@@ -285,8 +287,8 @@ commands. `results.csv` and `results.json` hold one row per case. The
 summary warns about failed cases, mixed commits, dirty trees, mixed GPUs
 and runs that the solver capped below the requested Reynolds number.
 
-The solver caps Re where tau would drop below 0.52, and the cap is lower
-on coarse grids. Pick an Re that the coarsest grid can reach, or the grids
+The solver caps Re where tau would drop below 0.52 (or `--tau-floor`),
+and the cap is lower on coarse grids. Pick an Re that the coarsest grid can reach, or the grids
 run different flows.
 
 On the cluster, `--backend slurm` writes one sbatch script per case (with

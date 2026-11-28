@@ -27,6 +27,7 @@ uniform vec3 inletVelocity;
 uniform int useRegularized; // 0 = BGK, 1 = regularized
 uniform int useMRT; // 0 = off, 1 = MRT collision
 uniform int useEntropic; // 0 = off, 1 = entropic (ELBM) collision
+uniform int useRecursive; // 1 = recursive regularized collision
 uniform int useSmagorinsky; // 0 = off, 1 = Smagorinsky SGS
 uniform float smagorinskyCs; // Smagorinsky constant (typically 0.1)
 uniform float turbulenceIntensity; // inlet TI fraction (0 = uniform inlet)
@@ -367,6 +368,66 @@ void inverseMRT(float m[19], out float fi[19]) {
            - ms[5] - ms[6] - ms[7] - ms[8]
            - 2.0*ms[9] - 2.0*ms[10]
            + ms[14] - ms[17] + ms[18];
+}
+
+// SRT recursive regularized collision, returns f* - w. Orders 3 and 4
+// come from the stress (Malaspinas 2015 eq 31, eq 37 cut to D3Q19),
+// equilibrium Coreixas 2019 eq H22-H28
+void collideRR(float g[19], float rho, float drho, vec3 u, float omega,
+               out float o[19]) {
+    const float cs2 = 1.0 / 3.0;
+    float ux = u.x, uy = u.y, uz = u.z;
+
+    // a1(2) = sum c c g - rho u u - drho cs2 delta
+    float sxx = g[1] + g[2] + g[7] + g[8] + g[9] + g[10] + g[11] + g[12] +
+                g[13] + g[14];
+    float syy = g[3] + g[4] + g[7] + g[8] + g[9] + g[10] + g[15] + g[16] +
+                g[17] + g[18];
+    float szz = g[5] + g[6] + g[11] + g[12] + g[13] + g[14] + g[15] +
+                g[16] + g[17] + g[18];
+    float sxy = (g[7] + g[10]) - (g[8] + g[9]);
+    float sxz = (g[11] + g[14]) - (g[12] + g[13]);
+    float syz = (g[15] + g[18]) - (g[16] + g[17]);
+
+    // Post-collision a1(2) / rho, Malaspinas eq 56
+    float c = (1.0 - omega) / rho;
+    float nxx = c * (sxx - rho * ux * ux - cs2 * drho);
+    float nyy = c * (syy - rho * uy * uy - cs2 * drho);
+    float nzz = c * (szz - rho * uz * uz - cs2 * drho);
+    float nxy = c * (sxy - rho * ux * uy);
+    float nxz = c * (sxz - rho * ux * uz);
+    float nyz = c * (syz - rho * uy * uz);
+
+    // Post-collision Hermite coefficients / rho, a0(n) = rho u^n
+    float Axx = ux * ux + nxx, Ayy = uy * uy + nyy, Azz = uz * uz + nzz;
+    float Axy = ux * uy + nxy, Axz = ux * uz + nxz, Ayz = uy * uz + nyz;
+    float Axxy = ux * ux * uy + 2.0 * ux * nxy + uy * nxx;
+    float Axyy = ux * uy * uy + 2.0 * uy * nxy + ux * nyy;
+    float Axxz = ux * ux * uz + 2.0 * ux * nxz + uz * nxx;
+    float Axzz = ux * uz * uz + 2.0 * uz * nxz + ux * nzz;
+    float Ayyz = uy * uy * uz + 2.0 * uy * nyz + uz * nyy;
+    float Ayzz = uy * uz * uz + 2.0 * uz * nyz + uy * nzz;
+    float Axxyy = ux * ux * uy * uy + uy * uy * nxx + ux * ux * nyy +
+                  4.0 * ux * uy * nxy;
+    float Axxzz = ux * ux * uz * uz + uz * uz * nxx + ux * ux * nzz +
+                  4.0 * ux * uz * nxz;
+    float Ayyzz = uy * uy * uz * uz + uz * uz * nyy + uy * uy * nzz +
+                  4.0 * uy * uz * nyz;
+
+    // f* - w = w drho + w rho (H1 A1 / cs2 + H2:A2 / 2cs4 + H3 / 2cs6 +
+    // H4 / 4cs8), Malaspinas eq 37
+    for (int i = 0; i < 19; i++) {
+        float cx = float(e[i].x), cy = float(e[i].y), cz = float(e[i].z);
+        float hx = cx * cx - cs2, hy = cy * cy - cs2, hz = cz * cz - cs2;
+        float h2 = hx * Axx + hy * Ayy + hz * Azz +
+                   2.0 * (cx * cy * Axy + cx * cz * Axz + cy * cz * Ayz);
+        float h3 = hx * cy * Axxy + cx * hy * Axyy + hx * cz * Axxz +
+                   cx * hz * Axzz + hy * cz * Ayyz + cy * hz * Ayzz;
+        float h4 = hx * hy * Axxyy + hx * hz * Axxzz + hy * hz * Ayyzz;
+        float cu = cx * ux + cy * uy + cz * uz;
+        o[i] = w[i] * drho +
+               w[i] * rho * (3.0 * cu + 4.5 * h2 + 13.5 * h3 + 20.25 * h4);
+    }
 }
 
 void main() {
@@ -777,6 +838,11 @@ void main() {
             f_new[idxF(pos.x, pos.y, pos.z, i)] =
                 g[i] + alpha * beta * dlt[i];
         }
+    } else if (useRecursive == 1) {
+        float o[19];
+        collideRR(g, rho, drho, u, omega, o);
+        for (int i = 0; i < 19; i++)
+            f_new[idxF(pos.x, pos.y, pos.z, i)] = o[i];
     } else {
         // Standard BGK (SRT) collision, Lehmann 2022 eq 28
         for (int i = 0; i < 19; i++) {

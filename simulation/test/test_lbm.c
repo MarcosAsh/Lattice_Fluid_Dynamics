@@ -195,6 +195,62 @@ static void cpu_inverseMRT(const float m[19], float fi[19]) {
              2.0f * ms[9] - 2.0f * ms[10] + ms[14] - ms[17] + ms[18];
 }
 
+/* Recursive regularized collision, CPU mirror of collideRR */
+static void cpu_collideRR(const float g[19], float omega, float o[19]) {
+    const float cs2 = 1.0f / 3.0f;
+    float drho = 0, ux = 0, uy = 0, uz = 0;
+    float sxx = 0, syy = 0, szz = 0, sxy = 0, sxz = 0, syz = 0;
+    for (int i = 0; i < 19; i++) {
+        drho += g[i];
+        ux += ex[i] * g[i];
+        uy += ey[i] * g[i];
+        uz += ez[i] * g[i];
+        sxx += ex[i] * ex[i] * g[i];
+        syy += ey[i] * ey[i] * g[i];
+        szz += ez[i] * ez[i] * g[i];
+        sxy += ex[i] * ey[i] * g[i];
+        sxz += ex[i] * ez[i] * g[i];
+        syz += ey[i] * ez[i] * g[i];
+    }
+    float rho = 1.0f + drho;
+    ux /= rho;
+    uy /= rho;
+    uz /= rho;
+    float c = (1.0f - omega) / rho;
+    float nxx = c * (sxx - rho * ux * ux - cs2 * drho);
+    float nyy = c * (syy - rho * uy * uy - cs2 * drho);
+    float nzz = c * (szz - rho * uz * uz - cs2 * drho);
+    float nxy = c * (sxy - rho * ux * uy);
+    float nxz = c * (sxz - rho * ux * uz);
+    float nyz = c * (syz - rho * uy * uz);
+    float Axx = ux * ux + nxx, Ayy = uy * uy + nyy, Azz = uz * uz + nzz;
+    float Axy = ux * uy + nxy, Axz = ux * uz + nxz, Ayz = uy * uz + nyz;
+    float Axxy = ux * ux * uy + 2 * ux * nxy + uy * nxx;
+    float Axyy = ux * uy * uy + 2 * uy * nxy + ux * nyy;
+    float Axxz = ux * ux * uz + 2 * ux * nxz + uz * nxx;
+    float Axzz = ux * uz * uz + 2 * uz * nxz + ux * nzz;
+    float Ayyz = uy * uy * uz + 2 * uy * nyz + uz * nyy;
+    float Ayzz = uy * uz * uz + 2 * uz * nyz + uy * nzz;
+    float Axxyy =
+        ux * ux * uy * uy + uy * uy * nxx + ux * ux * nyy + 4 * ux * uy * nxy;
+    float Axxzz =
+        ux * ux * uz * uz + uz * uz * nxx + ux * ux * nzz + 4 * ux * uz * nxz;
+    float Ayyzz =
+        uy * uy * uz * uz + uz * uz * nyy + uy * uy * nzz + 4 * uy * uz * nyz;
+    for (int i = 0; i < 19; i++) {
+        float cx = ex[i], cy = ey[i], cz = ez[i];
+        float hx = cx * cx - cs2, hy = cy * cy - cs2, hz = cz * cz - cs2;
+        float h2 = hx * Axx + hy * Ayy + hz * Azz +
+                   2 * (cx * cy * Axy + cx * cz * Axz + cy * cz * Ayz);
+        float h3 = hx * cy * Axxy + cx * hy * Axyy + hx * cz * Axxz +
+                   cx * hz * Axzz + hy * cz * Ayyz + cy * hz * Ayzz;
+        float h4 = hx * hy * Axxyy + hx * hz * Axxzz + hy * hz * Ayyzz;
+        float cu = cx * ux + cy * uy + cz * uz;
+        o[i] = w[i] * drho +
+               w[i] * rho * (3 * cu + 4.5f * h2 + 13.5f * h3 + 20.25f * h4);
+    }
+}
+
 /* Tests */
 
 static void test_weights_sum_to_one(void) {
@@ -347,6 +403,66 @@ static void test_force_at_rest(void) {
     ASSERT_NEAR(fy, want[1], 1e-4, "rest force y");
     ASSERT_NEAR(fz, want[2], 1e-4, "rest force z");
     LBM_Free(grid);
+}
+
+static void test_rr_conserves_and_relaxes(void) {
+    printf("test: recursive regularized keeps rho, j and relaxes Pi\n");
+    float g[19], o[19];
+    for (int i = 0; i < 19; i++)
+        g[i] = feq_shifted(i, 0.02f, 0.05f, -0.03f, 0.02f) +
+               1e-3f * (float)((i * 7) % 5 - 2);
+    float omega = 1.9f;
+    cpu_collideRR(g, omega, o);
+    double m[2][4] = {{0}}, P[2][6] = {{0}};
+    for (int k = 0; k < 2; k++) {
+        const float *h = k ? o : g;
+        for (int i = 0; i < 19; i++) {
+            double fi = h[i] + w[i];
+            m[k][0] += fi;
+            m[k][1] += ex[i] * fi;
+            m[k][2] += ey[i] * fi;
+            m[k][3] += ez[i] * fi;
+            P[k][0] += ex[i] * ex[i] * fi;
+            P[k][1] += ey[i] * ey[i] * fi;
+            P[k][2] += ez[i] * ez[i] * fi;
+            P[k][3] += ex[i] * ey[i] * fi;
+            P[k][4] += ex[i] * ez[i] * fi;
+            P[k][5] += ey[i] * ez[i] * fi;
+        }
+    }
+    for (int a = 0; a < 4; a++)
+        ASSERT_NEAR(m[1][a], m[0][a], 1e-6, "rr conserves rho and j");
+    double rho = m[0][0], u[3] = {m[0][1] / rho, m[0][2] / rho, m[0][3] / rho};
+    int ia[6] = {0, 1, 2, 0, 0, 1}, ib[6] = {0, 1, 2, 1, 2, 2};
+    /* No D3Q19 corners, so H4 adds O(u^2) to the diagonal */
+    for (int k = 0; k < 6; k++) {
+        double eq = rho * u[ia[k]] * u[ib[k]] + (k < 3 ? rho / 3.0 : 0.0);
+        ASSERT_NEAR(P[1][k] - eq,
+                    (1.0 - omega) * (P[0][k] - eq),
+                    k < 3 ? 1e-4 : 1e-6,
+                    "rr relaxes Pi by 1 - omega");
+    }
+}
+
+/* Coreixas et al. 2019 eq H23 and H26 (+x face, +x+y edge) */
+static void test_rr_equilibrium(void) {
+    printf("test: recursive regularized equilibrium is Coreixas eq H22-H28\n");
+    float rho = 1.01f, ux = 0.06f, uy = -0.04f, uz = 0.03f;
+    float g[19], o[19];
+    for (int i = 0; i < 19; i++)
+        g[i] = feq_shifted(i, rho - 1.0f, ux, uy, uz);
+    cpu_collideRR(g, 1.0f, o);
+    double x2 = ux * ux, y2 = uy * uy, z2 = uz * uz;
+    double h23 =
+        rho / 18.0 *
+        (1 + 3 * ux + 1.5 * (2 * x2 - y2 - z2) - 4.5 * (ux * y2 + ux * z2) -
+         2.25 * (2 * x2 * y2 + 2 * x2 * z2 - y2 * z2));
+    double h26 = rho / 36.0 *
+                 (1 + 3 * (ux + uy) + 3 * (x2 + y2) - 1.5 * z2 + 9 * ux * uy +
+                  4.5 * (2 * x2 * uy + 2 * ux * y2 - ux * z2 - uy * z2) +
+                  4.5 * (2 * x2 * y2 - x2 * z2 - y2 * z2));
+    ASSERT_NEAR(o[1] + w[1], h23, 1e-7, "rr equilibrium, +x face");
+    ASSERT_NEAR(o[7] + w[7], h26, 1e-7, "rr equilibrium, +x+y edge");
 }
 
 static void test_grid_create_and_free(void) {
@@ -835,6 +951,8 @@ int main(void) {
     test_mrt_equilibrium_fixedpoint();
     test_shifted_equilibrium();
     test_mrt_moments_of_weights();
+    test_rr_conserves_and_relaxes();
+    test_rr_equilibrium();
 
     /* GPU tests (need GL context) */
     if (init_gl()) {

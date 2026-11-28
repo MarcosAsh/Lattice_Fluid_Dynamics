@@ -3,9 +3,15 @@
 
 #define CLI_NUM_VIZ_MODES 10
 
-enum { CLI_OP_BGK, CLI_OP_REGULARIZED, CLI_OP_MRT, CLI_OP_ENTROPIC };
+enum {
+    CLI_OP_BGK,
+    CLI_OP_REGULARIZED,
+    CLI_OP_MRT,
+    CLI_OP_ENTROPIC,
+    CLI_OP_RECURSIVE
+};
 
-// "bgk", "regularized", "mrt" or "entropic"
+// "bgk", "regularized", "mrt", "entropic" or "recursive"
 const char *cli_operator_name(int op);
 
 typedef struct {
@@ -35,6 +41,7 @@ typedef struct {
     int convergeWindow;
     int maxDuration;
     int strictReynolds; // fail instead of capping Re
+    float tauFloor;     // developer override of the 0.52 floor
 } CliOptions;
 
 // Parse command-line options. Returns 0 on success, 1 if --help was

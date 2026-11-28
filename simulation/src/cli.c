@@ -19,6 +19,7 @@ enum {
     OPT_MANIFEST,
     OPT_OPERATOR,
     OPT_STRICT_RE,
+    OPT_TAU_FLOOR,
 };
 
 static int bad_value(const char *name, const char *arg) {
@@ -101,8 +102,9 @@ const BuildInfo *cli_build_info(void) {
 }
 
 const char *cli_operator_name(int op) {
-    static const char *names[] = {"bgk", "regularized", "mrt", "entropic"};
-    return (op >= CLI_OP_BGK && op <= CLI_OP_ENTROPIC) ? names[op] : "unknown";
+    static const char *names[] = {
+        "bgk", "regularized", "mrt", "entropic", "recursive"};
+    return (op >= CLI_OP_BGK && op <= CLI_OP_RECURSIVE) ? names[op] : "unknown";
 }
 
 int cli_parse(int argc, char *argv[], CliOptions *opts) {
@@ -143,6 +145,7 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
     opts->convergeWindow = 20;
     opts->maxDuration = 0;
     opts->strictReynolds = 0;
+    opts->tauFloor = 0.52f;
 
     static struct option long_options[] = {
         {"wind", required_argument, 0, 'w'},
@@ -171,6 +174,7 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
         {"converge-window", required_argument, 0, OPT_CONVERGE_WINDOW},
         {"max-duration", required_argument, 0, OPT_MAX_DURATION},
         {"strict-reynolds", no_argument, 0, OPT_STRICT_RE},
+        {"tau-floor", required_argument, 0, OPT_TAU_FLOOR},
         {"version", no_argument, 0, 'X'},
         {"help", no_argument, 0, 'h'},
         {0, 0, 0, 0}
@@ -274,17 +278,27 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
         case OPT_STRICT_RE:
             opts->strictReynolds = 1;
             break;
+        case OPT_TAU_FLOOR:
+            if (!parse_float("tau-floor", optarg, &opts->tauFloor))
+                return -1;
+            if (opts->tauFloor <= 0.5f || opts->tauFloor > 1.0f) {
+                bad_value("tau-floor", optarg);
+                return -1;
+            }
+            break;
         case OPT_OPERATOR: {
             int found = -1;
-            for (int op = CLI_OP_BGK; op <= CLI_OP_ENTROPIC; op++)
+            for (int op = CLI_OP_BGK; op <= CLI_OP_RECURSIVE; op++)
                 if (strcmp(optarg, cli_operator_name(op)) == 0)
                     found = op;
             if (strcmp(optarg, "reg") == 0)
                 found = CLI_OP_REGULARIZED;
+            if (strcmp(optarg, "rr") == 0)
+                found = CLI_OP_RECURSIVE;
             if (found < 0) {
                 fprintf(stderr,
                         "invalid value for --collision-operator: '%s' "
-                        "(bgk, regularized, mrt, entropic)\n",
+                        "(bgk, regularized, mrt, entropic, recursive)\n",
                         optarg);
                 return -1;
             }
@@ -391,8 +405,9 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
             printf("  -S, --smagorinsky=CS  Smagorinsky constant 0-0.5 "
                    "(default: 0.1)\n");
             printf("  --collision-operator=OP\n"
-                   "                        bgk, regularized, mrt or entropic "
-                   "(default: mrt)\n");
+                   "                        bgk, regularized, mrt, entropic or "
+                   "recursive\n"
+                   "                        (default: mrt)\n");
             printf(
                 "  -M, --mrt             Same as --collision-operator=mrt\n");
             printf(
@@ -432,6 +447,9 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
             printf("  --strict-reynolds     Exit with an error if the grid "
                    "cannot reach the\n"
                    "                        requested Re at tau >= 0.52\n");
+            printf("  --tau-floor=TAU       Developer: lowest tau before Re "
+                   "is capped (default:\n"
+                   "                        0.52, must be in (0.5, 1])\n");
             printf("  --version             Print version and exit\n");
             printf("  -h, --help            Show this help\n");
             return 1;

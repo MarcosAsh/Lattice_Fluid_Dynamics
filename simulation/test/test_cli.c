@@ -67,8 +67,20 @@ static void test_collision_operator(void) {
     CHECK(parse(&o, "--collision-operator=bgk", "--mrt") == 0 &&
               o.collisionOperator == CLI_OP_MRT,
           "--mrt alias, last wins");
+    CHECK(parse(&o, "--collision-operator=recursive", NULL) == 0 &&
+              o.collisionOperator == CLI_OP_RECURSIVE &&
+              strcmp(cli_operator_name(o.collisionOperator), "recursive") == 0,
+          "recursive");
+    CHECK(parse(&o, "--collision-operator=rr", NULL) == 0 &&
+              o.collisionOperator == CLI_OP_RECURSIVE,
+          "rr alias");
     CHECK(parse(&o, "--collision-operator=trt", NULL) != 0,
           "unknown operator rejected");
+    CHECK(parse(&o, NULL, NULL) == 0 && o.tauFloor == 0.52f,
+          "tau floor 0.52 by default");
+    CHECK(parse(&o, "--tau-floor=0.505", NULL) == 0 && o.tauFloor == 0.505f,
+          "--tau-floor");
+    CHECK(parse(&o, "--tau-floor=0.5", NULL) != 0, "tau floor 0.5 rejected");
     CHECK(parse(&o, NULL, NULL) == 0 && o.strictReynolds == 0,
           "strict Re off by default");
     CHECK(parse(&o, "--strict-reynolds", NULL) == 0 && o.strictReynolds == 1,

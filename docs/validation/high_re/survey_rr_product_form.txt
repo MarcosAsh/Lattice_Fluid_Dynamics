@@ -1,0 +1,15 @@
+== sphere_rr_s0_d8_re1000.log
+UNSTABLE sphere: 623775 cell resets (0 NaN)
+RESULT case=sphere path=analytic op=rr smag=0.000 D=8.0 re=1000.0 U=0.0500 tau=0.50120 grid=128x64x64 sponge=16 periodic_yz=1 blockage=0.0123 steps=320 tstar=2.0 cd=-1.95129 cd_sd=4.25518 cd_voxel_area=-1.88620 proj_area=52.0 resets=623775 seconds=3.7 mlups=45.1
+== sphere_rr_s0_d8_re300.log
+UNSTABLE sphere: 195812 cell resets (0 NaN)
+RESULT case=sphere path=analytic op=rr smag=0.000 D=8.0 re=300.0 U=0.0500 tau=0.50400 grid=128x64x64 sponge=16 periodic_yz=1 blockage=0.0123 steps=320 tstar=2.0 cd=-0.55951 cd_sd=3.06737 cd_voxel_area=-0.54085 proj_area=52.0 resets=195812 seconds=3.9 mlups=42.9
+== tgv3d_rr_s0_n64_re1600.log
+UNSTABLE tgv3d: 316 cell resets (0 NaN)
+RESULT case=tgv3d op=rr smag=0.000 n=64 re=1600.0 tau=0.500955 U0=0.0500 steps=399 tstar=1.96 eps_max=4.003223e-04 t_eps_max=0.977 E_10=1.223873e+00 E_end=1.223873e+00 resets=316 seconds=2.4 mlups=43.3
+== tgv3d_rr_s0_n64_re50000.log
+UNSTABLE tgv3d: 75460 cell resets (0 NaN)
+RESULT case=tgv3d op=rr smag=0.000 n=64 re=50000.0 tau=0.500031 U0=0.0500 steps=399 tstar=1.96 eps_max=0.000000e+00 t_eps_max=0.000 E_10=7.337697e+00 E_end=7.337697e+00 resets=75460 seconds=2.4 mlups=43.4
+== tgv3d_rr_s0_n64_re5000.log
+UNSTABLE tgv3d: 48800 cell resets (0 NaN)
+RESULT case=tgv3d op=rr smag=0.000 n=64 re=5000.0 tau=0.500306 U0=0.0500 steps=399 tstar=1.96 eps_max=0.000000e+00 t_eps_max=0.000 E_10=5.749051e+00 E_end=5.749051e+00 resets=48800 seconds=2.4 mlups=44.1

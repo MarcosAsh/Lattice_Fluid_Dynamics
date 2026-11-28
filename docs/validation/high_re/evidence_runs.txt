@@ -1,0 +1,92 @@
+== perf_bgk: uniform --op=bgk --grid=128x64x64 --steps=2000
+RESULT case=uniform bc=open op=bgk grid=128x64x64 tau=0.5200 U=0.0500 steps=2000 mass_rel_drift=-1.158e-09 max_du=2.205e-07 max_dv=5.089e-08 max_drho=3.576e-07 fx=0.000e+00 resets=0 mlups=25.9
+RESULT case=uniform bc=periodic op=bgk grid=128x64x64 tau=0.5200 U=0.0500 steps=2000 mass_rel_drift=-4.569e-09 max_du=2.980e-09 max_dv=7.567e-10 max_drho=0.000e+00 fx=0.000e+00 resets=0 mlups=25.4
+== perf_reg: uniform --op=reg --grid=128x64x64 --steps=2000
+RESULT case=uniform bc=open op=reg grid=128x64x64 tau=0.5200 U=0.0500 steps=2000 mass_rel_drift=-5.627e-08 max_du=1.423e-07 max_dv=2.279e-08 max_drho=2.980e-07 fx=0.000e+00 resets=0 mlups=26.7
+RESULT case=uniform bc=periodic op=reg grid=128x64x64 tau=0.5200 U=0.0500 steps=2000 mass_rel_drift=-4.075e-09 max_du=2.980e-09 max_dv=0.000e+00 max_drho=0.000e+00 fx=0.000e+00 resets=0 mlups=24.9
+== perf_mrt: uniform --op=mrt --grid=128x64x64 --steps=2000
+RESULT case=uniform bc=open op=mrt grid=128x64x64 tau=0.5200 U=0.0500 steps=2000 mass_rel_drift=7.190e-08 max_du=6.005e-07 max_dv=1.455e-11 max_drho=3.576e-07 fx=0.000e+00 resets=0 mlups=25.7
+RESULT case=uniform bc=periodic op=mrt grid=128x64x64 tau=0.5200 U=0.0500 steps=2000 mass_rel_drift=2.378e-07 max_du=3.278e-08 max_dv=0.000e+00 max_drho=2.384e-07 fx=0.000e+00 resets=0 mlups=25.8
+== perf_ent: uniform --op=ent --grid=128x64x64 --steps=2000
+RESULT case=uniform bc=open op=ent grid=128x64x64 tau=0.5200 U=0.0500 steps=2000 mass_rel_drift=-1.158e-09 max_du=2.205e-07 max_dv=5.089e-08 max_drho=3.576e-07 fx=0.000e+00 resets=0 mlups=25.7
+RESULT case=uniform bc=periodic op=ent grid=128x64x64 tau=0.5200 U=0.0500 steps=2000 mass_rel_drift=-4.569e-09 max_du=2.980e-09 max_dv=7.567e-10 max_drho=0.000e+00 fx=0.000e+00 resets=0 mlups=25.0
+== perf_rr: uniform --op=rr --grid=128x64x64 --steps=2000
+RESULT case=uniform bc=open op=rr grid=128x64x64 tau=0.5200 U=0.0500 steps=2000 mass_rel_drift=3.448e-09 max_du=2.980e-09 max_dv=0.000e+00 max_drho=0.000e+00 fx=0.000e+00 resets=0 mlups=25.5
+RESULT case=uniform bc=periodic op=rr grid=128x64x64 tau=0.5200 U=0.0500 steps=2000 mass_rel_drift=3.114e-09 max_du=7.451e-10 max_dv=0.000e+00 max_drho=0.000e+00 fx=0.000e+00 resets=0 mlups=25.6
+== perf_mrt_smag: uniform --op=mrt --smag=0.1 --grid=128x64x64 --steps=2000
+RESULT case=uniform bc=open op=mrt grid=128x64x64 tau=0.5200 U=0.0500 steps=2000 mass_rel_drift=7.190e-08 max_du=6.005e-07 max_dv=1.455e-11 max_drho=3.576e-07 fx=0.000e+00 resets=0 mlups=26.7
+RESULT case=uniform bc=periodic op=mrt grid=128x64x64 tau=0.5200 U=0.0500 steps=2000 mass_rel_drift=2.378e-07 max_du=3.278e-08 max_dv=0.000e+00 max_drho=2.384e-07 fx=0.000e+00 resets=0 mlups=25.6
+== perf_rr_smag: uniform --op=rr --smag=0.1 --grid=128x64x64 --steps=2000
+RESULT case=uniform bc=open op=rr grid=128x64x64 tau=0.5200 U=0.0500 steps=2000 mass_rel_drift=3.448e-09 max_du=2.980e-09 max_dv=0.000e+00 max_drho=0.000e+00 fx=0.000e+00 resets=0 mlups=25.9
+RESULT case=uniform bc=periodic op=rr grid=128x64x64 tau=0.5200 U=0.0500 steps=2000 mass_rel_drift=3.114e-09 max_du=7.451e-10 max_dv=0.000e+00 max_drho=0.000e+00 fx=0.000e+00 resets=0 mlups=25.7
+== tgv_rr_32: tgv --op=rr --n=32 --tau=0.6
+RESULT case=tgv op=rr smag=0.000 n=32 plane=xy tau=0.6000 U0=0.0200 steps=194 nu=3.333333e-02 nu_eff=3.331513e-02 nu_err=-5.4609e-04 nu_err_j=-5.4557e-04 nu_t_pred=0.0000e+00 l2=5.8695e-03 mass_rel_drift=-2.270e-09 chunks=1 resets=0 mlups=28.5
+== tgv_rr_64: tgv --op=rr --n=64 --tau=0.6
+RESULT case=tgv op=rr smag=0.000 n=64 plane=xy tau=0.6000 U0=0.0200 steps=778 nu=3.333333e-02 nu_eff=3.332437e-02 nu_err=-2.6890e-04 nu_err_j=-2.6873e-04 nu_t_pred=0.0000e+00 l2=1.3841e-03 mass_rel_drift=-9.094e-09 chunks=1 resets=0 mlups=32.9
+== tgv_rr_128: tgv --op=rr --n=128 --tau=0.6
+RESULT case=tgv op=rr smag=0.000 n=128 plane=xy tau=0.6000 U0=0.0200 steps=3112 nu=3.333333e-02 nu_eff=3.332564e-02 nu_err=-2.3067e-04 nu_err_j=-2.3084e-04 nu_t_pred=0.0000e+00 l2=2.5505e-04 mass_rel_drift=-3.539e-08 chunks=1 resets=0 mlups=58.3
+== tgv_rr_0503: tgv --op=rr --n=64 --tau=0.503 --u=0.05
+RESULT case=tgv op=rr smag=0.000 n=64 plane=xy tau=0.5030 U0=0.0500 steps=25938 nu=1.000000e-03 nu_eff=9.986344e-04 nu_err=-1.3656e-03 nu_err_j=-1.3647e-03 nu_t_pred=0.0000e+00 l2=8.4532e-04 mass_rel_drift=-1.776e-06 chunks=1 resets=0 mlups=58.8
+== pois_rr_q0.5_h8: poiseuille --op=rr --n=8 --q=0.5 --tau=0.8
+RESULT case=poiseuille op=rr h=8 q=0.500 tau=0.8000 steps=5119 umax=2.000000e-02 umax_meas=1.962498e-02 l2=4.2787e-03 wall_fx=3.199971e-02 body_fx=3.200000e-02 force_err=-9.1493e-06 resets=0 mlups=2.8
+== pois_rr_q0.5_h16: poiseuille --op=rr --n=16 --q=0.5 --tau=0.8
+RESULT case=poiseuille op=rr h=16 q=0.500 tau=0.8000 steps=20479 umax=2.000000e-02 umax_meas=1.990581e-02 l2=1.0881e-03 wall_fx=1.599979e-02 body_fx=1.600000e-02 force_err=-1.3107e-05 resets=0 mlups=5.4
+== pois_rr_q0.5_h32: poiseuille --op=rr --n=32 --q=0.5 --tau=0.8
+RESULT case=poiseuille op=rr h=32 q=0.500 tau=0.8000 steps=81919 umax=2.000000e-02 umax_meas=1.997618e-02 l2=2.8760e-04 wall_fx=7.999871e-03 body_fx=8.000000e-03 force_err=-1.6134e-05 resets=0 mlups=8.1
+== pois_rr_q0.25_h8: poiseuille --op=rr --n=8 --q=0.25 --tau=0.8
+RESULT case=poiseuille op=rr h=8 q=0.250 tau=0.8000 steps=4499 umax=2.000000e-02 umax_meas=2.005327e-02 l2=2.8943e-02 wall_fx=3.640883e-02 body_fx=3.640889e-02 force_err=-1.6055e-06 resets=0 mlups=2.8
+== pois_rr_q0.25_h16: poiseuille --op=rr --n=16 --q=0.25 --tau=0.8
+RESULT case=poiseuille op=rr h=16 q=0.250 tau=0.8000 steps=19219 umax=2.000000e-02 umax_meas=2.001190e-02 l2=6.6352e-03 wall_fx=1.704860e-02 body_fx=1.704891e-02 force_err=-1.7858e-05 resets=0 mlups=4.1
+== pois_rr_q0.25_h32: poiseuille --op=rr --n=32 --q=0.25 --tau=0.8
+RESULT case=poiseuille op=rr h=32 q=0.250 tau=0.8000 steps=79379 umax=2.000000e-02 umax_meas=2.000234e-02 l2=1.5706e-03 wall_fx=8.255857e-03 body_fx=8.255984e-03 force_err=-1.5362e-05 resets=0 mlups=8.0
+== pois_rr_q0.75_h8: poiseuille --op=rr --n=8 --q=0.75 --tau=0.8
+RESULT case=poiseuille op=rr h=8 q=0.750 tau=0.8000 steps=5779 umax=2.000000e-02 umax_meas=1.948789e-02 l2=1.5616e-02 wall_fx=2.834565e-02 body_fx=2.834602e-02 force_err=-1.3209e-05 resets=0 mlups=2.2
+== pois_rr_q0.75_h16: poiseuille --op=rr --n=16 --q=0.75 --tau=0.8
+RESULT case=poiseuille op=rr h=16 q=0.750 tau=0.8000 steps=21779 umax=2.000000e-02 umax_meas=1.986380e-02 l2=4.2227e-03 wall_fx=1.504493e-02 body_fx=1.504500e-02 force_err=-4.4453e-06 resets=0 mlups=3.9
+== pois_rr_q0.75_h32: poiseuille --op=rr --n=32 --q=0.75 --tau=0.8
+RESULT case=poiseuille op=rr h=32 q=0.750 tau=0.8000 steps=84499 umax=2.000000e-02 umax_meas=1.996291e-02 l2=1.1813e-03 wall_fx=7.755218e-03 body_fx=7.755740e-03 force_err=-6.7250e-05 resets=0 mlups=8.6
+== sphere_rr_re20_d8: sphere --op=rr --re=20 --d=8
+RESULT case=sphere path=analytic op=rr smag=0.000 D=8.0 re=20.0 U=0.0500 tau=0.56000 grid=128x64x64 sponge=16 periodic_yz=1 blockage=0.0123 steps=9600 tstar=60.0 cd=2.89951 cd_sd=0.00353 cd_voxel_area=2.80279 proj_area=52.0 resets=0 seconds=104.8 mlups=48.0
+== sphere_rr_re20_d12: sphere --op=rr --re=20 --d=12
+RESULT case=sphere path=analytic op=rr smag=0.000 D=12.0 re=20.0 U=0.0500 tau=0.59000 grid=192x96x96 sponge=24 periodic_yz=1 blockage=0.0123 steps=14400 tstar=60.0 cd=2.82307 cd_sd=0.00289 cd_voxel_area=2.85072 proj_area=112.0 resets=0 seconds=563.3 mlups=45.2
+== sphere_rr_re100_d8: sphere --op=rr --re=100 --d=8
+RESULT case=sphere path=analytic op=rr smag=0.000 D=8.0 re=100.0 U=0.0500 tau=0.51200 grid=128x64x64 sponge=16 periodic_yz=1 blockage=0.0123 steps=9600 tstar=60.0 cd=1.25652 cd_sd=0.00175 cd_voxel_area=1.21460 proj_area=52.0 resets=0 seconds=102.4 mlups=49.2
+== sphere_rr_re100_d12: sphere --op=rr --re=100 --d=12
+RESULT case=sphere path=analytic op=rr smag=0.000 D=12.0 re=100.0 U=0.0500 tau=0.51800 grid=192x96x96 sponge=24 periodic_yz=1 blockage=0.0123 steps=14400 tstar=60.0 cd=1.15846 cd_sd=0.00129 cd_voxel_area=1.16981 proj_area=112.0 resets=0 seconds=562.0 mlups=45.3
+== sphere_rr_re300_d12: sphere --op=rr --re=300 --d=12
+RESULT case=sphere path=analytic op=rr smag=0.000 D=12.0 re=300.0 U=0.0500 tau=0.50600 grid=192x96x96 sponge=24 periodic_yz=1 blockage=0.0123 steps=14400 tstar=60.0 cd=0.72080 cd_sd=0.00102 cd_voxel_area=0.72786 proj_area=112.0 resets=0 seconds=562.6 mlups=45.3
+== sphere_mrtsmag_re300_d12: sphere --op=mrt --smag=0.1 --re=300 --d=12
+RESULT case=sphere path=analytic op=mrt smag=0.100 D=12.0 re=300.0 U=0.0500 tau=0.50600 grid=192x96x96 sponge=24 periodic_yz=1 blockage=0.0123 steps=14400 tstar=60.0 cd=0.74927 cd_sd=0.00094 cd_voxel_area=0.75661 proj_area=112.0 resets=0 seconds=617.2 mlups=41.3
+== sphere_reg_re300_d12: sphere --op=reg --re=300 --d=12
+RESULT case=sphere path=analytic op=reg smag=0.000 D=12.0 re=300.0 U=0.0500 tau=0.50600 grid=192x96x96 sponge=24 periodic_yz=1 blockage=0.0123 steps=14400 tstar=60.0 cd=0.73093 cd_sd=0.00101 cd_voxel_area=0.73810 proj_area=112.0 resets=0 seconds=606.8 mlups=42.0
+== sphere_ent_re300_d12: sphere --op=ent --re=300 --d=12
+RESULT case=sphere path=analytic op=ent smag=0.000 D=12.0 re=300.0 U=0.0500 tau=0.50600 grid=192x96x96 sponge=24 periodic_yz=1 blockage=0.0123 steps=14400 tstar=60.0 cd=0.73155 cd_sd=0.00099 cd_voxel_area=0.73872 proj_area=112.0 resets=0 seconds=596.1 mlups=42.7
+== sphere_rr_re1000_d12: sphere --op=rr --re=1000 --d=12
+RESULT case=sphere path=analytic op=rr smag=0.000 D=12.0 re=1000.0 U=0.0500 tau=0.50180 grid=192x96x96 sponge=24 periodic_yz=1 blockage=0.0123 steps=14400 tstar=60.0 cd=0.53070 cd_sd=0.02211 cd_voxel_area=0.53590 proj_area=112.0 resets=0 seconds=589.1 mlups=43.3
+== sphere_mrtsmag_re1000_d12: sphere --op=mrt --smag=0.1 --re=1000 --d=12
+RESULT case=sphere path=analytic op=mrt smag=0.100 D=12.0 re=1000.0 U=0.0500 tau=0.50180 grid=192x96x96 sponge=24 periodic_yz=1 blockage=0.0123 steps=14400 tstar=60.0 cd=0.57867 cd_sd=0.03980 cd_voxel_area=0.58434 proj_area=112.0 resets=0 seconds=574.0 mlups=44.4
+== sphere_reg_re1000_d12: sphere --op=reg --re=1000 --d=12
+RESULT case=sphere path=analytic op=reg smag=0.000 D=12.0 re=1000.0 U=0.0500 tau=0.50180 grid=192x96x96 sponge=24 periodic_yz=1 blockage=0.0123 steps=14400 tstar=60.0 cd=0.58891 cd_sd=0.03335 cd_voxel_area=0.59468 proj_area=112.0 resets=0 seconds=568.0 mlups=44.9
+== sphere_ent_re1000_d12: sphere --op=ent --re=1000 --d=12
+RESULT case=sphere path=analytic op=ent smag=0.000 D=12.0 re=1000.0 U=0.0500 tau=0.50180 grid=192x96x96 sponge=24 periodic_yz=1 blockage=0.0123 steps=5040 tstar=21.0 cd=0.56977 cd_sd=0.03470 cd_voxel_area=0.57536 proj_area=112.0 resets=8 seconds=194.3 mlups=45.9
+== sphere_rr_re3000_d8: sphere --op=rr --re=3000 --d=8 --steps=6400
+RESULT case=sphere path=analytic op=rr smag=0.000 D=8.0 re=3000.0 U=0.0500 tau=0.50040 grid=128x64x64 sponge=16 periodic_yz=1 blockage=0.0123 steps=6400 tstar=40.0 cd=0.58442 cd_sd=0.00285 cd_voxel_area=0.56493 proj_area=52.0 resets=0 seconds=68.2 mlups=49.2
+== sphere_mrtsmag_re3000_d8: sphere --op=mrt --smag=0.1 --re=3000 --d=8 --steps=6400
+RESULT case=sphere path=analytic op=mrt smag=0.100 D=8.0 re=3000.0 U=0.0500 tau=0.50040 grid=128x64x64 sponge=16 periodic_yz=1 blockage=0.0123 steps=6400 tstar=40.0 cd=0.77943 cd_sd=0.02951 cd_voxel_area=0.75343 proj_area=52.0 resets=0 seconds=67.9 mlups=49.4
+== sphere_rrsmag_re3000_d8: sphere --op=rr --smag=0.1 --re=3000 --d=8 --steps=6400
+RESULT case=sphere path=analytic op=rr smag=0.100 D=8.0 re=3000.0 U=0.0500 tau=0.50040 grid=128x64x64 sponge=16 periodic_yz=1 blockage=0.0123 steps=6400 tstar=40.0 cd=0.64560 cd_sd=0.00376 cd_voxel_area=0.62406 proj_area=52.0 resets=0 seconds=69.5 mlups=48.3
+== sphere_rr_re10000_d8: sphere --op=rr --re=10000 --d=8 --steps=6400
+RESULT case=sphere path=analytic op=rr smag=0.000 D=8.0 re=10000.0 U=0.0500 tau=0.50012 grid=128x64x64 sponge=16 periodic_yz=1 blockage=0.0123 steps=5280 tstar=33.0 cd=0.58031 cd_sd=0.00894 cd_voxel_area=0.56095 proj_area=52.0 resets=8 seconds=57.5 mlups=48.1
+== sphere_mrtsmag_re10000_d8: sphere --op=mrt --smag=0.1 --re=10000 --d=8 --steps=6400
+RESULT case=sphere path=analytic op=mrt smag=0.100 D=8.0 re=10000.0 U=0.0500 tau=0.50012 grid=128x64x64 sponge=16 periodic_yz=1 blockage=0.0123 steps=6400 tstar=40.0 cd=0.73605 cd_sd=0.08426 cd_voxel_area=0.71150 proj_area=52.0 resets=0 seconds=69.1 mlups=48.6
+== sphere_rrsmag_re10000_d8: sphere --op=rr --smag=0.1 --re=10000 --d=8 --steps=6400
+RESULT case=sphere path=analytic op=rr smag=0.100 D=8.0 re=10000.0 U=0.0500 tau=0.50012 grid=128x64x64 sponge=16 periodic_yz=1 blockage=0.0123 steps=6400 tstar=40.0 cd=0.62701 cd_sd=0.00343 cd_voxel_area=0.60609 proj_area=52.0 resets=0 seconds=68.2 mlups=49.2
+== tgv3d_rr_n64_re500000: tgv3d --op=rr --n=64 --re=500000 --steps=2500
+RESULT case=tgv3d op=rr smag=0.000 n=64 re=500000.0 tau=0.500003 U0=0.0500 steps=2500 tstar=12.27 eps_max=1.249117e-02 t_eps_max=8.536 E_10=7.998739e-02 E_end=5.873891e-02 resets=0 seconds=13.4 mlups=49.0
+== tgv3d_mrt_n64_re500000: tgv3d --op=mrt --n=64 --re=500000 --steps=2500
+RESULT case=tgv3d op=mrt smag=0.000 n=64 re=500000.0 tau=0.500003 U0=0.0500 steps=2500 tstar=12.27 eps_max=9.791840e-03 t_eps_max=7.996 E_10=1.103497e-01 E_end=1.875192e-01 resets=0 seconds=13.3 mlups=49.4
+== tgv3d_rr_n128_re1600: tgv3d --op=rr --n=128 --re=1600
+RESULT case=tgv3d op=rr smag=0.000 n=128 re=1600.0 tau=0.501910 U0=0.0500 steps=8149 tstar=19.98 eps_max=1.165030e-02 t_eps_max=8.588 E_10=7.542392e-02 E_end=2.243832e-02 resets=0 seconds=435.5 mlups=39.2
+== tgv3d_mrt_n128_re1600: tgv3d --op=mrt --n=128 --re=1600
+RESULT case=tgv3d op=mrt smag=0.000 n=128 re=1600.0 tau=0.501910 U0=0.0500 steps=8149 tstar=19.98 eps_max=1.228660e-02 t_eps_max=8.981 E_10=7.517952e-02 E_end=2.098261e-02 resets=0 seconds=435.1 mlups=39.3
+DONE

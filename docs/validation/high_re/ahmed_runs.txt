@@ -1,0 +1,11 @@
+== ahmed25_mrt: --model=assets/3d-files/ahmed_25deg_m.obj --grid=128x64x64 --wind=1.0 --duration=20 --reynolds=5000 --tau-floor=0.501 --collision-operator=mrt
+Cleaning up...
+Cleanup complete. Exiting.
+Thanks for Running my project! If you liked it please consider contributing or leaving a star on GitHub!rc=0
+== ahmed25_recursive: --model=assets/3d-files/ahmed_25deg_m.obj --grid=128x64x64 --wind=1.0 --duration=20 --reynolds=5000 --tau-floor=0.501 --collision-operator=recursive
+Cleaning up...
+Cleanup complete. Exiting.
+Thanks for Running my project! If you liked it please consider contributing or leaving a star on GitHub!rc=0
+DONE
+mrt Cd samples: 0.903 0.719 1.304 1.420 0.884 0.583 1.073 1.478 1.080 0.601 0.852 1.375 1.267 0.726 0.686 1.210 1.403 0.905 0.603 1.012 1.407 1.122 0.642 0.810 1.309 1.296 0.799 0.669 1.143 1.394 0.978 0.656 0.948 1.353 1.160 0.695 0.776 1.224 1.286 0.821 0.666 1.068 1.322 0.996 0.644 0.886 1.281 1.159 0.712 0.728 1.151 1.247 0.859 0.643 0.980 1.277 1.019 0.685 0.832 1.214
+recursive Cd samples: 0.808 0.625 1.221 1.371 0.777 0.479 1.006 1.443 1.003 0.501 0.783 1.339 1.224 0.643 0.588 1.158 1.379 0.839 0.507 0.944 1.384 1.062 0.561 0.727 1.273 1.263 0.705 0.577 1.093 1.360 0.904 0.542 0.880 1.334 1.118 0.615 0.690 1.211 1.278 0.769 0.582 1.026 1.335 0.967 0.578 0.826 1.284 1.157 0.670 0.668 1.148 1.280 0.831 0.595 0.964 1.305 1.021 0.618 0.784 1.232
