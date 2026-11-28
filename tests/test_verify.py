@@ -200,6 +200,7 @@ class CannedBackend(study.Backend):
                         "method": "test",
                         "enabled": False,
                         "stationary": True,
+                        "truncation_ok": name != "late",
                         "cd_mean": cd,
                         "cd_sem": ci / 2,
                         "cd_ci95_half_width": ci,
@@ -402,3 +403,9 @@ def test_markdown_lists_differing_baseline_predictions(tmp_path):
     assert f"Baseline on {GRID}: solver 4.0000, predicted 4.1000 by opt, 3.9000 by other." in (
         verify.markdown(result)
     )
+
+
+def test_caveats():
+    info = {"stationary": False, "converged": False, "truncation_ok": False}
+    assert verify._caveats(info) == ["Cd drifting", "not converged", "transient may not be over"]
+    assert verify._caveats({"stationary": True, "converged": None, "truncation_ok": True}) == []

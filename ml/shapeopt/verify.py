@@ -174,6 +174,7 @@ def _case_info(row: dict) -> dict:
         "reynolds": row["reynolds"],
         "stationary": row["cd_stationary"],
         "converged": row["converged"],
+        "truncation_ok": (manifest.get("convergence") or {}).get("truncation_ok"),
     }
 
 
@@ -187,6 +188,8 @@ def _caveats(info: dict) -> list[str]:
         out.append("Cd drifting")
     if info["converged"] is False:
         out.append("not converged")
+    if info.get("truncation_ok") is False:
+        out.append("transient may not be over")
     return out
 
 
