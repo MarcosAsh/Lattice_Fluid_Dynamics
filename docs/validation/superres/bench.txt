@@ -1,0 +1,12 @@
+# GPU timing, Mesa Intel Arc (MTL) iGPU, laptop, wall clock with glFinish
+# sr_bench trilinear2x.comp NX NY NZ REPS [coarse.f32 out.f32], from simulation/
+RESULT coarse=64x32x32 sr_ms=97.1937 trilinear_ms=0.1801 lbm_step_fine_ms=9.2987
+RESULT coarse=32x16x16 sr_ms=11.0559 trilinear_ms=0.0414 lbm_step_fine_ms=0.8511
+RESULT coarse=128x64x64 sr_ms=763.1006 trilinear_ms=1.4469 lbm_step_fine_ms=100.3606
+RESULT coarse=256x128x128 sr_ms=4002.2231 trilinear_ms=13.3052 lbm_step_fine_ms=-1.0000
+
+# end to end, ahmed25 64x32x32 Re 140 --duration=10, 1092 frames
+without --superres: 14.0 s, with: 127.9 s, Drag 3.51567 +/- 0.00907 in both, field_000600.vti byte identical
+
+# GPU SR output vs numpy port (sphere_re20 coarse mean field)
+shader skip: max abs diff 9.1e-07, training skip: 3.5e-02, trilinear shader vs port: 2.0e-07

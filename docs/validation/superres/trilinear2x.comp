@@ -1,0 +1,27 @@
+#version 430 core
+layout(local_size_x = 4, local_size_y = 4, local_size_z = 4) in;
+layout(std430, binding = 4) readonly buffer C { vec4 c[]; };
+layout(std430, binding = 12) writeonly buffer F { vec4 f[]; };
+uniform ivec3 coarseSize;
+uniform ivec3 fineSize;
+vec4 s(ivec3 p) {
+    p = clamp(p, ivec3(0), coarseSize - 1);
+    return c[p.x + p.y * coarseSize.x + p.z * coarseSize.x * coarseSize.y];
+}
+void main() {
+    ivec3 g = ivec3(gl_GlobalInvocationID);
+    if (any(greaterThanEqual(g, fineSize))) return;
+    // cell centred: fine j sits at coarse (j - 0.5) / 2
+    vec3 x = (vec3(g) - 0.5) * 0.5;
+    ivec3 i0 = ivec3(floor(x));
+    vec3 t = x - vec3(i0);
+    vec4 v = vec4(0.0);
+    for (int dz = 0; dz < 2; dz++)
+        for (int dy = 0; dy < 2; dy++)
+            for (int dx = 0; dx < 2; dx++) {
+                float w = (dx == 1 ? t.x : 1.0 - t.x) * (dy == 1 ? t.y : 1.0 - t.y) *
+                          (dz == 1 ? t.z : 1.0 - t.z);
+                v += w * s(i0 + ivec3(dx, dy, dz));
+            }
+    f[g.x + g.y * fineSize.x + g.z * fineSize.x * fineSize.y] = v;
+}
