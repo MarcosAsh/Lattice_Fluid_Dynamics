@@ -237,6 +237,9 @@ def run(
             }
         )
 
+    names = [s["name"] for s in shapes]
+    if len(set(names)) < len(names) or "baseline" in names:
+        raise ValueError(f"shape names must be unique and not baseline: {names}")
     cases = {}
     for grid in settings["grids"]:
         run_keys = protocol.scale_run(settings["run"], grid, settings["run_grid"])
@@ -298,10 +301,8 @@ def run(
                 entry.update(status="ok", **cmp)
                 verdicts.append(cmp["verdict"])
             s["rows"].append(entry)
-        if len(verdicts) == len(grids):
-            s["overall"] = overall(verdicts)
-        else:
-            s["overall"] = s["rows"][0]["status"] if s["rows"] else "not run"
+        failed = [e["status"] for e in s["rows"] if e["status"] != "ok"]
+        s["overall"] = failed[0] if failed else overall(verdicts)
 
     return {
         "settings": {**settings, "reference": ref.to_dict(), "binary": str(binary)},

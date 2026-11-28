@@ -366,3 +366,29 @@ def test_study_file_round_trips(tmp_path):
     data = yaml.safe_load(path.read_text())
     assert data["vary_with_grid"] == ["duration", "max_duration"]
     assert study.load_study(path).cases[0].cmd[-2] == "--x"
+
+
+def test_verify_reports_a_failed_grid(tmp_path):
+    cds = {("base", GRID): (4.0, 0.03, 40.0), ("opt", GRID): (3.8, 0.04, 39.0)}
+
+    class HalfBackend(CannedBackend):
+        def run(self, case):
+            if case.params["grid"] == FINE:
+                return study.Outcome("failed", 3, 0.1, "exit code 3")
+            return super().run(case)
+
+    args = verify.argparse.Namespace(
+        grid=[GRID, FINE],
+        reynolds=None,
+        duration=None,
+        converge=None,
+        max_duration=None,
+        converge_window=None,
+        binary=tmp_path / "solver",
+        workdir=tmp_path,
+        timeout=None,
+        force=False,
+    )
+    result = verify.verify_files([candidate(tmp_path)], args, tmp_path / "out", HalfBackend(cds))
+    assert result["shapes"][0]["overall"] == "baseline failed"
+    assert any("failed" in w for w in result["warnings"])
