@@ -55,6 +55,12 @@ versions. See [docs/validation/REPORT.md](docs/validation/REPORT.md).
   support.
 - Quickstart and maintainer path in `CONTRIBUTING.md`.
 
+### Known issues
+
+- The 2x super-resolution network is display only and is less accurate
+  than trilinear interpolation. See
+  [docs/validation/superres/REPORT.md](docs/validation/superres/REPORT.md).
+
 ### Changed
 
 - Command line parsing is strict. Invalid numbers and unknown options
