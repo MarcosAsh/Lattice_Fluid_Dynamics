@@ -117,8 +117,9 @@ grids can show low-Re trends. They cannot reproduce Cd 0.285 (25 deg) or
   queue removed it in every run made.
 - Pressure and friction split uses the local equilibrium and is approximate.
 - The sphere GCI assumes a sample standard error of sd/sqrt(windows/4).
-- Not run: Strouhal checks, wake and Cp profiles. The sphere at Re 300
-  and 1000 is in Higher Reynolds number below.
+- Not run: Strouhal checks and wake profiles. The sphere at Re 300
+  and 1000 is in Higher Reynolds number below. Surface Cp is in Surface
+  pressure below.
 
 ## Storing f - w (DDF shifting)
 
@@ -388,3 +389,70 @@ run on the laptop, scaled from the D = 12 timings, and was not run.
   failed at Re 10000 on D = 8, and RR has not been compared on the Ahmed
   body beyond one stability run. RR should become the default only if a
   D = 16 sphere and an Ahmed grid study confirm it.
+
+## Checkpoint and restart
+
+`lbm_validate restart` runs a 64x32x32 tunnel with a sphere for 310
+steps, writes a checkpoint, and runs 310 more. A second grid loads the
+checkpoint and runs the same 310 steps, and a third runs all 620 steps
+straight. The checkpoint falls inside a force averaging window, the inlet
+ramps over the first 310 steps and the drag is read every 20 steps. On
+the laptop the final f and every drag readback after the checkpoint are
+bitwise equal to the straight run for BGK, entropic, MRT with
+Smagorinsky 0.1 and inlet turbulence 0.05 on 4 forced slabs, and RR on 4
+forced slabs. `test_lbm` runs the same comparison on a 32x16x16 grid
+split into 2 slabs. Two deliberate faults were caught: not restoring the
+open force window changed the drag readbacks, and not restoring the step
+counter changed f by up to 2e-3 with inlet turbulence on.
+
+The quick suite run before both features and after them gives the same
+value for every number in its 76 checks, 1735 values in all, including
+the Ahmed Cd series.
+
+The integration test runs the wind tunnel binary for 7 s with
+`--checkpoint`, restarts it to 9 s, and runs 9 s straight with an
+interval checkpoint. The two final checkpoints are byte for byte the
+same, and so are the `results`, `convergence` and `run` sections of the
+manifests.
+
+## Surface pressure
+
+`lbm_validate sphere --mesh=1 --surface=PATH` averages the surface
+output from t = 15 D/U to the end of the run, 60 D/U. The reference is a
+steady axisymmetric Navier-Stokes solution computed for this check
+(stream function and vorticity on ln r and theta, Newton solve,
+Richardson extrapolated from 144, 288 and 576 cells over pi, outer
+boundary at 100 and 200 radii). Its Cd is 2.719 at Re 20 and 1.088 at
+Re 100, against 2.715 and 1.087 from Clift, Grace and Weber and 1.0852
+from Fornberg (1988) at Re 100. In the Stokes limit its stagnation
+excess tends to 6/Re. Its front stagnation Cp is 1.4614 at Re 20 and
+1.1041 at Re 100. Fornberg's figure 14, read by eye, gives about 1.08 at
+Re 100.
+
+`cp` is the cell density, nearest the axis for the front value and in
+15 degree bins for the curve. `cp_wall` is the wall pressure from the
+normal force. Max deviation is over the 12 bins against the reference
+averaged over each bin.
+
+| Re | D | Cp front, cp | Cp front, cp_wall | Reference | Max deviation, cp / cp_wall | Minimum, cp | Reference minimum |
+|---|---|---|---|---|---|---|---|
+| 20 | 12 | 1.506 | 1.679 | 1.461 | 0.105 / 0.229 | -0.692 at 112.5 | -0.664 at 105.8 |
+| 100 | 12 | 1.098 | 1.170 | 1.104 | 0.125 / 0.253 | -0.608 at 82.5 | -0.584 at 88.2 |
+| 100 | 16 | 1.066 | 1.147 | 1.104 | 0.071 / 0.201 | -0.600 at 82.5 | -0.584 at 88.2 |
+
+Files are in `surface/`, with the plot in `surface/surface_cp.png` and
+the symmetry plane CSVs. A D = 12 case took 9 minutes and D = 16 took 35.
+
+The sum of the cell forces equals the drag readback over the same steps
+to 5e-8, and the mesh integral of the traction equals the cell sum to
+5e-13. With `--surface` on, Cd and the step count are unchanged (quick
+suite, D = 8).
+
+The cell density Cp follows the reference to within 0.125 in every bin at
+D = 12 and 0.071 at D = 16. The quick suite runs D = 8, where single
+bins of cell density miss the 0.5 bound (0.565) and `cp_wall` stays
+within it (0.409). D = 8 is below the resolution this output needs. `cp_wall` is smoother but overshoots on both sides, by 0.22 at
+the front at Re 20. The excess is larger at Re 20 than at Re 100, which
+fits a viscous normal stress at the first fluid node, but that was not
+checked. The staircase alone gives a link area 13% above the mesh area
+at D = 8 (0.377 against 1/3 at rest), which `cp_wall` divides out.
