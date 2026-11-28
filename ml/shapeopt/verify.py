@@ -328,7 +328,7 @@ def _f(v: float | None, spec: str = ".4f") -> str:
 def _pm(v: float | None, h: float | None, spec: str = ".4f") -> str:
     if v is None:
         return "-"
-    return f"{v:{spec}}" if h is None else f"{v:{spec}} ± {h:{spec}}"
+    return f"{v:{spec}}" if h is None else f"{v:{spec}} ± {h:{spec.lstrip('+')}}"
 
 
 def _signed(v: float | None, h: float | None = None) -> str:

@@ -278,6 +278,7 @@ def test_verify_end_to_end(tmp_path, cd, expected, capsys):
     assert row["delta_ci95"] == pytest.approx(0.05)
     out = capsys.readouterr().out
     assert expected in out
+    assert "± 0.0500" in out
     assert (tmp_path / "out" / "verify.md").read_text().startswith("| shape |")
     # same scale and strict Re for both, duration from the training protocol
     params = [c.params for c in backend.cases]

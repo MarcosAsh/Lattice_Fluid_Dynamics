@@ -164,6 +164,7 @@ def test_summary_with_a_table():
         "delta_ci95": 0.05,
         "delta_pct": -2.5,
         "verdict": "verified",
+        "pred_delta": -0.3,
         "cda_delta": 0.02,
         "cda_delta_ci95": 0.05,
         "cda_verdict": "not distinguishable",
@@ -171,7 +172,9 @@ def test_summary_with_a_table():
     result = {"shapes": [{"rows": [row], "overall": "verified"}]}
     lines = opt.summary(PRED, result, no_verify=False)
     assert lines[0].startswith("surrogate prediction: ")
-    assert "Cd 4.0000 -> 3.9000 (-0.1000 ± 0.0500, -2.50%), verified" in lines[1]
+    assert (
+        "Cd 4.0000 -> 3.9000 (-0.1000 ± 0.0500, -2.50%), verified (predicted -0.3000)" in lines[1]
+    )
     assert lines[-1] == "verdict: verified"
 
 

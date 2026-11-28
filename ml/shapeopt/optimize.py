@@ -292,7 +292,8 @@ def summary(pred: dict, result: dict | None, no_verify: bool) -> list[str]:
         lines.append(
             f"solver on {e['grid']}: Cd {e['cd'] - e['delta']:.4f} -> {e['cd']:.4f} "
             f"({e['delta']:+.4f} ± {e['delta_ci95']:.4f}, {e['delta_pct']:+.2f}%), "
-            f"{e['verdict']}. CdA/A0 {e['cda_delta']:+.4f} ± {e['cda_delta_ci95']:.4f}, "
+            f"{e['verdict']} (predicted {e['pred_delta']:+.4f}). "
+            f"CdA/A0 {e['cda_delta']:+.4f} ± {e['cda_delta_ci95']:.4f}, "
             f"{e['cda_verdict']}"
             if e["delta_ci95"] is not None
             else f"solver on {e['grid']}: no interval on Cd, {e['verdict']}"
