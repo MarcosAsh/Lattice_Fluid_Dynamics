@@ -474,6 +474,9 @@ uv run python ml/cli.py optimize --weights build/shapes/shapeopt_model_best.pt \
 samples. It reports the distance from the result to the nearest training
 sample in the surrogate's normalised inputs, next to the typical spacing
 of the training samples, and warns when free parameters sit on a bound.
+It also prints the surrogate's Cd against the solver's at that sample
+and at the baseline sample, and warns when the gap is more than twice
+the held-out error.
 Several checkpoints trained with different `--seed` and `--out` form an
 ensemble (`--weights a.pt b.pt ...`). The optimiser then lowers the mean
 plus `--kappa` standard deviations (default 1), and prints how often two
