@@ -15,8 +15,13 @@ versions. See [docs/validation/REPORT.md](docs/validation/REPORT.md).
 - Validation suite: `simulation/validation/lbm_validate`,
   `run_validation.py`, `ctest -L validation`, and the report in
   `docs/validation/`.
-- `--collision-operator=bgk|regularized|mrt|entropic`. `--mrt` and
-  `--entropic` remain as aliases.
+- `--collision-operator=bgk|regularized|mrt|entropic|recursive`. `--mrt`
+  and `--entropic` remain as aliases. `recursive` is recursive
+  regularized on D3Q19.
+- `--tau-floor=TAU`, a developer flag to run below the default floor of
+  0.52.
+- Distributions are stored as f - w, which removes most float32
+  round-off in mass and restores second-order Poiseuille convergence.
 - `--strict-reynolds` fails when the grid cannot reach `--reynolds`.
 - Run manifest JSON with the git commit, parameters, lattice setup, GPU
   and drag results. Written with `--output` or `--manifest=PATH`.

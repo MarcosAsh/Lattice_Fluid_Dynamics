@@ -121,7 +121,7 @@ The solver is checked against cases with known answers. Full method, numbers and
 | Sphere drag, Re 20 | 2.715 (Clift, Grace and Weber) | 2.810 at 16 cells per diameter (+3.5%), 2.793 extrapolated |
 | Sphere drag, Re 100 | 1.087 | 1.131 at 16 cells per diameter (+4.0%), 1.116 extrapolated |
 
-What it cannot do yet: the highest Reynolds number a grid supports is about 2.25 times its length in cells, so about 290 on the default 128-cell grid and 1150 on 512. The Ahmed body experiments are at 4.3 million. Drag for car-like bodies from this solver is a low Reynolds number result and is not comparable to wind tunnel data.
+What it cannot do yet: by default the highest Reynolds number a grid supports is about 2.25 times its length in cells, so about 290 on the default 128-cell grid and 1150 on 512. Runs stay stable far beyond that with `--tau-floor` and Smagorinsky, but accuracy there is set by resolution: a sphere 12 cells across reads 10 to 25% high at Re 300 to 1000. The Ahmed body experiments are at 4.3 million. Drag for car-like bodies from this solver is a low Reynolds number result and is not comparable to wind tunnel data.
 
 ## Running the website
 
