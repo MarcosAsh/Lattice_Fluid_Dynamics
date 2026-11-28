@@ -117,6 +117,16 @@ def test_distance_report_by_hand():
     assert r["median_train_nn"] == pytest.approx(np.hypot(3, 2))
 
 
+def test_fit_report_checks_the_baseline_sample():
+    sur = opt.Surrogate([member(np.array([1.0, 1.0, 0.0, 0.0]))])
+    x = np.array([[0.0, 0.0], [1.0, 2.0]])
+    y = np.array([[4.0, 0.0], [3.5, 0.0]])
+    dist = opt.distance_report(np.array([0.9, 2.0]), x, np.ones(2))
+    near, base = opt.fit_report(sur, np.zeros(2), x, y, dist)
+    assert (near["index"], near["pred"], near["cd"]) == (1, pytest.approx(3.0), 3.5)
+    assert (base["what"], base["pred"], base["cd"]) == ("baseline sample", 0.0, 4.0)
+
+
 def test_calibration_counts_coverage():
     sur = opt.Surrogate([member(np.array([1.0, 0, 0, 0, 0])), member(np.array([3.0, 0, 0, 0, 0]))])
     x = np.array([[1.0, 0, 0], [2.0, 0, 0]])

@@ -191,6 +191,23 @@ def bound_report(
     return {"free": int(live.sum()), "at_bound": int(at.sum()), "indices": np.flatnonzero(at)}
 
 
+def fit_report(
+    surrogate: Surrogate, extra: np.ndarray, train_x: np.ndarray, train_y: np.ndarray, dist: dict
+) -> list[dict]:
+    """Surrogate against the solver at the nearest training sample and the baseline sample"""
+    picks = [("nearest training sample", dist["nearest_index"])]
+    picks += [("baseline sample", int(i)) for i in np.flatnonzero(~train_x.any(axis=1))[:1]]
+    return [
+        {
+            "what": what,
+            "index": i,
+            "pred": predict_one(surrogate, train_x[i], extra)["cd"],
+            "cd": float(train_y[i, 0]),
+        }
+        for what, i in picks
+    ]
+
+
 def calibration(surrogate: Surrogate, extra: np.ndarray, x: np.ndarray, y: np.ndarray) -> dict:
     """Held-out error of the ensemble mean and how often 2 std cover it"""
     inp = torch.from_numpy(np.hstack([x, np.tile(extra, (len(x), 1))])).float()
@@ -325,9 +342,9 @@ def run(args: argparse.Namespace) -> int:
         warn(f"surrogate was trained on {proto.get('base_model')}, not {args.base_model}")
     symmetric = (proto or {}).get("enforce_symmetry", True)
 
-    train_x = ck.get("train_x")
+    train_x, train_y = ck.get("train_x"), ck.get("train_y")
     if train_x is None and args.data:
-        train_x, _ = load_sobin(args.data)
+        train_x, train_y = load_sobin(args.data)
     if train_x is None:
         warn("no training samples in the checkpoint or --data, bounds are +/- --max-displacement")
     lo, hi = parameter_bounds(lattice, train_x, args.max_displacement)
@@ -374,6 +391,15 @@ def run(args: argparse.Namespace) -> int:
         )
         if dist["ratio"] > 1.5:
             warn("the optimum is far from the training samples, expect a large surrogate error")
+        if train_y is not None:
+            guard["fit"] = fit_report(
+                surrogate, extra, np.asarray(train_x), np.asarray(train_y), dist
+            )
+            limit = 2 * float(ck.get("best_val_cd_mae") or np.inf)
+            for f in guard["fit"]:
+                print(f"  {f['what']}: surrogate {f['pred']:.4f}, solver {f['cd']:.4f}")
+                if abs(f["pred"] - f["cd"]) > limit:
+                    warn(f"surrogate misses the {f['what']} by more than twice its val MAE")
     guard["bounds"]["indices"] = guard["bounds"]["indices"].tolist()
 
     output = Path(args.output)
