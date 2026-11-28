@@ -405,6 +405,14 @@ def markdown(result: dict) -> str:
         "Intervals are 95% and cover sampling noise only. The surrogate error is shown on "
         "the training grid only.",
     ]
+    preds = result["baseline_pred"]
+    b = result["baseline"].get(result["training_grid"])
+    if len(set(preds.values())) > 1 and b is not None:
+        out.append(
+            f"Baseline on {result['training_grid']}: solver {b['cd']:.4f}, predicted "
+            + ", ".join(f"{p:.4f} by {name}" for name, p in preds.items())
+            + "."
+        )
     for s in result["shapes"]:
         g = s["geometry"]
         out.append(

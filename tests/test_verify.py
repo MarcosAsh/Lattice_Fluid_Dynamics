@@ -393,3 +393,12 @@ def test_verify_reports_a_failed_grid(tmp_path):
     result = verify.verify_files([candidate(tmp_path)], args, tmp_path / "out", HalfBackend(cds))
     assert result["shapes"][0]["overall"] == "baseline failed"
     assert any("failed" in w for w in result["warnings"])
+
+
+def test_markdown_lists_differing_baseline_predictions(tmp_path):
+    cds = {("base", GRID): (4.0, 0.03, 40.0), ("opt", GRID): (3.8, 0.04, 39.0)}
+    result, _ = run_verify(tmp_path, cds)
+    result["baseline_pred"] = {"opt": 4.1, "other": 3.9}
+    assert f"Baseline on {GRID}: solver 4.0000, predicted 4.1000 by opt, 3.9000 by other." in (
+        verify.markdown(result)
+    )
