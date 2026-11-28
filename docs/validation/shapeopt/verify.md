@@ -1,0 +1,14 @@
+| shape | grid | pred Cd | solver Cd (95%) | surrogate error | pred ΔCd | solver ΔCd (95%) | ΔCd % | verdict | A/A0 | pred ΔCdA/A0 | solver ΔCdA/A0 (95%) | CdA verdict |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| baseline | 128x64x64 | - | 4.1254 ± 0.0189 | - | - | - | - | - | 1.0000 | - | - | - |
+| baseline | 64x32x32 | - | 4.2906 ± 0.0034 | - | - | - | - | - | 1.0000 | - | - | - |
+| ensemble | 128x64x64 | 3.5260 | 3.2121 ± 0.0149 | - | +0.5709 | -0.9133 ± 0.0241 | -22.14 ± 0.58 | wrong direction (baseline transient may not be over) | 1.2251 | +1.3673 | -0.1903 ± 0.0263 | wrong direction |
+| ensemble | 64x32x32 | 3.5260 | 3.3819 ± 0.0025 | +0.1441 | +0.5709 | -0.9086 ± 0.0042 | -21.18 ± 0.10 | wrong direction | 1.1929 | +1.3673 | -0.2561 ± 0.0045 | wrong direction |
+| single | 128x64x64 | 0.1010 | 4.0730 ± 0.0186 | - | -0.0279 | -0.0525 ± 0.0265 | -1.27 ± 0.64 | verified (baseline transient may not be over) | 1.0062 | -0.0276 | -0.0271 ± 0.0266 | verified |
+| single | 64x32x32 | 0.1010 | 4.2659 ± 0.0034 | -4.1649 | -0.0279 | -0.0247 ± 0.0048 | -0.57 ± 0.11 | verified | 1.0000 | -0.0276 | -0.0247 ± 0.0048 | verified |
+
+Re 100 on the baseline length, scale 2.29885, run {'duration': 30} on 64x32x32, durations scaled with Nx on other grids.
+Intervals are 95% and cover sampling noise only. The surrogate error is shown on the training grid only.
+Baseline on 64x32x32: solver 4.2906, predicted 2.9551 by ensemble, 0.1289 by single.
+ensemble: overall wrong direction, frontal area x1.2259, volume x0.9089, length x0.8626, objective mean + 1 std over 5 members
+single: overall verified, frontal area x1.0026, volume x0.9898, length x0.9944, objective mean

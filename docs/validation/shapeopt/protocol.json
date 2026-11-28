@@ -1,0 +1,25 @@
+{
+  "base_model": "ahmed25",
+  "base_obj": "simulation/assets/3d-files/ahmed_25deg_m.obj",
+  "grid": "64x32x32",
+  "run": {
+    "duration": 30
+  },
+  "reference": {
+    "scale": 2.2988505747126435,
+    "length": 1.044,
+    "reynolds": 100.0
+  },
+  "ffd_grid": [
+    3,
+    2,
+    2
+  ],
+  "displacement_range": 0.15,
+  "enforce_symmetry": true,
+  "seed": 0,
+  "wind_speed": 1.0,
+  "args": [
+    "--strict-reynolds"
+  ]
+}

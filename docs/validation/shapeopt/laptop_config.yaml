@@ -1,0 +1,13 @@
+# Laptop run behind docs/validation/shapeopt, a toy dataset
+# Fixed before any run: 64x32x32 is the largest grid that gives about
+# 80 samples in under an hour on the Arc iGPU
+base_models: [ahmed25]
+ffd_grid: [3, 2, 2]  # 18 free parameters with symmetry
+num_samples: 80
+displacement_range: 0.15
+enforce_symmetry: true
+wind_speed: 1.0
+reynolds: 100  # on the baseline length, tau 0.529 at 64x32x32
+duration: 30
+grid: 64x32x32
+seed: 0
