@@ -467,8 +467,10 @@ int cli_parse(int argc, char *argv[], CliOptions *opts) {
                    "(default: 100)\n");
             printf("  --vtk-stats           Add time-averaged velocity, "
                    "RMS and TKE to VTK output\n");
-            printf("  --superres            Enable 2x super-resolution "
-                   "upscaling\n");
+            printf("  --superres            Upscale the velocity field the "
+                   "particles see 2x\n"
+                   "                        (display only, not drag or "
+                   "VTK)\n");
             printf("  --sr-weights=PATH     Super-resolution weights "
                    "(default: assets/sr_model.bin)\n");
             printf("  --manifest=PATH       Run manifest JSON (default: "
