@@ -1,7 +1,7 @@
 """
 Generate paired coarse/fine velocity field data for super-resolution training.
 
-Runs LBM simulations at two resolutions, parses VTK .vti output, extracts
+Runs the fine grid, block-averages it 2x for the coarse input, extracts
 overlapping patch pairs, and writes them to a compact binary format (.srbin).
 
 Usage:
